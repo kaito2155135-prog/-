@@ -2,25 +2,23 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import os
 
 st.set_page_config(page_title="JRA-VAN リアルレース展開シミュレーター", layout="wide")
 
 st.title("🐎 JRA-VAN 実データ連動 展開シミュレーション")
-st.write("JRA-VANから出力したマスターデータCSVを読み込んで、実際のレースの通過順位や展開をアニメーションで再現します！")
+st.write("GitHub内のマスターデータを自動読み込みして、実際のレースの通過順位や展開をアニメーションで再現します！")
 
-# サイドバー：CSVファイルアップロード
-st.sidebar.header("📂 データ読み込み")
-uploaded_file = st.sidebar.file_uploader("keiba_master_data.csv をアップロード", type=['csv'])
+# CSVファイルの自動読み込み処理
+csv_filename = "keiba_master_data.csv"
 
-if uploaded_file is not None:
-    # CSVの読み込み（文字コードの自動判定またはutf-8/cp932）
+if os.path.exists(csv_filename):
     try:
-        df = pd.read_csv(uploaded_file, encoding='utf-8')
+        df = pd.read_csv(csv_filename, encoding='utf-8')
     except:
-        uploaded_file.seek(0)
-        df = pd.read_csv(uploaded_file, encoding='cp932')
+        df = pd.read_csv(csv_filename, encoding='cp932')
        
-    st.sidebar.success("✅ データの読み込みに成功しました！")
+    st.sidebar.success("✅ マスターデータの自動読み込みに成功しました！")
    
     # レース選択の準備（年月日 + 場所 + レース番号 + 略レース名 で一意に特定）
     df['レースID'] = df['年'].astype(str) + "年" + df['月'].astype(str) + "月" + df['日'].astype(str) + " " + df['場所'] + " " + df['レース番号'].astype(str) + "R " + df['略レース名'].astype(str)
@@ -50,51 +48,22 @@ if uploaded_file is not None:
             h_name = str(row['馬名'])
             h_num = int(row['馬番'])
            
-            # 各コーナーの通過順位を取得（0の場合は推定、またはスタート位置・ゴール位置として処理）
+            # 各コーナーの通過順位を取得
             p1 = float(row['通過順1角']) if row['通過順1角'] > 0 else float(row['頭数']) / 2
             p2 = float(row['通過順2角']) if row['通過順2角'] > 0 else p1
             p3 = float(row['通過順3角']) if row['通過順3角'] > 0 else p2
             p4 = float(row['通過順4角']) if row['通過順4角'] > 0 else p3
             finish = float(row['着順']) if row['着順'] > 0 else h_num
            
-            # 順位（1〜頭数）をコース上の距離（0m 〜 total_distance）にざっくり変換
-            # スタート(0m) -> 1角(距離の25%) -> 2角(50%) -> 3角(75%) -> 4角/直線(90%) -> ゴール(100%)
-            dist_checkpoints = [
-                0,
-                total_distance * 0.25,
-                total_distance * 0.50,
-                total_distance * 0.75,
-                total_distance * 0.90,
-                total_distance
-            ]
+            dist_checkpoints = [0, total_distance * 0.25, total_distance * 0.50, total_distance * 0.75, total_distance * 0.90, total_distance]
+            rank_checkpoints = [h_num, p1, p2, p3, p4, finish]
            
-            # 各チェックポイントでの「順位（何番手か）」
-            # 順位を位置座標（馬番によるY軸や、先頭からの差）に落とし込む
-            # ここでは簡易的に、通過順位を元にしたポジションの推移を作る
-            rank_checkpoints = [
-                h_num, # スタート直後は馬番順などのイーブン
-                p1,
-                p2,
-                p3,
-                p4,
-                finish
-            ]
-           
-            # 補間して滑らかな動き（フレームごと）を作る
             step_distances = np.linspace(0, total_distance, frames)
-            step_ranks = np.interp(
-                np.linspace(0, 5, frames),
-                range(6),
-                rank_checkpoints
-            )
+            step_ranks = np.interp(np.linspace(0, 5, frames), range(6), rank_checkpoints)
            
             for t in range(frames):
-                # 順位が小さいほどゴール（total_distance）に近い、あるいは前方にいる表現にする
-                # ここではシンプルに距離を進行させつつ、順位に応じて前後に揺らす
                 progress_dist = (step_distances[t] / total_distance) * total_distance
-                # 順位による前後の位置調整（1着に近いほど前にいる）
                 position_offset = (row['頭数'] - step_ranks[t]) * 2.0
-               
                 current_pos = min(total_distance, max(0, progress_dist + position_offset))
                
                 sim_data.append({
@@ -129,4 +98,4 @@ if uploaded_file is not None:
         st.success("✨ 実際の通過順データに基づくアニメーション再生が完了しました！")
 
 else:
-    st.warning("⚠️ まずはサイドバーから `keiba_master_data.csv` をアップロードしてください。")
+    st.error(f"⚠️ リポジトリ内に `{csv_filename}` が見つかりません。ファイル名を確認してください。")
