@@ -1,15 +1,14 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
+import plotly.graph_objects as go
 import os
 
-st.set_page_config(page_title="JRA-VAN リアルレース展開シミュレーター", layout="wide")
+st.set_page_config(page_title="JRA-VAN リアル周回コース展開シミュレーター", layout="wide")
 
-st.title("🐎 JRA-VAN 実データ連動 展開シミュレーション")
-st.write("GitHub内のマスターデータを自動読み込みして、実際のレースの通過順位や展開をアニメーションで再現します！")
+st.title("🐎 JRA-VAN 周回コース連動 展開シミュレーション")
+st.write("実際のコーナー通過順（1角〜4角）と着順を反映した、周回コースアニメーションです！")
 
-# CSVファイルの自動読み込み処理
 csv_filename = "keiba_master_data.csv"
 
 if os.path.exists(csv_filename):
@@ -18,84 +17,137 @@ if os.path.exists(csv_filename):
     except:
         df = pd.read_csv(csv_filename, encoding='cp932')
        
-    st.sidebar.success("✅ マスターデータの自動読み込みに成功しました！")
-   
-    # レース選択の準備（年月日 + 場所 + レース番号 + 略レース名 で一意に特定）
     df['レースID'] = df['年'].astype(str) + "年" + df['月'].astype(str) + "月" + df['日'].astype(str) + " " + df['場所'] + " " + df['レース番号'].astype(str) + "R " + df['略レース名'].astype(str)
    
     race_list = df['レースID'].unique()
     selected_race = st.sidebar.selectbox("🎯 再現するレースを選択", race_list)
    
-    # 選択されたレースのデータを抽出
     df_race = df[df['レースID'] == selected_race].copy()
-   
-    # レース基本情報の表示
     row_info = df_race.iloc[0]
+   
     st.markdown(f"### 🏟️ {selected_race}")
     st.info(f"**条件:** {row_info['芝・ダ']} {row_info['距離']}m | **馬場:** {row_info['馬場状態']} | **頭数:** {row_info['頭数']}頭")
    
-    # 出走馬一覧の表示
-    with st.expander("📋 このレースの出走馬・通過順データを確認する"):
-        st.dataframe(df_race[['馬番', '馬名', '脚質', '通過順1角', '通過順2角', '通過順3角', '通過順4角', '上がり3Fタイム', '着順']])
+    with st.expander("📋 このレースの出走馬データ"):
+        st.dataframe(df_race[['馬番', '馬名', '脚質', '通過順1角', '通过順2角', '通過順3角', '通過順4角', '上がり3Fタイム', '着順']])
        
-    if st.button("🚀 このレースの展開シミュレーションを開始！", type="primary"):
-        total_distance = int(row_info['距離'])
-        frames = 40  # アニメーションのコマ数
+    if st.button("🚀 周回コースシミュレーションを開始！", type="primary"):
+        frames = 50  # アニメーションのコマ数
        
+        # 楕円形の周回コースの座標を生成する関数 (t: 0.0〜1.0)
+        def get_track_coords(progress):
+            # 2Dのトラック（楕円：直線の長さとカーブの半径）
+            # 0.0〜0.25: 第3〜4コーナー/直線, 0.25〜0.5: 4角〜ゴール, etc.
+            # 簡易的に、角度(angle)を 0 から 2*pi まで進める
+            angle = progress * 2 * np.pi
+            # 楕円のパラメータ
+            rx = 40.0 # 横幅
+            ry = 20.0 # 縦幅
+            x = rx * np.cos(angle - np.pi/2)
+            y = ry * np.sin(angle - np.pi/2)
+            return x, y
+
         sim_data = []
        
         for idx, row in df_race.iterrows():
             h_name = str(row['馬名'])
             h_num = int(row['馬番'])
+            finish_rank = int(row['着順']) if row['着順'] > 0 else h_num
            
-            # 各コーナーの通過順位を取得
-            p1 = float(row['通過順1角']) if row['通過順1角'] > 0 else float(row['頭数']) / 2
+            # 各通過順を0〜1の周回進捗にマッピング
+            # スタート(0.0) -> 1角(0.2) -> 2角(0.4) -> 3角(0.6) -> 4角(0.8) -> ゴール(1.0)
+            p1 = float(row['通過順1角']) if row['通過順1角'] > 0 else float(row['頭数'])/2
             p2 = float(row['通過順2角']) if row['通過順2角'] > 0 else p1
             p3 = float(row['通過順3角']) if row['通過順3角'] > 0 else p2
             p4 = float(row['通過順4角']) if row['通過順4角'] > 0 else p3
-            finish = float(row['着順']) if row['着順'] > 0 else h_num
            
-            dist_checkpoints = [0, total_distance * 0.25, total_distance * 0.50, total_distance * 0.75, total_distance * 0.90, total_distance]
-            rank_checkpoints = [h_num, p1, p2, p3, p4, finish]
+            # 順位の推移ポイント
+            progress_checkpoints = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+            rank_checkpoints = [h_num, p1, p2, p3, p4, finish_rank]
            
-            step_distances = np.linspace(0, total_distance, frames)
-            step_ranks = np.interp(np.linspace(0, 5, frames), range(6), rank_checkpoints)
+            # フレームごとの進捗と順位を補間
+            step_progresses = np.linspace(0.0, 1.0, frames)
+            step_ranks = np.interp(step_progresses, progress_checkpoints, rank_checkpoints)
            
             for t in range(frames):
-                progress_dist = (step_distances[t] / total_distance) * total_distance
-                position_offset = (row['頭数'] - step_ranks[t]) * 2.0
-                current_pos = min(total_distance, max(0, progress_dist + position_offset))
+                prog = step_progresses[t]
+                base_x, base_y = get_track_coords(prog)
+               
+                # 順位に応じて内ラチ沿い(外側/内側)にオフセットを付ける
+                # 1着（上位）ほど内側、下位ほど外側、あるいは馬番ごとのバラツキ
+                rank_offset = (step_ranks[t] - 1) * 0.8
+               
+                # 簡易的な位置調整
+                x_pos = base_x + (rank_offset * 0.5)
+                y_pos = base_y + (rank_offset * 0.5)
+               
+                # ゴール時点（最後のフレーム周辺）での着順ラベル作成
+                if t == frames - 1:
+                    label_text = f"<b>{h_num}</b><br>({finish_rank}着: {h_name})"
+                else:
+                    label_text = f"<b>{h_num}</b>"
                
                 sim_data.append({
                     'Step': t,
-                    '馬名': f"{h_num}. {h_name} ({row['脚質']})",
-                    '距離地点(m)': current_pos,
-                    '仮想Y軸': h_num * 10
+                    '馬名': h_name,
+                    '馬番': h_num,
+                    'X': x_pos,
+                    'Y': y_pos,
+                    'テキスト': label_text,
+                    '脚質': row['脚質']
                 })
                
         df_sim = pd.DataFrame(sim_data)
        
-        # Plotlyアニメーション描画
-        fig = px.scatter(
-            df_sim,
-            x='距離地点(m)',
-            y='仮想Y軸',
-            animation_frame='Step',
-            color='馬名',
-            range_x=[-50, total_distance + 100],
-            range_y=[0, (int(row_info['頭数']) + 1) * 10],
-            title=f"【{selected_race}】 実データ再現アニメーション"
-        )
-       
-        fig.update_traces(marker=dict(size=18))
-        fig.update_layout(
-            xaxis_title="コース進行度 (スタート 0m → ゴール)",
-            yaxis_showticklabels=False,
-            height=450
+        # Plotlyでアニメーション付きの散布図を作成（丸の中に数字を表示）
+        fig = go.Figure(
+            data=[
+                go.Scatter(
+                    x=df_sim[df_sim['Step'] == 0]['X'],
+                    y=df_sim[df_sim['Step'] == 0]['Y'],
+                    mode='text+markers',
+                    marker=dict(size=28, color='lightblue', line=dict(color='darkblue', width=2)),
+                    text=df_sim[df_sim['Step'] == 0]['テキスト'],
+                    textfont=dict(color='black', size=11, family='Arial Black')
+                )
+            ],
+            layout=go.Layout(
+                title=f"【{selected_race}】 周回コース展開アニメーション",
+                xaxis=dict(range=[-60, 60], autorange=False, showgrid=False, zeroline=False, showticklabels=False),
+                yaxis=dict(range=[-40, 40], autorange=False, showgrid=False, zeroline=False, showticklabels=False),
+                height=600,
+                updatemenus=[dict(
+                    type="buttons",
+                    buttons=[
+                        dict(label="▶ 再生",
+                             method="animate",
+                             args=[None, {"frame": {"duration": 150, "redraw": True}, "fromcurrent": True}]),
+                        dict(label="⏸ 停止",
+                             method="animate",
+                             args=[[None], {"frame": {"duration": 0, "redraw": False}, "mode": "immediate", "transition": {"duration": 0}}])
+                    ]
+                )]
+            ),
+            frames=[
+                go.Frame(
+                    data=[
+                        go.Scatter(
+                            x=df_sim[df_sim['Step'] == step]['X'],
+                            y=df_sim[df_sim['Step'] == step]['Y'],
+                            mode='text+markers',
+                            marker=dict(size=28, color='lightblue', line=dict(color='darkblue', width=2)),
+                            text=df_sim[df_sim['Step'] == step]['テキスト'],
+                            textfont=dict(color='black', size=11, family='Arial Black')
+                        )
+                    ],
+                    name=str(step)
+                )
+                for step in range(frames)
+            ]
         )
        
         st.plotly_chart(fig, use_container_width=True)
-        st.success("✨ 実際の通過順データに基づくアニメーション再生が完了しました！")
+        st.success("✨ 周回コースでの展開再現＆ゴール時の着順表示が完了しました！")
 
 else:
-    st.error(f"⚠️ リポジトリ内に `{csv_filename}` が見つかりません。ファイル名を確認してください。")
+    st.error(f"⚠️ リポジトリ内に `{csv_filename}` が見つかりません。")
