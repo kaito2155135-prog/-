@@ -50,6 +50,29 @@ if os.path.exists(csv_filename):
     st.sidebar.markdown("---")
     st.sidebar.info(f"**{selected_race}**\n\n{row_info['芝・ダ']} {row_info['距離']}m ({row_info['馬場状態']}) / {row_info['頭数']}頭")
    
+    # --- 【重要】未来予測用の設定コントロール（サイドバーまたはメイン上部に配置して連動） ---
+    st.markdown("### ⚙️ 展開・馬場コンディション設定（予想シミュレート）")
+   
+    col_p1, col_p2 = st.columns(2)
+    with col_p1:
+        selected_pace = st.radio(
+            "ペース想定",
+            ["S（スロー）", "M（ミドル）", "H（ハイ）"],
+            index=1,
+            horizontal=True,
+            help="ペースを変更すると、先行馬や差し馬の有利不利が変わり着順や走破タイムが変動します。"
+        )
+    with col_p2:
+        selected_bias = st.radio(
+            "トラックバイアス（馬場・傾向）",
+            ["フラット", "内有利", "外有利"],
+            index=0,
+            horizontal=True,
+            help="馬場傾向を選択することで、バイアスに応じた補正が着順予測に反映されます。"
+        )
+   
+    st.markdown("---")
+
     def get_waku_color(wakuban):
         waku_colors = {
             1: "#ffffff",  # 白
@@ -63,21 +86,64 @@ if os.path.exists(csv_filename):
         }
         return waku_colors.get(int(wakuban) if pd.notnull(wakuban) else 1, "#1f77b4")
 
-    # コースボードのHTML生成関数
-    def render_course_board(df_r):
+    # --- 設定値に応じたシミュレーション・位置計算ロジック ---
+    def simulate_race_results(df_r, pace, bias):
+        res_df = df_r.copy()
+        # 脚質ごとの補正値計算
+        np.random.seed(len(res_df) + hash(pace) + hash(bias) % 100)
+       
+        sim_scores = []
+        for idx, r in res_df.iterrows():
+            kyakushitsu = str(r.get('脚質', '差し'))
+            wakuban = int(r['枠番']) if '枠番' in r and pd.notnull(r['枠番']) else 1
+           
+            # ペースによる補正
+            base_score = np.random.uniform(70, 95)
+            if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
+                base_score += 8.0
+            elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
+                base_score += 8.0
+               
+            # トラックバイアスによる補正
+            if bias == "内有利" and wakuban <= 3:
+                base_score += 5.0
+            elif bias == "外有利" and wakuban >= 6:
+                base_score += 5.0
+               
+            sim_scores.append(base_score)
+           
+        res_df['sim_score'] = sim_scores
+        res_df = res_df.sort_values(by='sim_score', ascending=False).reset_index(drop=True)
+        res_df['着順予測'] = range(1, len(res_df) + 1)
+       
+        # タイムの微調整
+        base_time = 68.0 + (len(res_df) * 0.2)
+        res_df['予測走破タイム'] = [round(base_time + (i * 0.25) + np.random.uniform(-0.1, 0.1), 1) for i in range(len(res_df))]
+       
+        return res_df
+
+    df_simulated = simulate_race_results(df_race, selected_pace, selected_bias)
+
+    # コースボードのHTML生成関数（シミュレーション結果の位置取りを反映）
+    def render_course_board(df_s):
         horses_html = ""
-        for idx, r in df_r.iterrows():
+        total_horses = len(df_s)
+        for idx, r in df_s.iterrows():
             hn = int(r['馬番'])
             wk = int(r['枠番']) if '枠番' in r and pd.notnull(r['枠番']) else ((hn - 1)//2)+1
             bg_c = get_waku_color(wk)
             txt_c = "#000000" if wk == 1 else "#ffffff"
            
-            np.random.seed(hn * 31)
-            left_pos = 15 + (hn * 4.5) % 70
-            top_pos = 35 + (hn * 3) % 40
+            # 順位（着順予測）に応じてコース上の位置（コーナーや直線）を前後に配置
+            rank = idx + 1
+            progress = (total_horses - rank + 1) / total_horses  # 上位ほど前へ
+           
+            # 簡易コース座標上のカーブに沿った配置計算
+            left_pos = 15 + (progress * 60) + (hn % 5)
+            top_pos = 35 + ((rank * 4) % 35)
            
             horses_html += f"""
-            <div title="{r['馬名']} (馬番:{hn})" style="
+            <div title="{r['馬名']} (馬番:{hn} / 予測{rank}着)" style="
                 position: absolute;
                 left: {left_pos}%;
                 top: {top_pos}%;
@@ -129,12 +195,12 @@ if os.path.exists(csv_filename):
         """
         return board_html
 
-    # 1. コースビジュアル（components.htmlで確実に描画）
-    components.html(render_course_board(df_race), height=440)
+    # 1. コースビジュアル
+    components.html(render_course_board(df_simulated), height=440)
    
     # 2. 馬番ごとの丸アイコンバー
     waku_bar_html = "<div style='display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; background-color: #161616; padding: 10px; border-radius: 8px; border: 1px solid #333;'>"
-    for _, r in df_race.sort_values('馬番').iterrows():
+    for _, r in df_simulated.sort_values('馬番').iterrows():
         hn = int(r['馬番'])
         wk = int(r['枠番']) if '枠番' in r and pd.notnull(r['枠番']) else ((hn - 1)//2)+1
         bg_c = get_waku_color(wk)
@@ -147,36 +213,14 @@ if os.path.exists(csv_filename):
     if st.button("▶ 別の展開で再シミュレート"):
         st.toast("新しい展開パターンでシミュレーションを実行しました！", icon="🐎")
 
-    # 4. ペース設定やバイアスの切り替えボタンUI
-    pace_bias_html = """
-        <div style="margin-top: 10px; background-color: #181818; padding: 15px; border-radius: 8px; border: 1px solid #333; font-family: sans-serif; color: white;">
-            <div style="font-size: 12px; color: #aaa; margin-bottom: 5px;">ペース想定（手動変更・実際はM-0.6）</div>
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                <div style="flex: 1; text-align: center; padding: 6px; background: #262626; border-radius: 4px; color: #888; font-size: 13px;">S（スロー）</div>
-                <div style="flex: 1; text-align: center; padding: 6px; background: #3a3210; border: 1px solid #f1c40f; border-radius: 4px; color: #f1c40f; font-weight: bold; font-size: 13px;">M（ミドル）</div>
-                <div style="flex: 1; text-align: center; padding: 6px; background: #262626; border-radius: 4px; color: #888; font-size: 13px;">H（ハイ）</div>
-            </div>
-           
-            <div style="font-size: 12px; color: #aaa; margin-bottom: 5px;">トラックバイアス（馬場・傾向）</div>
-            <div style="display: flex; gap: 10px;">
-                <div style="flex: 1; text-align: center; padding: 6px; background: #3a3210; border: 1px solid #f1c40f; border-radius: 4px; color: #f1c40f; font-weight: bold; font-size: 13px;">フラット</div>
-                <div style="flex: 1; text-align: center; padding: 6px; background: #262626; border-radius: 4px; color: #888; font-size: 13px;">内有利</div>
-                <div style="flex: 1; text-align: center; padding: 6px; background: #262626; border-radius: 4px; color: #888; font-size: 13px;">外有利</div>
-            </div>
-        </div>
-    """
-    components.html(pace_bias_html, height=140)
+    # 4. 結果一覧リスト（シミュレーション結果を反映）
+    st.markdown("<br><h3>🏆 設定反映後の着順予測・シミュレーション結果</h3>", unsafe_allow_html=True)
    
-    # 5. 結果一覧リスト
-    st.markdown("<br><h3>🏆 着順予測・シミュレーション結果</h3>", unsafe_allow_html=True)
-    df_result = df_race.sort_values('着順').copy()
-    df_result['着順'] = df_result['着順'].astype(int)
-   
-    possible_cols = ['着順', '馬番', '馬名', '脚質', '走破タイム', '通過順4角', '上がり3Fタイム']
-    available_cols = [c for c in possible_cols if c in df_result.columns]
+    display_df = df_simulated[['着順予測', '馬番', '馬名', '脚質', '予測走破タイム']].copy()
+    display_df.columns = ['予想着順', '馬番', '馬名', '脚質', '予測タイム(秒)']
    
     st.dataframe(
-        df_result[available_cols],
+        display_df,
         use_container_width=True,
         hide_index=True
     )
