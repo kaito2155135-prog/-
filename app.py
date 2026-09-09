@@ -86,7 +86,7 @@ if os.path.exists(csv_filename):
         }
         return waku_colors.get(int(wakuban) if pd.notnull(wakuban) else 1, "#1f77b4")
 
-    # 設定値に応じたシミュレーション・位置計算ロジック
+    # 設定値に応じたシミュレーション・着順計算ロジック
     def simulate_race_results(df_r, pace, bias):
         res_df = df_r.copy()
        
@@ -123,30 +123,56 @@ if os.path.exists(csv_filename):
 
     df_simulated = simulate_race_results(df_race, selected_pace, selected_bias)
 
-    # コースボードのHTML生成関数
-    def render_course_board(df_s):
-        horses_html = ""
-        total_horses = len(df_s)
+    # JavaScriptアニメーション付きコースボードのHTML生成
+    def render_animated_course_board(df_s):
+        # 馬のデータをJSへ渡すためにJSONに変換
+        horses_data = []
         for idx, r in df_s.iterrows():
             hn = int(r['馬番'])
             wk = int(r['枠番']) if '枠番' in r and pd.notnull(r['枠番']) else ((hn - 1)//2)+1
             bg_c = get_waku_color(wk)
             txt_c = "#000000" if wk == 1 else "#ffffff"
-           
+            # 予測着順が早いほどゴール（進捗1.0）に早く到達するようにスピードを調整
             rank = idx + 1
-            progress = (total_horses - rank + 1) / total_horses
+            speed = 1.0 + ((len(df_s) - rank) * 0.05) + (np.random.random() * 0.1)
+            horses_data.append({
+                "hn": hn,
+                "name": str(r['馬名']),
+                "bg": bg_c,
+                "txt": txt_c,
+                "speed": speed,
+                "rank": rank
+            })
            
-            left_pos = 15 + (progress * 60) + (hn % 5)
-            top_pos = 35 + ((rank * 4) % 35)
-           
-            horses_html += f"""
-            <div title="{r['馬名']} (馬番:{hn} / 予測{rank}着)" style="
+        import json
+        horses_json = json.dumps(horses_data)
+
+        html_code = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <style>
+            body {{
+                background-color: #0b0b0b;
+                margin: 0;
+                font-family: sans-serif;
+            }}
+            .board-container {{
+                background: linear-gradient(135deg, #111e17 0%, #08110c 100%);
+                border: 2px solid #333333;
+                border-radius: 12px;
+                padding: 10px;
+                position: relative;
+                width: 100%;
+                height: 420px;
+                box-sizing: border-box;
+                box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+                overflow: hidden;
+            }}
+            .horse-icon {{
                 position: absolute;
-                left: {left_pos}%;
-                top: {top_pos}%;
-                background-color: {bg_c};
-                color: {txt_c};
-                width: 28px; height: 28px;
+                width: 30px;
+                height: 30px;
                 border-radius: 50%;
                 border: 2px solid #ffffff;
                 display: flex;
@@ -155,45 +181,141 @@ if os.path.exists(csv_filename):
                 font-weight: bold;
                 font-size: 12px;
                 box-shadow: 0 3px 6px rgba(0,0,0,0.6);
+                transform: translate(-50%, -50%);
                 z-index: 10;
-            ">{hn}</div>
-            """
+                cursor: pointer;
+            }}
+            .controls {{
+                text-align: center;
+                margin-top: 10px;
+            }}
+            .start-btn {{
+                background: linear-gradient(to bottom, #2ecc71, #27ae60);
+                color: white;
+                border: none;
+                padding: 10px 24px;
+                font-size: 16px;
+                font-weight: bold;
+                border-radius: 6px;
+                cursor: pointer;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            }}
+            .start-btn:hover {{
+                background: linear-gradient(to bottom, #27ae60, #1e8449);
+            }}
+        </style>
+        </head>
+        <body>
+            <div class="board-container" id="board">
+                <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" viewBox="0 0 600 360" preserveAspectRatio="none">
+                    <!-- コースの外枠・内パドック -->
+                    <path id="trackPath" d="M 120,75 C 60,75 30,120 40,190 C 50,260 160,310 320,310 C 470,310 540,250 530,180 C 520,110 410,75 300,75 Z"
+                          fill="none" stroke="#1e5638" stroke-width="36" stroke-linejoin="round" />
+                    <path d="M 120,75 C 60,75 30,120 40,190 C 50,260 160,310 320,310 C 470,310 540,250 530,180 C 520,110 410,75 300,75 Z"
+                          fill="none" stroke="#f1c40f" stroke-width="1.5" stroke-dasharray="6,4" stroke-linejoin="round" />
+                </svg>
 
-        board_html = f"""
-        <div style="
-            background: linear-gradient(135deg, #111e17 0%, #08110c 100%);
-            border: 2px solid #333333;
-            border-radius: 12px;
-            padding: 20px;
-            position: relative;
-            width: 100%;
-            height: 420px;
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
-            overflow: hidden;
-            box-sizing: border-box;
-        ">
-            <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" viewBox="0 0 600 360" preserveAspectRatio="none">
-                <path d="M 120,70 C 80,70 40,110 50,180 C 60,250 180,310 380,310 C 500,310 550,260 540,190 C 530,120 420,70 300,70 Z"
-                      fill="none" stroke="#163825" stroke-width="45" stroke-linejoin="round" />
-                <path d="M 120,75 C 85,75 50,115 60,180 C 70,245 180,300 380,300 C 490,300 535,255 525,190 C 515,125 415,75 300,75 Z"
-                      fill="none" stroke="#1e5638" stroke-width="32" stroke-linejoin="round" />
-                <path d="M 120,75 C 85,75 50,115 60,180 C 70,245 180,300 380,300 C 490,300 535,255 525,190 C 515,125 415,75 300,75 Z"
-                      fill="none" stroke="#f1c40f" stroke-width="1.5" stroke-dasharray="6,4" stroke-linejoin="round" />
-                     
-                <line x1="120" y1="75" x2="60" y2="40" stroke="#1e5638" stroke-width="24" stroke-linecap="round" />
-                <line x1="120" y1="75" x2="60" y2="40" stroke="#f1c40f" stroke-width="1" stroke-dasharray="4,3" />
-            </svg>
+                <div style="position: absolute; left: 12%; top: 35%; background: rgba(0,0,0,0.8); border: 1px solid #fff; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12px;">S (スタート)</div>
+                <div style="position: absolute; left: 28%; top: 78%; background: rgba(0,0,0,0.8); border: 2px solid #f1c40f; color: #f1c40f; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12px;">G (ゴール)</div>
+               
+                <div id="horses-wrapper"></div>
+            </div>
 
-            <div style="position: absolute; left: 10%; top: 32%; background: rgba(0,0,0,0.7); border: 1px solid #fff; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 14px;">S</div>
-            <div style="position: absolute; left: 24%; top: 78%; background: rgba(0,0,0,0.7); border: 2px solid #f1c40f; color: #f1c40f; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 14px;">G</div>
+            <div class="controls">
+                <button class="start-btn" onclick="startRace()">🚀 レーススタート！</button>
+            </div>
 
-            {horses_html}
-        </div>
+            <script>
+                const horses = {horses_json};
+                const wrapper = document.getElementById('horses-wrapper');
+               
+                // コース上の大まかな座標ポイント（楕円トラックに合わせた簡易パス補間用）
+                // スタート地点(120, 75)から反時計回りに一周してゴール(300, 75)に向かう軌道
+                function getTrackCoordinates(progress) {{
+                    // progress: 0.0 (スタート) 〜 1.0 (ゴール)
+                    // 1周のなめらかな楕円軌道上の座標を計算
+                    let angle = Math.PI * 0.75 - (progress * Math.PI * 2.0);
+                    let cx = 300, cy = 190;
+                    let rx = 210, ry = 100;
+                   
+                    // 多少のレーンばらつき（内ラチ・外ラチの差）
+                    let x = cx + Math.cos(angle) * rx;
+                    let y = cy - Math.sin(angle) * ry;
+                    return {{ x: x, y: y }};
+                }}
+
+                // 馬要素の初期配置（スタート位置）
+                let horseElements = [];
+                horses.forEach((h, index) => {{
+                    let el = document.createElement('div');
+                    el.className = 'horse-icon';
+                    el.style.backgroundColor = h.bg;
+                    el.style.color = h.txt;
+                    el.innerText = h.hn;
+                    el.title = `${{h.name}} (馬番:${{h.hn}} / 予想:${{h.rank}}着)`;
+                   
+                    // スタート位置に並べる（少しずつずらす）
+                    let startOffset = (index * 4);
+                    el.style.left = (120 + startOffset) + 'px';
+                    el.style.top = (75 + (index * 2)) + 'px';
+                   
+                    wrapper.appendChild(el);
+                    horseElements.push({{ element: el, data: h, progress: 0.0 }});
+                }});
+
+                let isRacing = false;
+
+                function startRace() {{
+                    if (isRacing) return;
+                    isRacing = true;
+                   
+                    // 位置をリセット
+                    horseElements.forEach((item, index) => {{
+                        item.progress = 0.0;
+                    }});
+
+                    let startTime = null;
+                    const duration = 5000; // 5秒で一周
+
+                    function animate(timestamp) {{
+                        if (!startTime) startTime = timestamp;
+                        let elapsed = timestamp - startTime;
+                        let rawProgress = Math.min(elapsed / duration, 1.0);
+
+                        let allFinished = true;
+                        horseElements.forEach((item) => {{
+                            // 個別の馬のスピード係数を反映
+                            let p = Math.min(rawProgress * item.data.speed, 1.0);
+                            if (p < 1.0) allFinished = false;
+                           
+                            // 軌道座標を取得 (SVGの viewBox 600x360 に対する割合pxに変換)
+                            let coords = getTrackCoordinates(p);
+                           
+                            // パーセンテージ換算 (SVG viewBox = 600 * 360)
+                            let leftPercent = (coords.x / 600) * 100;
+                            let topPercent = (coords.y / 360) * 100;
+                           
+                            item.element.style.left = leftPercent + '%';
+                            item.element.style.top = topPercent + '%';
+                        }});
+
+                        if (!allFinished && rawProgress < 1.0) {{
+                            requestAnimationFrame(animate);
+                        }} else {{
+                            isRacing = false;
+                        }}
+                    }}
+
+                    requestAnimationFrame(animate);
+                }}
+            </script>
+        </body>
+        </html>
         """
-        return board_html
+        return html_code
 
-    # 1. コースビジュアル
-    components.html(render_course_board(df_simulated), height=440)
+    # 1. アニメーション付きコースビジュアル
+    components.html(render_animated_course_board(df_simulated), height=480)
    
     # 2. 馬番ごとの丸アイコンバー
     waku_bar_html = "<div style='display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; background-color: #161616; padding: 10px; border-radius: 8px; border: 1px solid #333;'>"
@@ -208,7 +330,7 @@ if os.path.exists(csv_filename):
    
     # 3. 再シミュレートボタン
     if st.button("▶ 別の展開で再シミュレート"):
-        st.toast("新しい展開パターンでシミュレーションを実行しました！", icon="🐎")
+        st.experimental_rerun() if hasattr(st, "experimental_rerun") else st.rerun()
 
     # 4. 結果一覧リスト
     st.markdown("<br><h3>🏆 設定反映後の着順予測・シミュレーション結果</h3>", unsafe_allow_html=True)
