@@ -80,15 +80,31 @@ if os.path.exists(csv_filename):
         }
         return waku_colors.get(int(wakuban) if pd.notnull(wakuban) else 1, "#1f77b4")
 
-    # 1回分のシミュレーション（毎回ランダムな揺らぎが発生する仕様）
+    # タイムを秒から「分:秒.コンマ」の形式に変換する関数
+    def format_time(seconds):
+        m = int(seconds // 60)
+        s = seconds % 60
+        if m > 0:
+            return f"{m}分{s:04.1f}秒"
+        else:
+            return f"{s:.1f}秒"
+
+    # 1回分のシミュレーション（距離に応じた現実的なタイム計算を実装）
     def simulate_single_race(df_r, pace, bias):
         res_df = df_r.copy()
+       
+        # 距離データの取得（取得できない場合はデフォルトで2000mとする）
+        try:
+            distance = float(res_df.iloc[0]['距離'])
+        except:
+            distance = 2000.0
+           
         sim_scores = []
         for idx, r in res_df.iterrows():
             kyakushitsu = str(r.get('脚質', '差し'))
             wakuban = int(r['枠番']) if '枠番' in r and pd.notnull(r['枠番']) else 1
            
-            # 毎回ランダムな調子ブレ（±5.0）を付与
+            # ランダムな調子ブレ（±3.0）
             base_score = np.random.uniform(70, 95) + np.random.normal(0, 3.0)
             if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
                 base_score += 8.0
@@ -106,8 +122,18 @@ if os.path.exists(csv_filename):
         res_df = res_df.sort_values(by='sim_score', ascending=False).reset_index(drop=True)
         res_df['着順予測'] = range(1, len(res_df) + 1)
        
-        base_time = 68.0 + (len(res_df) * 0.2)
-        res_df['予測走破タイム'] = [round(base_time + (i * 0.25) + np.random.uniform(-0.1, 0.1), 1) for i in range(len(res_df))]
+        # 距離に応じた基準タイムの計算（1000mあたり約60秒＝1分を基準にスケール）
+        # 例: 3000mなら基準約180秒（3分）前後になるように調整
+        base_seconds = (distance / 1000.0) * 60.0
+       
+        times = []
+        for i in range(len(res_df)):
+            # 上位ほど速く、下位に行くにつれてコンマ秒ずつ遅くなるように調整 ＋ ランダムブレ
+            t = base_seconds + (i * 0.3) + np.random.uniform(0.0, 0.8)
+            times.append(round(t, 1))
+           
+        res_df['予測走破秒'] = times
+        res_df['予測走破タイム'] = [format_time(t) for t in times]
        
         return res_df
 
@@ -284,7 +310,6 @@ if os.path.exists(csv_filename):
                     elif rank == 2: stats[hn]['2着'] += 1
                     elif rank == 3: stats[hn]['3着'] += 1
            
-            # 確率集計データフレームの作成
             summary_list = []
             for hn, data in stats.items():
                 row_data = df_race[df_race['馬番'] == hn].iloc[0]
@@ -310,7 +335,7 @@ if os.path.exists(csv_filename):
     # 4. 今回の単発シミュレーション結果一覧
     st.markdown("<br><h3>🏆 今回の個別レース予測結果</h3>", unsafe_allow_html=True)
     display_df = df_simulated[['着順予測', '馬番', '馬名', '脚質', '予測走破タイム']].copy()
-    display_df.columns = ['予想着順', '馬番', '馬名', '脚質', '予測タイム(秒)']
+    display_df.columns = ['予想着順', '馬番', '馬名', '脚質', '予測タイム']
    
     st.dataframe(
         display_df,
