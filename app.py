@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import os
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="本格競馬展開シミュレーター", layout="wide")
 
@@ -106,6 +107,7 @@ if os.path.exists(csv_filename):
             height: 420px;
             box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
             overflow: hidden;
+            box-sizing: border-box;
         ">
             <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" viewBox="0 0 600 360" preserveAspectRatio="none">
                 <path d="M 120,70 C 80,70 40,110 50,180 C 60,250 180,310 380,310 C 500,310 550,260 540,190 C 530,120 420,70 300,70 Z"
@@ -127,10 +129,8 @@ if os.path.exists(csv_filename):
         """
         return board_html
 
-    # 1. コースビジュアル
-    st.markdown(render_course_board(df_race), unsafe_allow_html=True)
-   
-    st.markdown("<br>", unsafe_allow_html=True)
+    # 1. コースビジュアル（components.htmlで確実に描画）
+    components.html(render_course_board(df_race), height=440)
    
     # 2. 馬番ごとの丸アイコンバー
     waku_bar_html = "<div style='display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; background-color: #161616; padding: 10px; border-radius: 8px; border: 1px solid #333;'>"
@@ -141,17 +141,15 @@ if os.path.exists(csv_filename):
         txt_c = "#000000" if wk == 1 else "#ffffff"
         waku_bar_html += f"<div style='background-color: {bg_c}; color: {txt_c}; border: 1px solid #fff; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px;'>{hn}</div>"
     waku_bar_html += "</div>"
-    st.markdown(waku_bar_html, unsafe_allow_html=True)
-   
-    st.markdown("<br>", unsafe_allow_html=True)
+    components.html(waku_bar_html, height=70)
    
     # 3. 再シミュレートボタン
     if st.button("▶ 別の展開で再シミュレート"):
         st.toast("新しい展開パターンでシミュレーションを実行しました！", icon="🐎")
 
-    # 4. ペース設定やバイアスの切り替えボタンUI（必ず unsafe_allow_html=True を指定）
-    st.markdown("""
-        <div style="margin-top: 20px; background-color: #181818; padding: 15px; border-radius: 8px; border: 1px solid #333;">
+    # 4. ペース設定やバイアスの切り替えボタンUI
+    pace_bias_html = """
+        <div style="margin-top: 10px; background-color: #181818; padding: 15px; border-radius: 8px; border: 1px solid #333; font-family: sans-serif; color: white;">
             <div style="font-size: 12px; color: #aaa; margin-bottom: 5px;">ペース想定（手動変更・実際はM-0.6）</div>
             <div style="display: flex; gap: 10px; margin-bottom: 15px;">
                 <div style="flex: 1; text-align: center; padding: 6px; background: #262626; border-radius: 4px; color: #888; font-size: 13px;">S（スロー）</div>
@@ -166,7 +164,8 @@ if os.path.exists(csv_filename):
                 <div style="flex: 1; text-align: center; padding: 6px; background: #262626; border-radius: 4px; color: #888; font-size: 13px;">外有利</div>
             </div>
         </div>
-    """, unsafe_allow_html=True)
+    """
+    components.html(pace_bias_html, height=140)
    
     # 5. 結果一覧リスト
     st.markdown("<br><h3>🏆 着順予測・シミュレーション結果</h3>", unsafe_allow_html=True)
