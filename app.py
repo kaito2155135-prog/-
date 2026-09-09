@@ -50,7 +50,7 @@ if os.path.exists(csv_filename):
     st.sidebar.markdown("---")
     st.sidebar.info(f"**{selected_race}**\n\n{row_info['芝・ダ']} {row_info['距離']}m ({row_info['馬場状態']}) / {row_info['頭数']}頭")
    
-    # --- 【重要】未来予測用の設定コントロール（サイドバーまたはメイン上部に配置して連動） ---
+    # 未来予測用の設定コントロール
     st.markdown("### ⚙️ 展開・馬場コンディション設定（予想シミュレート）")
    
     col_p1, col_p2 = st.columns(2)
@@ -86,25 +86,25 @@ if os.path.exists(csv_filename):
         }
         return waku_colors.get(int(wakuban) if pd.notnull(wakuban) else 1, "#1f77b4")
 
-    # --- 設定値に応じたシミュレーション・位置計算ロジック ---
+    # 設定値に応じたシミュレーション・位置計算ロジック
     def simulate_race_results(df_r, pace, bias):
         res_df = df_r.copy()
-        # 脚質ごとの補正値計算
-        np.random.seed(len(res_df) + hash(pace) + hash(bias) % 100)
+       
+        # 安全な乱数シードの指定
+        seed_val = abs(len(res_df) + hash(pace) + hash(bias)) % (2**31)
+        np.random.seed(seed_val)
        
         sim_scores = []
         for idx, r in res_df.iterrows():
             kyakushitsu = str(r.get('脚質', '差し'))
             wakuban = int(r['枠番']) if '枠番' in r and pd.notnull(r['枠番']) else 1
            
-            # ペースによる補正
             base_score = np.random.uniform(70, 95)
             if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
                 base_score += 8.0
             elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
                 base_score += 8.0
                
-            # トラックバイアスによる補正
             if bias == "内有利" and wakuban <= 3:
                 base_score += 5.0
             elif bias == "外有利" and wakuban >= 6:
@@ -116,7 +116,6 @@ if os.path.exists(csv_filename):
         res_df = res_df.sort_values(by='sim_score', ascending=False).reset_index(drop=True)
         res_df['着順予測'] = range(1, len(res_df) + 1)
        
-        # タイムの微調整
         base_time = 68.0 + (len(res_df) * 0.2)
         res_df['予測走破タイム'] = [round(base_time + (i * 0.25) + np.random.uniform(-0.1, 0.1), 1) for i in range(len(res_df))]
        
@@ -124,7 +123,7 @@ if os.path.exists(csv_filename):
 
     df_simulated = simulate_race_results(df_race, selected_pace, selected_bias)
 
-    # コースボードのHTML生成関数（シミュレーション結果の位置取りを反映）
+    # コースボードのHTML生成関数
     def render_course_board(df_s):
         horses_html = ""
         total_horses = len(df_s)
@@ -134,11 +133,9 @@ if os.path.exists(csv_filename):
             bg_c = get_waku_color(wk)
             txt_c = "#000000" if wk == 1 else "#ffffff"
            
-            # 順位（着順予測）に応じてコース上の位置（コーナーや直線）を前後に配置
             rank = idx + 1
-            progress = (total_horses - rank + 1) / total_horses  # 上位ほど前へ
+            progress = (total_horses - rank + 1) / total_horses
            
-            # 簡易コース座標上のカーブに沿った配置計算
             left_pos = 15 + (progress * 60) + (hn % 5)
             top_pos = 35 + ((rank * 4) % 35)
            
@@ -213,7 +210,7 @@ if os.path.exists(csv_filename):
     if st.button("▶ 別の展開で再シミュレート"):
         st.toast("新しい展開パターンでシミュレーションを実行しました！", icon="🐎")
 
-    # 4. 結果一覧リスト（シミュレーション結果を反映）
+    # 4. 結果一覧リスト
     st.markdown("<br><h3>🏆 設定反映後の着順予測・シミュレーション結果</h3>", unsafe_allow_html=True)
    
     display_df = df_simulated[['着順予測', '馬番', '馬名', '脚質', '予測走破タイム']].copy()
