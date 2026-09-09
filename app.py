@@ -4,10 +4,19 @@ import numpy as np
 import plotly.graph_objects as go
 import os
 
-st.set_page_config(page_title="JRA-VAN 本格競馬コースシミュレーター", layout="wide")
+st.set_page_config(page_title="本格競馬展開シミュレーター", layout="wide")
 
-st.title("🐎 JRA-VAN 本格コース＆展開シミュレーター")
-st.write("直線の長いスタジアム型コース、JRA枠番カラー、馬群の重なり防止を完全にブラッシュアップしたプロ仕様です！")
+# 黒を基調としたシックで高級感のあるデザイン（提供いただいた画像の雰囲気に合わせます）
+st.markdown("""
+    <style>
+    .main { background-color: #121212; color: #ffffff; }
+    h1, h2, h3 { color: #f1c40f !important; }
+    .stAlert { background-color: #1e1e1e; color: #ffffff; border: 1px solid #333; }
+    </style>
+""", unsafe_allow_html=True)
+
+st.title("🐎 本格競馬コース＆レース展開シミュレーター")
+st.write("おむすび型コース、S/G表示、馬番アイコン、そしてスッキリした着順リストを完全再現しました。")
 
 csv_filename = "keiba_master_data.csv"
 
@@ -28,14 +37,14 @@ if os.path.exists(csv_filename):
     st.markdown(f"### 🏟️ {selected_race}")
     st.info(f"**条件:** {row_info['芝・ダ']} {row_info['距離']}m | **馬場:** {row_info['馬場状態']} | **頭数:** {row_info['頭数']}頭")
    
-    if st.button("🚀 本格レースアニメーションを開始！", type="primary"):
+    if st.button("▶ 別の展開で再シミュレート", type="primary"):
         frames = 70  # アニメーションのコマ数
        
         # JRA枠番カラーの定義 (1枠〜8枠)
         def get_waku_color(wakuban):
             waku_colors = {
                 1: "#ffffff",  # 白
-                2: "#222222",  # 黒
+                2: "#333333",  # 黒
                 3: "#d9381e",  # 赤
                 4: "#1f77b4",  # 青
                 5: "#e5c100",  # 黄
@@ -45,48 +54,30 @@ if os.path.exists(csv_filename):
             }
             return waku_colors.get(int(wakuban) if pd.notnull(wakuban) else 1, "#1f77b4")
 
-        # 【本格コース形状】角丸長方形（スタジアム型）の座標生成関数
+        # 【本格おむすび型コース形状】（画像のような、直線と特徴的なコーナーを持つレイアウト）
         def get_track_coords(progress):
-            # progress: 0.0 ~ 1.0
-            # 競馬場は「向こう正面直線」「第3・4コーナー」「ホーム直線」「第1・2コーナー」で構成
             angle = progress * 2 * np.pi
+            # 卵型・おむすび型に近い軌道を作る
+            r_x = 48.0
+            r_y = 26.0
            
-            # スーパー楕円（スーパーカプセル型）に近い軌道を作ることで、直線とコーナーのメリハリを出す
-            # X方向の幅、Y方向の幅
-            w = 50.0
-            h = 25.0
-           
-            # スムーズかつ角がある本格コースのパラメトリック方程式
-            # コサイン・サインのべき乗で直線をフラットにする
-            t = angle
-            # 基本の楕円ベースに少し変形を加えて直線部分を作る
-            x = w * np.cos(t)
-            y = h * np.sin(t)
-           
-            # 直線をフラットにする補正（上下の直線区間を平行にする）
-            if np.sin(t) > 0.3:
-                y = h * 0.95
-                x = w * np.sign(np.cos(t)) * (1.0 - abs(np.cos(t))*0.2)
-            elif np.sin(t) < -0.3:
-                y = -h * 0.95
-                x = w * np.sign(np.cos(t)) * (1.0 - abs(np.cos(t))*0.2)
-               
+            # 歪みを入れてリアルな競馬場トラックの形にする
+            x = r_x * np.cos(angle)
+            y = r_y * np.sin(angle) + 5.0 * np.sin(2 * angle)
             return x, y
 
         # コース描画用のパスデータ
         path_t = np.linspace(0, 2 * np.pi, 400)
-        track_pts_x = []
-        track_pts_y = []
+        track_pts_x, track_pts_y = [], []
         for pt in path_t:
             px, py = get_track_coords(pt / (2*np.pi))
             track_pts_x.append(px)
             track_pts_y.append(py)
            
-        # 内ラチ・外ラチのオフセット線
-        inner_x = [p * 0.85 for p in track_pts_x]
-        inner_y = [p * 0.85 for p in track_pts_y]
-        outer_x = [p * 1.15 for p in track_pts_x]
-        outer_y = [p * 1.15 for p in track_pts_y]
+        inner_x = [p * 0.82 for p in track_pts_x]
+        inner_y = [p * 0.82 for p in track_pts_y]
+        outer_x = [p * 1.18 for p in track_pts_x]
+        outer_y = [p * 1.18 for p in track_pts_y]
 
         sim_data = []
        
@@ -101,7 +92,7 @@ if os.path.exists(csv_filename):
                 if waku > 8: waku = 8
                
             color = get_waku_color(waku)
-            text_color = "black" if waku == 1 else "white"
+            text_color = "#000000" if waku == 1 else "#ffffff"
            
             finish_rank = int(row['着順']) if row['着順'] > 0 else h_num
            
@@ -116,23 +107,20 @@ if os.path.exists(csv_filename):
             step_progresses = np.linspace(0.0, 1.0, frames)
             step_ranks = np.interp(step_progresses, progress_checkpoints, rank_checkpoints)
            
-            # 馬同士が重ならないように、馬番ごとに固有のレーン幅＆縦方向の微小ズレを付与
-            np.random.seed(h_num * 37)
-            lane_spread = ((h_num - 1) % 4) * 1.2 + np.random.uniform(-0.3, 0.3)
+            # 馬ごとのバラケ係数（重なり防止）
+            np.random.seed(h_num * 17)
+            lane_spread = ((h_num - 1) % 4) * 1.0 + np.random.uniform(-0.2, 0.2)
            
             for t in range(frames):
                 prog = step_progresses[t]
                 base_x, base_y = get_track_coords(prog)
                
-                # 順位に応じたイン・アウトのポジション（1着が最内、後ろの馬ほど外ラチ側へ）
                 rank_val = step_ranks[t]
-                position_offset = (rank_val - 1) * 0.5 + lane_spread
+                position_offset = (rank_val - 1) * 0.6 + lane_spread
                
-                # 重なり防止の放射状オフセット
                 norm = np.hypot(base_x, base_y)
                 if norm > 0:
-                    nx = base_x / norm
-                    ny = base_y / norm
+                    nx, ny = base_x / norm, base_y / norm
                 else:
                     nx, ny = 1.0, 0.0
                    
@@ -156,42 +144,50 @@ if os.path.exists(csv_filename):
        
         fig = go.Figure()
        
-        # 1. 本格的な競馬場コース背景（ターフ、ダート・芝のフェンスライン）
+        # 1. コース背景（芝のフィールド）
         fig.add_trace(go.Scatter(
             x=track_pts_x, y=track_pts_y,
             mode='lines',
-            line=dict(color='#145A32', width=28),
-            name='コース本線',
+            line=dict(color='#1b4d3e', width=32),
             hoverinfo='skip'
         ))
         fig.add_trace(go.Scatter(
             x=outer_x, y=outer_y,
             mode='lines',
-            line=dict(color='white', width=1.5, dash='dot'),
-            name='外ラチ',
+            line=dict(color='#ffffff', width=1.5, dash='dot'),
             hoverinfo='skip'
         ))
         fig.add_trace(go.Scatter(
             x=inner_x, y=inner_y,
             mode='lines',
-            line=dict(color='white', width=1.5, dash='dot'),
-            name='内ラチ',
+            line=dict(color='#ffffff', width=1.5, dash='dot'),
             hoverinfo='skip'
         ))
        
-        # 2. 出走馬のマーカー（視認性を高めたデザイン）
+        # スタート位置 (S) とゴール位置 (G) のマーカーを配置
+        sx, sy = get_track_coords(0.0)
+        gx, gy = get_track_coords(0.98)
+       
+        fig.add_trace(go.Scatter(
+            x=[sx, gx], y=[sy, gy],
+            mode='text',
+            text=['S', 'G'],
+            textfont=dict(color=['#ffffff', '#f1c40f'], size=22, family='Arial Black'),
+            hoverinfo='skip'
+        ))
+       
+        # 2. 出走馬の丸アイコン
         fig.add_trace(go.Scatter(
             x=df_step0['X'],
             y=df_step0['Y'],
             mode='text+markers',
             marker=dict(
-                size=26,
+                size=30,
                 color=df_step0['カラー'],
-                line=dict(color='#111111', width=2)
+                line=dict(color='#ffffff', width=2)
             ),
             text=df_step0['テキスト'],
-            textfont=dict(color=df_step0['文字色'], size=12, family='Arial Black'),
-            name='出走馬'
+            textfont=dict(color=df_step0['文字色'], size=13, family='Arial Black')
         ))
        
         # アニメーションフレーム作成
@@ -204,17 +200,14 @@ if os.path.exists(csv_filename):
                         go.Scatter(x=track_pts_x, y=track_pts_y),
                         go.Scatter(x=outer_x, y=outer_y),
                         go.Scatter(x=inner_x, y=inner_y),
+                        go.Scatter(x=[sx, gx], y=[sy, gy], mode='text', text=['S', 'G']),
                         go.Scatter(
                             x=df_s['X'],
                             y=df_s['Y'],
                             mode='text+markers',
-                            marker=dict(
-                                size=26,
-                                color=df_s['カラー'],
-                                line=dict(color='#111111', width=2)
-                            ),
+                            marker=dict(size=30, color=df_s['カラー'], line=dict(color='#ffffff', width=2)),
                             text=df_s['テキスト'],
-                            textfont=dict(color=df_s['文字色'], size=12, family='Arial Black')
+                            textfont=dict(color=df_s['文字色'], size=13, family='Arial Black')
                         )
                     ],
                     name=str(step)
@@ -224,15 +217,16 @@ if os.path.exists(csv_filename):
         fig.frames = frames_list
        
         fig.update_layout(
-            title=f"【{selected_race}】 本格スタジアムコース展開アニメーション",
-            xaxis=dict(range=[-70, 70], autorange=False, showgrid=False, zeroline=False, showticklabels=False),
-            yaxis=dict(range=[-40, 40], autorange=False, showgrid=False, zeroline=False, showticklabels=False),
-            height=620,
+            title=dict(text=f"【{selected_race}】 レースシミュレーション", font=dict(color='#f1c40f', size=18)),
+            xaxis=dict(range=[-65, 65], autorange=False, showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(range=[-45, 45], autorange=False, showgrid=False, zeroline=False, showticklabels=False),
+            height=580,
             showlegend=False,
-            plot_bgcolor='#0b3b24',  # 深みのある美しいターフグリーン
-            paper_bgcolor='#f8f9fa',
+            plot_bgcolor='#0a1912',  # ダークな高級感あるターフ背景
+            paper_bgcolor='#121212',
             updatemenus=[dict(
                 type="buttons",
+                x=0.5, y=-0.1, xanchor='center', yanchor='top',
                 buttons=[
                     dict(label="▶ 再生",
                          method="animate",
@@ -246,14 +240,25 @@ if os.path.exists(csv_filename):
        
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
        
-        # 3. 下部に結果テーブルを表示
+        # 3. 馬番一覧のアイコンパーツ（画像中央のバーのようなもの）
         st.markdown("---")
-        st.subheader("🏆 レース結果・通過順一覧")
+        waku_html = "<div style='display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px;'>"
+        for _, r in df_race.sort_values('馬番').iterrows():
+            hn = int(r['馬番'])
+            wk = int(r['枠番']) if '枠番' in r and pd.notnull(r['枠番']) else ((hn - 1)//2)+1
+            bg_c = get_waku_color(wk)
+            txt_c = "#000000" if wk == 1 else "#ffffff"
+            waku_html += f"<div style='background-color: {bg_c}; color: {txt_c}; border: 1px solid #fff; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px;'>{hn}</div>"
+        waku_html += "</div>"
+        st.markdown(waku_html, unsafe_allow_html=True)
+       
+        # 4. 下部に画像のようなきれいな着順リストを表示
+        st.subheader("🏆 レース結果・着順一覧")
        
         df_result = df_race.sort_values('着順').copy()
         df_result['着順'] = df_result['着順'].astype(int)
        
-        possible_cols = ['着順', '馬番', '馬名', '脚質', '走破タイム', '通過順1角', '通過順2角', '通過順3角', '通過順4角', '上がり3Fタイム']
+        possible_cols = ['着順', '馬番', '馬名', '脚質', '走破タイム', '通過順4角', '上がり3Fタイム']
         available_cols = [c for c in possible_cols if c in df_result.columns]
        
         st.dataframe(
@@ -262,7 +267,7 @@ if os.path.exists(csv_filename):
             hide_index=True
         )
        
-        st.success("✨ 直線とコーナーのメリハリがある本格的なスタジアム型コースデザインへ完全に刷新しました！")
+        st.success("✨ ご要望いただいた画像に近づけた、本格的なコースビュー＆着順リストデザインにアップデートしました！")
 
 else:
     st.error(f"⚠️ リポジトリ内に `{csv_filename}` が見つかりません。")
