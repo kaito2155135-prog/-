@@ -6,7 +6,6 @@ import streamlit.components.v1 as components
 
 st.set_page_config(page_title="本格競馬展開シミュレーター", layout="wide")
 
-# スタイリングの適用
 st.markdown("""
     <style>
     .main { background-color: #0b0b0b; color: #ffffff; }
@@ -50,7 +49,6 @@ if os.path.exists(csv_filename):
     st.sidebar.markdown("---")
     st.sidebar.info(f"**{selected_race}**\n\n{row_info['芝・ダ']} {row_info['距離']}m ({row_info['馬場状態']}) / {row_info['頭数']}頭")
    
-    # 展開・馬場コンディション設定
     st.markdown("### ⚙️ 展開・馬場コンディション設定（予想シミュレート）")
    
     col_p1, col_p2 = st.columns(2)
@@ -59,16 +57,14 @@ if os.path.exists(csv_filename):
             "ペース想定",
             ["S（スロー）", "M（ミドル）", "H（ハイ）"],
             index=1,
-            horizontal=True,
-            help="ペースを変更すると、先行馬や差し馬の有利不利が変わり着順や走破タイムが変動します。"
+            horizontal=True
         )
     with col_p2:
         selected_bias = st.radio(
             "トラックバイアス（馬場・傾向）",
             ["フラット", "内有利", "外有利"],
             index=0,
-            horizontal=True,
-            help="馬場傾向を選択することで、バイアスに応じた補正が着順予測に反映されます。"
+            horizontal=True
         )
    
     st.markdown("---")
@@ -80,7 +76,6 @@ if os.path.exists(csv_filename):
         }
         return waku_colors.get(int(wakuban) if pd.notnull(wakuban) else 1, "#1f77b4")
 
-    # タイムを秒から「分:秒.コンマ」の形式に変換する関数
     def format_time(seconds):
         m = int(seconds // 60)
         s = seconds % 60
@@ -89,7 +84,6 @@ if os.path.exists(csv_filename):
         else:
             return f"{s:.1f}秒"
 
-    # 1回分のシミュレーション（G1などのレース格やコース体系に合わせた現実的なタイム計算）
     def simulate_single_race(df_r, pace, bias):
         res_df = df_r.copy()
        
@@ -101,14 +95,13 @@ if os.path.exists(csv_filename):
         track_type = str(res_df.iloc[0].get('芝・ダ', '芝'))
         race_name = str(res_df.iloc[0].get('略レース名', ''))
        
-        # 芝・ダートおよびレース格に応じた1000mあたりの基準秒数（G1や重賞はより高速）
         if "芝" in track_type:
             if "G1" in race_name or "G2" in race_name or "G3" in race_name:
-                sec_per_1000 = 57.2  # 重賞・G1の高速馬場基準
+                sec_per_1000 = 57.2 
             else:
                 sec_per_1000 = 58.5
         else:
-            sec_per_1000 = 61.5 # ダート基準
+            sec_per_1000 = 61.5
            
         base_seconds = (distance / 1000.0) * sec_per_1000
            
@@ -136,7 +129,6 @@ if os.path.exists(csv_filename):
        
         times = []
         for i in range(len(res_df)):
-            # 上位ほど勝ちタイムに近く、下位はコンマ秒ずつ遅れる計算
             t = base_seconds + (i * 0.2) + np.random.uniform(0.0, 0.4)
             times.append(round(t, 1))
            
@@ -147,7 +139,6 @@ if os.path.exists(csv_filename):
 
     df_simulated = simulate_single_race(df_race, selected_pace, selected_bias)
 
-    # アニメーション付きコースボードのHTML生成
     def render_animated_course_board(df_s):
         horses_data = []
         for idx, r in df_s.iterrows():
@@ -287,10 +278,8 @@ if os.path.exists(csv_filename):
         """
         return html_code
 
-    # 1. アニメーション付きコースビジュアル
     components.html(render_animated_course_board(df_simulated), height=480)
    
-    # 2. 馬番ごとの丸アイコンバー
     waku_bar_html = "<div style='display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; background-color: #161616; padding: 10px; border-radius: 8px; border: 1px solid #333;'>"
     for _, r in df_simulated.sort_values('馬番').iterrows():
         hn = int(r['馬番'])
@@ -301,7 +290,6 @@ if os.path.exists(csv_filename):
     waku_bar_html += "</div>"
     components.html(waku_bar_html, height=70)
 
-    # 3. 10000回シミュレーション機能（モンテカルロ分析）
     st.markdown("<br><h3>📊 10,000回シミュレーション（確率分析）</h3>", unsafe_allow_html=True)
     if st.button("🔥 10,000回一括シミュレーションを実行する"):
         with st.spinner("10,000回レースを検証中..."):
@@ -330,7 +318,7 @@ if os.path.exists(csv_filename):
                     '平均着順': round(data['合計順位'] / n_trials, 2)
                 })
            
-            summary_df = pd.DataFrame(summary_list).sort_values(by='1実勝率(%)' if '1実勝率(%)' in summary_df.columns else '1着率(%)', ascending=False).reset_index(drop=True)
+            summary_df = pd.DataFrame(summary_list).sort_values(by='1着率(%)', ascending=False).reset_index(drop=True)
             summary_df['分析順位'] = range(1, len(summary_df) + 1)
            
             st.success("10,000回シミュレーションが完了しました！")
@@ -340,7 +328,6 @@ if os.path.exists(csv_filename):
                 hide_index=True
             )
 
-    # 4. 今回の単発シミュレーション結果一覧
     st.markdown("<br><h3>🏆 今回の個別レース予測結果</h3>", unsafe_allow_html=True)
     display_df = df_simulated[['着順予測', '馬番', '馬名', '脚質', '予測走破タイム']].copy()
     display_df.columns = ['予想着順', '馬番', '馬名', '脚質', '予測タイム']
