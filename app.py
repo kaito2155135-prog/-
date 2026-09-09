@@ -89,22 +89,34 @@ if os.path.exists(csv_filename):
         else:
             return f"{s:.1f}秒"
 
-    # 1回分のシミュレーション（距離に応じた現実的なタイム計算を実装）
+    # 1回分のシミュレーション（G1などのレース格やコース体系に合わせた現実的なタイム計算）
     def simulate_single_race(df_r, pace, bias):
         res_df = df_r.copy()
        
-        # 距離データの取得（取得できない場合はデフォルトで2000mとする）
         try:
             distance = float(res_df.iloc[0]['距離'])
         except:
-            distance = 2000.0
+            distance = 1600.0
+           
+        track_type = str(res_df.iloc[0].get('芝・ダ', '芝'))
+        race_name = str(res_df.iloc[0].get('略レース名', ''))
+       
+        # 芝・ダートおよびレース格に応じた1000mあたりの基準秒数（G1や重賞はより高速）
+        if "芝" in track_type:
+            if "G1" in race_name or "G2" in race_name or "G3" in race_name:
+                sec_per_1000 = 57.2  # 重賞・G1の高速馬場基準
+            else:
+                sec_per_1000 = 58.5
+        else:
+            sec_per_1000 = 61.5 # ダート基準
+           
+        base_seconds = (distance / 1000.0) * sec_per_1000
            
         sim_scores = []
         for idx, r in res_df.iterrows():
             kyakushitsu = str(r.get('脚質', '差し'))
             wakuban = int(r['枠番']) if '枠番' in r and pd.notnull(r['枠番']) else 1
            
-            # ランダムな調子ブレ（±3.0）
             base_score = np.random.uniform(70, 95) + np.random.normal(0, 3.0)
             if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
                 base_score += 8.0
@@ -122,14 +134,10 @@ if os.path.exists(csv_filename):
         res_df = res_df.sort_values(by='sim_score', ascending=False).reset_index(drop=True)
         res_df['着順予測'] = range(1, len(res_df) + 1)
        
-        # 距離に応じた基準タイムの計算（1000mあたり約60秒＝1分を基準にスケール）
-        # 例: 3000mなら基準約180秒（3分）前後になるように調整
-        base_seconds = (distance / 1000.0) * 60.0
-       
         times = []
         for i in range(len(res_df)):
-            # 上位ほど速く、下位に行くにつれてコンマ秒ずつ遅くなるように調整 ＋ ランダムブレ
-            t = base_seconds + (i * 0.3) + np.random.uniform(0.0, 0.8)
+            # 上位ほど勝ちタイムに近く、下位はコンマ秒ずつ遅れる計算
+            t = base_seconds + (i * 0.2) + np.random.uniform(0.0, 0.4)
             times.append(round(t, 1))
            
         res_df['予測走破秒'] = times
@@ -322,7 +330,7 @@ if os.path.exists(csv_filename):
                     '平均着順': round(data['合計順位'] / n_trials, 2)
                 })
            
-            summary_df = pd.DataFrame(summary_list).sort_values(by='1着率(%)', ascending=False).reset_index(drop=True)
+            summary_df = pd.DataFrame(summary_list).sort_values(by='1実勝率(%)' if '1実勝率(%)' in summary_df.columns else '1着率(%)', ascending=False).reset_index(drop=True)
             summary_df['分析順位'] = range(1, len(summary_df) + 1)
            
             st.success("10,000回シミュレーションが完了しました！")
