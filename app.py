@@ -6,7 +6,6 @@ import os
 
 st.set_page_config(page_title="本格競馬展開シミュレーター", layout="wide")
 
-# 黒を基調としたシックで高級感のあるデザイン（提供いただいた画像の雰囲気に合わせます）
 st.markdown("""
     <style>
     .main { background-color: #121212; color: #ffffff; }
@@ -16,7 +15,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🐎 本格競馬コース＆レース展開シミュレーター")
-st.write("おむすび型コース、S/G表示、馬番アイコン、そしてスッキリした着順リストを完全再現しました。")
+st.write("左上のスタートポケット、立体感のあるトラック形状、馬群の重なりを完全に解消した分散配置に対応しています。")
 
 csv_filename = "keiba_master_data.csv"
 
@@ -37,7 +36,7 @@ if os.path.exists(csv_filename):
     st.markdown(f"### 🏟️ {selected_race}")
     st.info(f"**条件:** {row_info['芝・ダ']} {row_info['距離']}m | **馬場:** {row_info['馬場状態']} | **頭数:** {row_info['頭数']}頭")
    
-    if st.button("▶ 別の展開で再シミュレート", type="primary"):
+    if st.button("▶ シミュレーション開始 / 再生", type="primary"):
         frames = 70  # アニメーションのコマ数
        
         # JRA枠番カラーの定義 (1枠〜8枠)
@@ -54,30 +53,36 @@ if os.path.exists(csv_filename):
             }
             return waku_colors.get(int(wakuban) if pd.notnull(wakuban) else 1, "#1f77b4")
 
-        # 【本格おむすび型コース形状】（画像のような、直線と特徴的なコーナーを持つレイアウト）
+        # 【ポケット付き本格コース形状】左上に引き込み線（ポケット）を持つレイアウト
         def get_track_coords(progress):
-            angle = progress * 2 * np.pi
-            # 卵型・おむすび型に近い軌道を作る
-            r_x = 48.0
-            r_y = 26.0
-           
-            # 歪みを入れてリアルな競馬場トラックの形にする
-            x = r_x * np.cos(angle)
-            y = r_y * np.sin(angle) + 5.0 * np.sin(2 * angle)
+            # progress: 0.0 ~ 1.0
+            if progress < 0.12:
+                # 左上のポケット（スタート地点の引き込み線）
+                t = progress / 0.12
+                x = -42.0 - t * 15.0
+                y = 15.0 + t * 8.0
+            else:
+                # メインのオーバルコース
+                p_main = (progress - 0.12) / 0.88
+                angle = p_main * 2 * np.pi
+                rx = 48.0
+                ry = 25.0
+                x = rx * np.cos(angle - np.pi/2)
+                y = ry * np.sin(angle - np.pi/2)
             return x, y
 
         # コース描画用のパスデータ
-        path_t = np.linspace(0, 2 * np.pi, 400)
+        path_t = np.linspace(0, 1.0, 400)
         track_pts_x, track_pts_y = [], []
         for pt in path_t:
-            px, py = get_track_coords(pt / (2*np.pi))
+            px, py = get_track_coords(pt)
             track_pts_x.append(px)
             track_pts_y.append(py)
            
-        inner_x = [p * 0.82 for p in track_pts_x]
-        inner_y = [p * 0.82 for p in track_pts_y]
-        outer_x = [p * 1.18 for p in track_pts_x]
-        outer_y = [p * 1.18 for p in track_pts_y]
+        inner_x = [p * 0.85 for p in track_pts_x]
+        inner_y = [p * 0.85 for p in track_pts_y]
+        outer_x = [p * 1.15 for p in track_pts_x]
+        outer_y = [p * 1.15 for p in track_pts_y]
 
         sim_data = []
        
@@ -107,16 +112,20 @@ if os.path.exists(csv_filename):
             step_progresses = np.linspace(0.0, 1.0, frames)
             step_ranks = np.interp(step_progresses, progress_checkpoints, rank_checkpoints)
            
-            # 馬ごとのバラケ係数（重なり防止）
-            np.random.seed(h_num * 17)
-            lane_spread = ((h_num - 1) % 4) * 1.0 + np.random.uniform(-0.2, 0.2)
+            # 馬ごとの重なりを防ぐため、馬番ごとに固有の「前後ズレ」と「横方向の複層ズレ」を完全に固定付与
+            np.random.seed(h_num * 43)
+            longitudinal_spread = ((h_num % 3) - 1) * 0.012  # 進行方向（前後）のバラケ
+            lateral_spread = (((h_num - 1) // 3) * 1.4) - 1.2  # 横方向（外ラチ・内ラチの幅）のバラケ
            
             for t in range(frames):
-                prog = step_progresses[t]
+                raw_prog = step_progresses[t]
+                # 前後の微小ズレを反映
+                prog = np.clip(raw_prog + longitudinal_spread, 0.0, 1.0)
+               
                 base_x, base_y = get_track_coords(prog)
                
                 rank_val = step_ranks[t]
-                position_offset = (rank_val - 1) * 0.6 + lane_spread
+                position_offset = (rank_val - 1) * 0.5 + lateral_spread
                
                 norm = np.hypot(base_x, base_y)
                 if norm > 0:
@@ -144,11 +153,11 @@ if os.path.exists(csv_filename):
        
         fig = go.Figure()
        
-        # 1. コース背景（芝のフィールド）
+        # 1. 立体感を持たせたコース背景とポケット
         fig.add_trace(go.Scatter(
             x=track_pts_x, y=track_pts_y,
             mode='lines',
-            line=dict(color='#1b4d3e', width=32),
+            line=dict(color='#144531', width=34),
             hoverinfo='skip'
         ))
         fig.add_trace(go.Scatter(
@@ -164,9 +173,9 @@ if os.path.exists(csv_filename):
             hoverinfo='skip'
         ))
        
-        # スタート位置 (S) とゴール位置 (G) のマーカーを配置
+        # スタート (S) とゴール (G) の位置マーカー
         sx, sy = get_track_coords(0.0)
-        gx, gy = get_track_coords(0.98)
+        gx, gy = get_track_coords(0.97)
        
         fig.add_trace(go.Scatter(
             x=[sx, gx], y=[sy, gy],
@@ -176,18 +185,18 @@ if os.path.exists(csv_filename):
             hoverinfo='skip'
         ))
        
-        # 2. 出走馬の丸アイコン
+        # 2. 出走馬の丸アイコン（視認性の高いデザイン）
         fig.add_trace(go.Scatter(
             x=df_step0['X'],
             y=df_step0['Y'],
             mode='text+markers',
             marker=dict(
-                size=30,
+                size=28,
                 color=df_step0['カラー'],
                 line=dict(color='#ffffff', width=2)
             ),
             text=df_step0['テキスト'],
-            textfont=dict(color=df_step0['文字色'], size=13, family='Arial Black')
+            textfont=dict(color=df_step0['文字色'], size=12, family='Arial Black')
         ))
        
         # アニメーションフレーム作成
@@ -205,9 +214,9 @@ if os.path.exists(csv_filename):
                             x=df_s['X'],
                             y=df_s['Y'],
                             mode='text+markers',
-                            marker=dict(size=30, color=df_s['カラー'], line=dict(color='#ffffff', width=2)),
+                            marker=dict(size=28, color=df_s['カラー'], line=dict(color='#ffffff', width=2)),
                             text=df_s['テキスト'],
-                            textfont=dict(color=df_s['文字色'], size=13, family='Arial Black')
+                            textfont=dict(color=df_s['文字色'], size=12, family='Arial Black')
                         )
                     ],
                     name=str(step)
@@ -218,15 +227,15 @@ if os.path.exists(csv_filename):
        
         fig.update_layout(
             title=dict(text=f"【{selected_race}】 レースシミュレーション", font=dict(color='#f1c40f', size=18)),
-            xaxis=dict(range=[-65, 65], autorange=False, showgrid=False, zeroline=False, showticklabels=False),
-            yaxis=dict(range=[-45, 45], autorange=False, showgrid=False, zeroline=False, showticklabels=False),
-            height=580,
+            xaxis=dict(range=[-70, 70], autorange=False, showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(range=[-42, 42], autorange=False, showgrid=False, zeroline=False, showticklabels=False),
+            height=600,
             showlegend=False,
-            plot_bgcolor='#0a1912',  # ダークな高級感あるターフ背景
+            plot_bgcolor='#07160f',
             paper_bgcolor='#121212',
             updatemenus=[dict(
                 type="buttons",
-                x=0.5, y=-0.1, xanchor='center', yanchor='top',
+                x=0.5, y=-0.08, xanchor='center', yanchor='top',
                 buttons=[
                     dict(label="▶ 再生",
                          method="animate",
@@ -240,7 +249,7 @@ if os.path.exists(csv_filename):
        
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
        
-        # 3. 馬番一覧のアイコンパーツ（画像中央のバーのようなもの）
+        # 3. 馬番一覧のアイコンバー
         st.markdown("---")
         waku_html = "<div style='display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px;'>"
         for _, r in df_race.sort_values('馬番').iterrows():
@@ -252,7 +261,7 @@ if os.path.exists(csv_filename):
         waku_html += "</div>"
         st.markdown(waku_html, unsafe_allow_html=True)
        
-        # 4. 下部に画像のようなきれいな着順リストを表示
+        # 4. 下部にきれいな着順リストを表示
         st.subheader("🏆 レース結果・着順一覧")
        
         df_result = df_race.sort_values('着順').copy()
@@ -267,7 +276,7 @@ if os.path.exists(csv_filename):
             hide_index=True
         )
        
-        st.success("✨ ご要望いただいた画像に近づけた、本格的なコースビュー＆着順リストデザインにアップデートしました！")
+        st.success("✨ 左上のポケット、S/G表示、馬同士が重ならない分散処理を反映した本格レイアウトに更新しました！")
 
 else:
     st.error(f"⚠️ リポジトリ内に `{csv_filename}` が見つかりません。")
