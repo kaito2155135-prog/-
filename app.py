@@ -29,18 +29,14 @@ if os.path.exists(csv_filename):
     st.info(f"**条件:** {row_info['芝・ダ']} {row_info['距離']}m | **馬場:** {row_info['馬場状態']} | **頭数:** {row_info['頭数']}頭")
    
     with st.expander("📋 このレースの出走馬データ"):
-        st.dataframe(df_race[['馬番', '馬名', '脚質', '通過順1角', '通过順2角', '通過順3角', '通過順4角', '上がり3Fタイム', '着順']])
+        st.dataframe(df_race[['馬番', '馬名', '脚質', '通過順1角', '通過順2角', '通過順3角', '通過順4角', '上がり3Fタイム', '着順']])
        
     if st.button("🚀 周回コースシミュレーションを開始！", type="primary"):
         frames = 50  # アニメーションのコマ数
        
-        # 楕円形の周回コースの座標を生成する関数 (t: 0.0〜1.0)
+        # 楕円形の周回コースの座標を生成する関数
         def get_track_coords(progress):
-            # 2Dのトラック（楕円：直線の長さとカーブの半径）
-            # 0.0〜0.25: 第3〜4コーナー/直線, 0.25〜0.5: 4角〜ゴール, etc.
-            # 簡易的に、角度(angle)を 0 から 2*pi まで進める
             angle = progress * 2 * np.pi
-            # 楕円のパラメータ
             rx = 40.0 # 横幅
             ry = 20.0 # 縦幅
             x = rx * np.cos(angle - np.pi/2)
@@ -54,18 +50,14 @@ if os.path.exists(csv_filename):
             h_num = int(row['馬番'])
             finish_rank = int(row['着順']) if row['着順'] > 0 else h_num
            
-            # 各通過順を0〜1の周回進捗にマッピング
-            # スタート(0.0) -> 1角(0.2) -> 2角(0.4) -> 3角(0.6) -> 4角(0.8) -> ゴール(1.0)
             p1 = float(row['通過順1角']) if row['通過順1角'] > 0 else float(row['頭数'])/2
             p2 = float(row['通過順2角']) if row['通過順2角'] > 0 else p1
             p3 = float(row['通過順3角']) if row['通過順3角'] > 0 else p2
             p4 = float(row['通過順4角']) if row['通過順4角'] > 0 else p3
            
-            # 順位の推移ポイント
             progress_checkpoints = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
             rank_checkpoints = [h_num, p1, p2, p3, p4, finish_rank]
            
-            # フレームごとの進捗と順位を補間
             step_progresses = np.linspace(0.0, 1.0, frames)
             step_ranks = np.interp(step_progresses, progress_checkpoints, rank_checkpoints)
            
@@ -73,15 +65,10 @@ if os.path.exists(csv_filename):
                 prog = step_progresses[t]
                 base_x, base_y = get_track_coords(prog)
                
-                # 順位に応じて内ラチ沿い(外側/内側)にオフセットを付ける
-                # 1着（上位）ほど内側、下位ほど外側、あるいは馬番ごとのバラツキ
                 rank_offset = (step_ranks[t] - 1) * 0.8
-               
-                # 簡易的な位置調整
                 x_pos = base_x + (rank_offset * 0.5)
                 y_pos = base_y + (rank_offset * 0.5)
                
-                # ゴール時点（最後のフレーム周辺）での着順ラベル作成
                 if t == frames - 1:
                     label_text = f"<b>{h_num}</b><br>({finish_rank}着: {h_name})"
                 else:
@@ -99,7 +86,6 @@ if os.path.exists(csv_filename):
                
         df_sim = pd.DataFrame(sim_data)
        
-        # Plotlyでアニメーション付きの散布図を作成（丸の中に数字を表示）
         fig = go.Figure(
             data=[
                 go.Scatter(
