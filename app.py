@@ -36,7 +36,7 @@ st.markdown("""
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（条件表示対応版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（手動微調整・得意馬場対応版）</h2>", unsafe_allow_html=True)
 
 # 1. マスターデータの読み込み準備
 master_df = None
@@ -95,11 +95,14 @@ if uploaded_image is not None:
                        df_race['距離'] = 1800.0 
                    if '芝・ダ' not in df_race.columns:
                        df_race['芝・ダ'] = 'ダ'
-                   df_race['馬場状態'] = '良'
-                   df_race['略レース名'] = '解析レース'
+                   if '脚質' not in df_race.columns:
+                       df_race['脚質'] = '差し'
+                  
+                   # 各馬ごとの「得意馬場」列を初期化（デフォルトは「指定なし」）
+                   df_race['得意馬場'] = '指定なし'
 
                    st.session_state['custom_df_race'] = df_race
-                   st.success("出馬表の読み込みに成功しました！")
+                   st.success("出馬表の読み込みに成功しました！下部で各馬の脚質や得意馬場を微調整できます。")
            except Exception as e:
                st.error(f"解析に失敗しました: {e}")
 
@@ -113,6 +116,8 @@ else:
        race_list = master_df['レースID'].unique()
        selected_race = st.sidebar.selectbox("🎯 過去のレースを選択", race_list)
        df_race = master_df[master_df['レースID'] == selected_race].copy()
+       if '得意馬場' not in df_race.columns:
+           df_race['得意馬場'] = '指定なし'
    else:
        df_race = None
 
@@ -120,7 +125,6 @@ if df_race is not None and not df_race.empty:
    st.sidebar.markdown("---")
    st.sidebar.info(f"**{selected_race}**\n\n頭数: {len(df_race)}頭")
 
-   # レース情報（場所・芝/ダ・距離）の抽出
    sample_row = df_race.iloc[0]
    race_place = sample_row.get('場所', '不明')
    race_surface = sample_row.get('芝・ダ', 'ダ')
@@ -129,7 +133,6 @@ if df_race is not None and not df_race.empty:
    except:
        race_distance = 1800
 
-   # 画面上部にレース条件パネルを表示
    st.markdown(f"""
        <div class="race-info-box">
            <h3 style="margin: 0; color: #f1c40f;">📌 選択中レース情報</h3>
@@ -142,14 +145,62 @@ if df_race is not None and not df_race.empty:
        </div>
    """, unsafe_allow_html=True)
 
-   st.markdown("### ⚙️ 展開・馬場コンディション設定")
+   st.markdown("### ✍️ 出走馬データの確認・手動微調整（脚質・得意馬場）")
+   st.markdown("AIが読み取った内容を確認・修正できます。**「脚質」**（逃げ/先行/差し/追込）や、その馬が最も得意とする**「得意馬場」**（良/稍重/重/不良/指定なし）をプルダウンから自由に書き換えてください。")
+
+   # 編集可能なテーブル (st.data_editor)
+   edit_columns = [c for c in ['枠番', '馬番', '馬名', 'オッズ', '脚質', '得意馬場'] if c in df_race.columns]
+  
+   # カラムが足りない場合のフォールバック
+   for c in ['枠番', '馬番', '馬名', 'オッズ', '脚質', '得意馬場']:
+       if c not in df_race.columns:
+           if c == '脚質':
+               df_race['脚質'] = '差し'
+           elif c == '得意馬場':
+               df_race['得意馬場'] = '指定なし'
+           elif c == 'オッズ':
+               df_race['オッズ'] = 10.0
+           else:
+               df_race[c] = 1
+
+   edited_df = st.data_editor(
+       df_race[edit_columns],
+       column_config={
+           "脚質": st.column_config.SelectboxColumn(
+               "脚質",
+               help="馬の脚質を選択してください",
+               options=["逃げ", "先行", "中団", "差し", "追込"],
+               required=True,
+           ),
+           "得意馬場": st.column_config.SelectboxColumn(
+               "得意馬場",
+               help="この馬が最も得意とする馬場状態を選択",
+               options=["指定なし", "良", "稍重", "重", "不良"],
+               required=True,
+           ),
+           "オッズ": st.column_config.NumberColumn(
+               "オッズ",
+               format="%.1f",
+           )
+       },
+       use_container_width=True,
+       hide_index=True,
+       key="race_data_editor"
+   )
+
+   # 編集結果を反映
+   for col in edit_columns:
+       df_race[col] = edited_df[col]
+
+   st.markdown("---")
+   st.markdown("### ⚙️ 全体コンディション設定")
    col_p1, col_p2, col_p3 = st.columns(3)
    with col_p1:
        selected_pace = st.radio("ペース想定", ["S（スロー）", "M（ミドル）", "H（ハイ）"], index=1)
    with col_p2:
        selected_bias = st.radio("トラックバイアス", ["フラット", "内有利", "外有利"], index=0)
    with col_p3:
-       selected_condition = st.selectbox("馬場状態", ["良", "稍重", "重", "不良"], index=0)
+       selected_condition = st.selectbox("当日の馬場状態", ["良", "稍重", "重", "不良"], index=0)
 
    st.markdown("---")
 
@@ -170,29 +221,16 @@ if df_race is not None and not df_race.empty:
 
        surface = str(res_df.iloc[0].get('芝・ダ', 'ダ')).strip()
 
-       # 基本のタイム基準（良馬場をベースにする）
+       # 基本のタイム基準
        if 'ダ' in surface:
            base_seconds = (distance / 1000.0) * 61.5
-           # ダート：重・不良ほど脚抜きが良くなり時計が「速く（マイナスに）」なる
-           condition_time_add = {
-               "良": 0.0,
-               "稍重": -0.8,
-               "重": -1.8,
-               "不良": -3.0
-           }.get(condition, 0.0)
+           condition_time_add = {"良": 0.0, "稍重": -0.8, "重": -1.8, "不良": -3.0}.get(condition, 0.0)
        else:
-           # 芝：重・不良ほどタフになりタイムがかかる（プラス）
            base_seconds = (distance / 1000.0) * 58.0
-           condition_time_add = {
-               "良": 0.0,
-               "稍重": 0.8,
-               "重": 1.8,
-               "不良": 3.0
-           }.get(condition, 0.0)
+           condition_time_add = {"良": 0.0, "稍重": 0.8, "重": 1.8, "不良": 3.0}.get(condition, 0.0)
 
        base_seconds += condition_time_add
 
-       # マスターデータから各馬の過去実績（平均着順など）を計算して辞書にする
        horse_ability_map = {}
        if master_data is not None and '馬名' in master_data.columns and '着順' in master_data.columns:
            master_data['着順_num'] = pd.to_numeric(master_data['着順'], errors='coerce')
@@ -209,8 +247,9 @@ if df_race is not None and not df_race.empty:
        for _ in range(num_simulations):
            sim_scores = []
            for idx, r in res_df.iterrows():
-               hname = str(r.get('name') or r.get('馬名', ''))
+               hname = str(r.get('馬名', ''))
                kyakushitsu = str(r.get('脚質', '差し'))
+               tokui_baba = str(r.get('得意馬場', '指定なし'))
                wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
                try:
                    odds = float(r.get('オッズ', 10.0))
@@ -233,10 +272,14 @@ if df_race is not None and not df_race.empty:
                elif bias == "外有利" and wakuban >= 6:
                    base_score += 4.0
 
-               # ダート等で重・不良（脚抜きが良い高速馬場）のときは、前目（逃げ・先行）に有利な補正
+               # ダート等で重・不良（脚抜きが良い高速馬場）のときは前目にボーナス
                if 'ダ' in surface and condition in ["重", "不良"]:
                    if kyakushitsu in ["逃げ", "先行"]:
                        base_score += 3.0
+
+               # 個別の「得意馬場」一致ボーナス
+               if tokui_baba == condition:
+                   base_score += 5.0  . # その馬がもっとも得意とする馬場なら大きくプラス！
 
                sim_scores.append(base_score)
 
@@ -259,6 +302,7 @@ if df_race is not None and not df_race.empty:
        for idx, r in res_df.iterrows():
            hname = str(r.get('馬名', ''))
            kyakushitsu = str(r.get('脚質', '差し'))
+           tokui_baba = str(r.get('得意馬場', '指定なし'))
            wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
            try:
                odds = float(r.get('オッズ', 10.0))
@@ -272,6 +316,8 @@ if df_race is not None and not df_race.empty:
            elif bias == "外有利" and wakuban >= 6: b_score += 2.0
            if 'ダ' in surface and condition in ["重", "不良"] and kyakushitsu in ["逃げ", "先行"]:
                b_score += 2.0
+           if tokui_baba == condition:
+               b_score += 4.0
            sim_scores_mean.append(b_score)
 
        res_df['temp_score'] = sim_scores_mean
@@ -287,8 +333,8 @@ if df_race is not None and not df_race.empty:
        return res_df
 
    st.markdown("<br>", unsafe_allow_html=True)
-   if st.button("🚀 10,000回展開シミュレーションを実行する"):
-       with st.spinner("シミュレーションを実行中..."):
+   if st.button("🚀 微調整を反映して10,000回展開シミュレーションを実行する"):
+       with st.spinner("微調整データを反映して10,000回シミュレーションを実行中..."):
            st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, num_simulations=10000)
            st.session_state['sim_executed'] = True
 
@@ -296,7 +342,7 @@ if df_race is not None and not df_race.empty:
        st.markdown(f"<br><h3>🏆 10,000回シミュレーション結果（{race_place} {race_surface}{race_distance}m / 馬場: {selected_condition}）</h3>", unsafe_allow_html=True)
 
        df_simulated = st.session_state['df_simulated']
-       display_columns = [c for c in ['着順予測', '馬番', '馬名', 'オッズ', '脚質', '勝率(%)', '連対率(%)', '複勝率(%)', '予測走破タイム'] if c in df_simulated.columns]
+       display_columns = [c for c in ['着順予測', '馬番', '馬名', 'オッズ', '脚質', '得意馬場', '勝率(%)', '連対率(%)', '複勝率(%)', '予測走破タイム'] if c in df_simulated.columns]
        display_df = df_simulated[display_columns].copy()
 
        display_df['勝率(%)'] = display_df['勝率(%)'].apply(lambda x: f"{x:.1f}%")
@@ -305,7 +351,7 @@ if df_race is not None and not df_race.empty:
 
        st.dataframe(display_df, use_container_width=True, hide_index=True)
    else:
-       st.info("👆 条件を確認・調整してボタンを押すとシミュレーションが実行されます。")
+       st.info("👆 表で脚質や得意馬場を書き換えたら、上のボタンを押してシミュレーションを再実行してください。")
 
 else:
    st.info("👈 サイドバーから未来のレースの出馬表スクショをアップロードするか、過去データを選択してください。")
