@@ -3,8 +3,6 @@ import pandas as pd
 import numpy as np
 import os
 import json
-import streamlit.components.v1 as components
-from google import genai  # 画像解析用
 
 st.set_page_config(page_title="本格競馬展開シミュレーター", layout="wide")
 
@@ -29,7 +27,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>未来のレース予想（出馬表スクショ読込）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（1万回試行 ＆ スクショ読込）</h2>", unsafe_allow_html=True)
 
 # 1. 画像アップロードによる出馬表自動読み込み
 st.sidebar.markdown("### 📥 出馬表スクショから読み込む")
@@ -38,14 +36,13 @@ uploaded_image = st.sidebar.file_uploader("出馬表の画像をアップロー�
 df_race = None
 
 if uploaded_image is not None:
-    st.sidebar.image(uploaded_image, caption="アップロードされた出馬表", use_column_width=True)
+    st.sidebar.image(uploaded_image, caption="アップロードされた出馬表", use_container_width=True)
     if st.sidebar.button("✨ 画像からAI解析を実行"):
         with st.spinner("AIが馬名やオッズを読み取っています..."):
             try:
-                # 画像をバイトデータとして読み込み
+                from google import genai
                 image_bytes = uploaded_image.getvalue()
                
-                # Geminiモデルで画像を解析して構造化データ（JSON）に変換
                 client = genai.Client()
                 response = client.models.generate_content(
                     model='gemini-2.5-flash',
@@ -56,12 +53,11 @@ if uploaded_image is not None:
                     ]
                 )
                
-                # レスポンスからJSONを抽出
                 cleaned_text = response.text.replace("```json", "").replace("```", "").strip()
                 parsed_data = json.loads(cleaned_text)
                
                 df_race = pd.DataFrame(parsed_data)
-                df_race['距離'] = 1600.0  # デフォルト（必要に応じて画像から読み取ることも可能）
+                df_race['距離'] = 1600.0 
                 df_race['芝・ダ'] = '芝'
                 df_race['馬場状態'] = '良'
                 df_race['略レース名'] = '解析レース'
@@ -71,7 +67,7 @@ if uploaded_image is not None:
             except Exception as e:
                 st.error(f"解析に失敗しました: {e}")
 
-# セッションにデータがあればそれを利用、なければ既存のCSVフォールバック
+# セッションにデータがあればそれ延续、なければ既存のCSVフォールバック
 if 'custom_df_race' in st.session_state:
     df_race = st.session_state['custom_df_race']
     selected_race = "アップロードされた未来のレース"
@@ -103,13 +99,6 @@ if df_race is not None and not df_race.empty:
    
     st.markdown("---")
 
-    def get_waku_color(wakuban):
-        waku_colors = {
-            1: "#ffffff", 2: "#333333", 3: "#d9381e", 4: "#1f77b4",
-            5: "#e5c100", 6: "#2ca02c", 7: "#ff7f0e", 8: "#9467bd"
-        }
-        return waku_colors.get(int(wakuban) if pd.notnull(wakuban) else 1, "#1f77b4")
-
     def format_time(seconds):
         m = int(seconds // 60)
         s = seconds % 60
@@ -118,52 +107,90 @@ if df_race is not None and not df_race.empty:
         else:
             return f"{s:.1f}秒"
 
-    def simulate_single_race(df_r, pace, bias):
+    def run_monte_carlo_simulation(df_r, pace, bias, num_simulations=10000):
         res_df = df_r.copy()
         try:
             distance = float(res_df.iloc[0].get('距離', 1600.0))
         except:
             distance = 1600.0
            
-        base_seconds = (distance / 1000.0) * 57.2 # G1/重賞基準
-           
-        sim_scores = []
+        base_seconds = (distance / 1000.0) * 57.2
+       
+        n_horses = len(res_df)
+        win_counts = np.zeros(n_horses)
+        place_counts = np.zeros(n_horses) # 2着以内
+        show_counts = np.zeros(n_horses)  # 3着以内
+       
+        # モンテカルロシミュレーション (10000回)
+        for _ in range(num_simulations):
+            sim_scores = []
+            for idx, r in res_df.iterrows():
+                kyakushitsu = str(r.get('脚質', '差し'))
+                wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
+               
+                base_score = np.random.uniform(70, 95) + np.random.normal(0, 3.5)
+                if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
+                    base_score += 8.0
+                elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
+                    base_score += 8.0
+                   
+                if bias == "内有利" and wakuban <= 3:
+                    base_score += 5.0
+                elif bias == "外有利" and wakuban >= 6:
+                    base_score += 5.0
+                   
+                sim_scores.append(base_score)
+               
+            sorted_indices = np.argsort(sim_scores)[::-1] # スコアが高い順
+            win_counts[sorted_indices[0]] += 1
+            if n_horses > 1:
+                place_counts[sorted_indices[0]] += 1
+                place_counts[sorted_indices[1]] += 1
+            if n_horses > 2:
+                show_counts[sorted_indices[0]] += 1
+                show_counts[sorted_indices[1]] += 1
+                show_counts[sorted_indices[2]] += 1
+
+        res_df['勝率(%)'] = (win_counts / num_simulations) * 100
+        res_df['連対率(%)'] = (place_counts / num_simulations) * 100
+        res_df['複勝率(%)'] = (show_counts / num_simulations) * 100
+       
+        # 平均的な想定タイムの計算用スコア算出
+        sim_scores_mean = []
         for idx, r in res_df.iterrows():
             kyakushitsu = str(r.get('脚質', '差し'))
             wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
+            b_score = 80.0
+            if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]: b_score += 5.0
+            elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]: b_score += 5.0
+            if bias == "内有利" and wakuban <= 3: b_score += 3.0
+            elif bias == "外有利" and wakuban >= 6: b_score += 3.0
+            sim_scores_mean.append(b_score)
            
-            base_score = np.random.uniform(70, 95) + np.random.normal(0, 3.0)
-            if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
-                base_score += 8.0
-            elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
-                base_score += 8.0
-               
-            if bias == "内有利" and wakuban <= 3:
-                base_score += 5.0
-            elif bias == "外有利" and wakuban >= 6:
-                base_score += 5.0
-               
-            sim_scores.append(base_score)
-           
-        res_df['sim_score'] = sim_scores
-        res_df = res_df.sort_values(by='sim_score', ascending=False).reset_index(drop=True)
+        res_df['temp_score'] = sim_scores_mean
+        res_df = res_df.sort_values(by=['勝率(%)', 'temp_score'], ascending=False).reset_index(drop=True)
         res_df['着順予測'] = range(1, len(res_df) + 1)
        
         times = []
         for i in range(len(res_df)):
-            t = base_seconds + (i * 0.2) + np.random.uniform(0.0, 0.4)
+            t = base_seconds + (i * 0.18) + np.random.uniform(0.0, 0.3)
             times.append(round(t, 1))
            
-        res_df['予測走破秒'] = times
         res_df['予測走破タイム'] = [format_time(t) for t in times]
         return res_df
 
-    df_simulated = simulate_single_race(df_race, selected_pace, selected_bias)
+    with st.spinner("10,000回の展開シミュレーションを実行中..."):
+        df_simulated = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, num_simulations=10000)
 
-    # 予測結果一覧
-    st.markdown("<br><h3>🏆 今回の個別レース予測結果</h3>", unsafe_allow_html=True)
-    display_columns = [c for c in ['着順予測', '馬番', '馬名', '脚質', '予測走破タイム'] if c in df_simulated.columns]
+    st.markdown("<br><h3>🏆 10,000回シミュレーション結果（確率分析）</h3>", unsafe_allow_html=True)
+   
+    display_columns = [c for c in ['着順予測', '馬番', '馬名', '脚質', '勝率(%)', '連対率(%)', '複勝率(%)', '予測走破タイム'] if c in df_simulated.columns]
     display_df = df_simulated[display_columns].copy()
+   
+    # 確率をパーセンテージ表記に整形
+    display_df['勝率(%)'] = display_df['勝率(%)'].apply(lambda x: f"{x:.1f}%")
+    display_df['連対率(%)'] = display_df['連対率(%)'].apply(lambda x: f"{x:.1f}%")
+    display_df['複勝率(%)'] = display_df['複勝率(%)'].apply(lambda x: f"{x:.1f}%")
    
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
