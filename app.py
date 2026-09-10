@@ -36,7 +36,7 @@ st.markdown("""
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（能力・オッズボーナス半減版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（オッズボーナス非搭載版）</h2>", unsafe_allow_html=True)
 
 # 1. マスターデータの読み込み準備
 master_df = None
@@ -241,7 +241,7 @@ if df_race is not None and not df_race.empty:
                avg_finishes = master_data.groupby('馬名')['着順_num'].mean().to_dict()
                for hname, af in avg_finishes.items():
                    if not pd.isna(af):
-                       # 【基礎能力ボーナスを半分（0.5）に修正】
+                       # 基礎能力ボーナス（半分）
                        horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
 
            if '走破タイム' in master_data.columns:
@@ -276,20 +276,14 @@ if df_race is not None and not df_race.empty:
                kyakushitsu = str(r.get('脚質', '差し'))
                tokui_baba = str(r.get('得意馬場', '指定なし'))
                wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
-               try:
-                   odds = float(r.get('オッズ', 10.0))
-               except:
-                   odds = 10.0
 
-               # 基礎能力ボーナス（未登録馬のデフォルトも5.0の半分の2.5に）
                ability_bonus = horse_ability_map.get(hname, 2.5)
                time_bonus = horse_time_bonus_map.get(hname, 0.0)
                f3_bonus = horse_f3_bonus_map.get(hname, 0.0)
               
-               # オッズボーナスも半減
-               odds_bonus = max(0.0, 12.0 - np.log(max(odds, 1.1)) * 3.5) * 0.5
+               # 【オッズボーナスを完全削除しました】
 
-               base_score = 70.0 + ability_bonus + time_bonus + odds_bonus + np.random.normal(0, 3.0)
+               base_score = 70.0 + ability_bonus + time_bonus + np.random.normal(0, 3.0)
 
                if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
                    base_score += 6.0
@@ -332,13 +326,8 @@ if df_race is not None and not df_race.empty:
            kyakushitsu = str(r.get('脚質', '差し'))
            tokui_baba = str(r.get('得意馬場', '指定なし'))
            wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
-           try:
-               odds = float(r.get('オッズ', 10.0))
-           except:
-               odds = 10.0
 
-           odds_bonus_mean = max(0.0, 12.0 - np.log(max(odds, 1.1)) * 3.5) * 0.5
-           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_time_bonus_map.get(hname, 0.0) + odds_bonus_mean
+           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_time_bonus_map.get(hname, 0.0)
           
            if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]: b_score += 4.0
            elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]: b_score += 4.0 + (horse_f3_bonus_map.get(hname, 0.0) * 0.5)
@@ -365,7 +354,7 @@ if df_race is not None and not df_race.empty:
        return res_df
 
    st.markdown("<br>", unsafe_allow_html=True)
-   if st.button("🚀 微調整を反映して10,000回展開シミュレーションを実行する"):
+   if st.button("🚀 オッズ無しで10,000回展開シミュレーションを実行する"):
        with st.spinner("出馬表を解析し10,000回シミュレーションを実行中..."):
            st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, num_simulations=10000)
            st.session_state['sim_executed'] = True
@@ -383,7 +372,7 @@ if df_race is not None and not df_race.empty:
 
        st.dataframe(display_df, use_container_width=True, hide_index=True)
    else:
-       st.info("👆 表で脚質や得意馬場を書き換えたら、上のボタンを押してシミュレーションを再実行してください。")
+       st.info("👆 表で脚質や得意馬場を書き換えたら、上のボタンを押してシミュレーションを実行してください。")
 
 else:
    st.info("👈 サイドバーから未来のレースの出馬表スクショをアップロードするか、過去データを選択してください。")
