@@ -43,34 +43,37 @@ if uploaded_image is not None:
                 from google import genai
                 image_bytes = uploaded_image.getvalue()
                
-                # StreamlitのSecretsまたは環境変数からAPIキーを取得
+                # APIキーの取得（Secrets または 環境変数）
                 api_key = None
                 try:
                     api_key = st.secrets["GEMINI_API_KEY"]
                 except:
                     api_key = os.environ.get("GEMINI_API_KEY")
                
-                client = genai.Client(api_key=api_key)
-                response = client.models.generate_content(
-                    model='gemini-2.5-flash',
-                    contents=[
-                        image_bytes,
-                        "この画像は競馬の出馬表です。記載されている「枠番」「馬番」「馬名」「オッズ（人気順や倍率など）」をすべて読み取り、以下のJSON配列の形式のみで正確に出力してください。他の余分なテキストやマークダウンのバッククォートは含めないでください。\n"
-                        '[{"枠番": 1, "馬番": 1, "馬名": "馬名A", "オッズ": 13.9, "脚質": "差し"}, ...]'
-                    ]
-                )
-               
-                cleaned_text = response.text.replace("```json", "").replace("```", "").strip()
-                parsed_data = json.loads(cleaned_text)
-               
-                df_race = pd.DataFrame(parsed_data)
-                df_race['距離'] = 1600.0 
-                df_race['芝・ダ'] = '芝'
-                df_race['馬場状態'] = '良'
-                df_race['略レース名'] = '解析レース'
-               
-                st.session_state['custom_df_race'] = df_race
-                st.success("出馬表の読み込みに成功しました！")
+                if not api_key:
+                    st.error("⚠️ GEMINI_API_KEY が設定されていません。StreamlitのSecretsに設定してください。")
+                else:
+                    client = genai.Client(api_key=api_key)
+                    response = client.models.generate_content(
+                        model='gemini-2.5-flash',
+                        contents=[
+                            image_bytes,
+                            "この画像は競馬の出馬表です。記載されている「枠番」「馬番」「馬名」「オッズ（人気順や倍率など）」をすべて読み取り、以下のJSON配列の形式のみで正確に出力してください。他の余分なテキストやマークダウンのバッククォートは含めないでください。\n"
+                            '[{"枠番": 1, "馬番": 1, "馬名": "馬名A", "オッズ": 13.9, "脚質": "差し"}, ...]'
+                        ]
+                    )
+                   
+                    cleaned_text = response.text.replace("```json", "").replace("```", "").strip()
+                    parsed_data = json.loads(cleaned_text)
+                   
+                    df_race = pd.DataFrame(parsed_data)
+                    df_race['距離'] = 1600.0 
+                    df_race['芝・ダ'] = '芝'
+                    df_race['馬場状態'] = '良'
+                    df_race['略レース名'] = '解析レース'
+                   
+                    st.session_state['custom_df_race'] = df_race
+                    st.success("出馬表の読み込みに成功しました！")
             except Exception as e:
                 st.error(f"解析に失敗しました: {e}")
 
@@ -184,19 +187,27 @@ if df_race is not None and not df_race.empty:
         res_df['予測走破タイム'] = [format_time(t) for t in times]
         return res_df
 
-    with st.spinner("10,000回の展開シミュレーションを実行中..."):
-        df_simulated = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, num_simulations=10000)
+    # ボタン式に変更：このボタンを押したときだけ1万回シミュレーションが走る
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("🚀 10,000回展開シミュレーションを実行する"):
+        with st.spinner("10,000回の展開シミュレーションを実行中..."):
+            st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, num_simulations=10000)
+            st.session_state['sim_executed'] = True
 
-    st.markdown("<br><h3>🏆 10,000回シミュレーション結果（確率分析）</h3>", unsafe_allow_html=True)
-   
-    display_columns = [c for c in ['着順予測', '馬番', '馬名', 'オッズ', '脚質', '勝率(%)', '連対率(%)', '複勝率(%)', '予測走破タイム'] if c in df_simulated.columns]
-    display_df = df_simulated[display_columns].copy()
-   
-    display_df['勝率(%)'] = display_df['勝率(%)'].apply(lambda x: f"{x:.1f}%")
-    display_df['連対率(%)'] = display_df['連対率(%)'].apply(lambda x: f"{x:.1f}%")
-    display_df['複勝率(%)'] = display_df['複勝率(%)'].apply(lambda x: f"{x:.1f}%")
-   
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+    if st.session_state.get('sim_executed', False) and 'df_simulated' in st.session_state:
+        st.markdown("<br><h3>🏆 10,000回シミュレーション結果（確率分析）</h3>", unsafe_allow_html=True)
+       
+        df_simulated = st.session_state['df_simulated']
+        display_columns = [c for c in ['着順予測', '馬番', '馬名', 'オッズ', '脚質', '勝率(%)', '連対率(%)', '複勝率(%)', '予測走破タイム'] if c in df_simulated.columns]
+        display_df = df_simulated[display_columns].copy()
+       
+        display_df['勝率(%)'] = display_df['勝率(%)'].apply(lambda x: f"{x:.1f}%")
+        display_df['連対率(%)'] = display_df['連対率(%)'].apply(lambda x: f"{x:.1f}%")
+        display_df['複勝率(%)'] = display_df['複勝率(%)'].apply(lambda x: f"{x:.1f}%")
+       
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("👆 上のボタンを押すと、10,000回シミュレーションと確率分析結果が表示されます。")
 
 else:
     st.info("👈 サイドバーから未来のレースの出馬表スクショをアップロードするか、過去データを選択してください。")
