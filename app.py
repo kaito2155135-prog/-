@@ -77,7 +77,7 @@ if uploaded_image is not None:
                    image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
                    response = client.models.generate_content(
-                       model='gemini-3.6-flash',
+                       model='gemini-2.5-flash',
                        contents=[
                            image_part,
                            "この画像は競馬の出馬表です。上部に記載されている「場所（競馬場名 例:阪神など）」「距離（例:1600m）」「芝・ダ（芝かダートか）」を読み取ってください。\n"
@@ -209,7 +209,7 @@ if df_race is not None and not df_race.empty:
    elif race_distance <= 2200:
        race_category = "中距離"
    else:
-       race_category = "長距離" # 2500mなどはここ
+       race_category = "長距離"
 
    st.info(f"💡 現在のレース設定距離（{race_distance}m）は **『{race_category}』** に分類されます。距離の壁フィルターにより、カテゴリ違いの馬を適切に評価・減点します。")
    distance_strictness = st.slider("🎯 距離適正フィルターの厳しさ（距離カテゴリ不適合のペナルティ倍率）", min_value=0.0, max_value=3.0, value=1.5, step=0.5, help="長距離戦でマイラー（マイル実績馬）などをどれだけ強く割り引くかを調整できます。")
@@ -280,7 +280,7 @@ if df_race is not None and not df_race.empty:
            # 3. 上がり3Fの評価
            if '上がり3Fタイム' in recent_master_data.columns:
                recent_master_data['上がり3F_num'] = pd.to_numeric(recent_master_data['上がり3Fタイム'], errors='coerce')
-               avg_f3 = recent_master_data.groupby('馬名']['上がり3F_num'].mean()
+               avg_f3 = recent_master_data.groupby('馬名')['上がり3F_num'].mean()
                if not avg_f3.empty:
                    mean_all_f3 = avg_f3.mean()
                    f3_diffs = (mean_all_f3 - avg_f3).to_dict()
@@ -289,7 +289,6 @@ if df_race is not None and not df_race.empty:
                            horse_f3_bonus_map[hname] = max(-2.0, min(6.0, fd * 1.5))
 
            # 4. 【距離カテゴリ適正判定】
-           # 各馬が直近6走でどの距離カテゴリを走ってきたかを評価
            if '距離' in recent_master_data.columns:
                recent_master_data['距離_num'] = pd.to_numeric(recent_master_data['距離'], errors='coerce')
                
@@ -298,21 +297,17 @@ if df_race is not None and not df_race.empty:
                    if len(dists) == 0:
                        return 0.0
                    
-                   # 今回のターゲット距離との絶対値の平均
                    mean_diff = np.abs(dists - target_distance).mean()
                    
-                   # 長距離（2500mなど）の場合、普段マイル〜中距離メインの馬には強烈なペナルティを課す
                    if target_cat == "長距離":
-                       # 直近の平均距離が2200m未満（マイル・中距離中心）なら大幅マイナス
                        avg_run_dist = dists.mean()
                        if avg_run_dist < 2100:
-                           return -8.0 * strictness  # 距離の壁ペナルティ
+                           return -8.0 * strictness
                        elif avg_run_dist >= 2300:
-                           return 5.0              # 長距離実績ありボーナス
+                           return 5.0
                        else:
                            return 0.0
                    else:
-                       # 一般的な距離の場合の近さ評価
                        if mean_diff <= 300:
                            return 4.0
                        elif mean_diff <= 600:
@@ -342,7 +337,6 @@ if df_race is not None and not df_race.empty:
                f3_bonus = horse_f3_bonus_map.get(hname, 0.0)
                dist_fit_bonus = horse_distance_fit_map.get(hname, 0.0)
 
-               # 基本スコアに距離適正（距離の壁）を反映
                base_score = 70.0 + ability_bonus + speed_bonus + dist_fit_bonus + np.random.normal(0, 3.0)
 
                if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
