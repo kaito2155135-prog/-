@@ -36,7 +36,7 @@ st.markdown("""
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（オッズボーナス非搭載版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（スピード指数・直近6走評価版）</h2>", unsafe_allow_html=True)
 
 # 1. マスターデータの読み込み準備
 master_df = None
@@ -77,7 +77,7 @@ if uploaded_image is not None:
                    image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
                    response = client.models.generate_content(
-                       model='gemini-3.6-flash',
+                       model='gemini-2.5-flash',
                        contents=[
                            image_part,
                            "この画像は競馬の出馬表です。上部に記載されている「場所（競馬場名 例:阪神など）」「距離（例:1600m）」「芝・ダ（芝かダートか）」を読み取ってください。\n"
@@ -216,47 +216,64 @@ if df_race is not None and not df_race.empty:
    def run_monte_carlo_simulation(df_r, pace, bias, condition, master_data, num_simulations=10000):
        res_df = df_r.copy()
        try:
-           distance = float(res_df.iloc[0].get('距離', 1600.0))
+           target_distance = float(res_df.iloc[0].get('距離', 1600.0))
        except:
-           distance = 1600.0
+           target_distance = 1600.0
 
        surface = str(res_df.iloc[0].get('芝・ダ', '芝')).strip()
 
        if 'ダ' in surface:
-           base_seconds = (distance / 1000.0) * 61.5
+           base_seconds = (target_distance / 1000.0) * 61.5
            condition_time_add = {"良": 0.0, "稍重": -0.8, "重": -1.8, "不良": -3.0}.get(condition, 0.0)
        else:
-           base_seconds = (distance / 1000.0) * 58.0
+           base_seconds = (target_distance / 1000.0) * 58.0
            condition_time_add = {"良": 0.0, "稍重": 0.8, "重": 1.8, "不良": 3.0}.get(condition, 0.0)
 
        base_seconds += condition_time_add
 
        horse_ability_map = {}
-       horse_time_bonus_map = {}
+       horse_speed_bonus_map = {}
        horse_f3_bonus_map = {}
 
        if master_data is not None and '馬名' in master_data.columns:
-           if '着順' in master_data.columns:
-               master_data['着順_num'] = pd.to_numeric(master_data['着順'], errors='coerce')
-               avg_finishes = master_data.groupby('馬名')['着順_num'].mean().to_dict()
+           # 日付の降順（新しい順）に並べ替え可能ならソート
+           sort_cols = [c for c in ['年', '月', '日'] if c in master_data.columns]
+           if sort_cols:
+               master_data = master_data.sort_values(by=sort_cols, ascending=False)
+
+           # 【各馬「直近6走」のみに絞り込む処理】
+           recent_master_data = master_data.groupby('馬名').head(6).copy()
+
+           # 1. 平均着順の計算
+           if '着順' in recent_master_data.columns:
+               recent_master_data['着順_num'] = pd.to_numeric(recent_master_data['着順'], errors='coerce')
+               avg_finishes = recent_master_data.groupby('馬名')['着順_num'].mean().to_dict()
                for hname, af in avg_finishes.items():
                    if not pd.isna(af):
-                       # 基礎能力ボーナス（半分）
                        horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
 
-           if '走破タイム' in master_data.columns:
-               master_data['走破タイム_num'] = pd.to_numeric(master_data['走破タイム'], errors='coerce')
-               avg_times = master_data.groupby('馬名')['走破タイム_num'].mean()
-               if not avg_times.empty:
-                   mean_all_time = avg_times.mean()
-                   time_diffs = (mean_all_time - avg_times).to_dict()
-                   for hname, td in time_diffs.items():
-                       if not pd.isna(td):
-                           horse_time_bonus_map[hname] = max(-3.0, min(8.0, td * 1.5))
+           # 2. 距離の歪みをなくすため「1000mあたりのスピード（秒）」に換算して評価
+           if '走破タイム' in recent_master_data.columns and '距離' in recent_master_data.columns:
+               recent_master_data['走破タイム_num'] = pd.to_numeric(recent_master_data['走破タイム'], errors='coerce')
+               recent_master_data['距離_num'] = pd.to_numeric(recent_master_data['距離'], errors='coerce')
+              
+               # 各レースの1000mあたり所要時間（小さいほどスピードが速い）を算出
+               recent_master_data['speed_per_1000m'] = recent_master_data['走破タイム_num'] / (recent_master_data['距離_num'] / 1000.0)
+              
+               avg_speeds = recent_master_data.groupby('馬名')['speed_per_1000m'].mean()
+               if not avg_speeds.empty:
+                   mean_all_speed = avg_speeds.mean()
+                   # 平均スピードとの差（速いほどプラス：平均より所要時間が短い）
+                   speed_diffs = (mean_all_speed - avg_speeds).to_dict()
+                   for hname, sd in speed_diffs.items():
+                       if not pd.isna(sd):
+                           # 今回の対象距離に合わせたスケールに変換してボーナス化
+                           horse_speed_bonus_map[hname] = max(-3.0, min(8.0, sd * (target_distance / 1000.0) * 1.5))
 
-           if '上がり3Fタイム' in master_data.columns:
-               master_data['上がり3F_num'] = pd.to_numeric(master_data['上がり3Fタイム'], errors='coerce')
-               avg_f3 = master_data.groupby('馬名')['上がり3F_num'].mean()
+           # 3. 上がり3Fの評価
+           if '上がり3Fタイム' in recent_master_data.columns:
+               recent_master_data['上がり3F_num'] = pd.to_numeric(recent_master_data['上がり3Fタイム'], errors='coerce')
+               avg_f3 = recent_master_data.groupby('馬名')['上がり3F_num'].mean()
                if not avg_f3.empty:
                    mean_all_f3 = avg_f3.mean()
                    f3_diffs = (mean_all_f3 - avg_f3).to_dict()
@@ -278,12 +295,10 @@ if df_race is not None and not df_race.empty:
                wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
 
                ability_bonus = horse_ability_map.get(hname, 2.5)
-               time_bonus = horse_time_bonus_map.get(hname, 0.0)
+               speed_bonus = horse_speed_bonus_map.get(hname, 0.0)
                f3_bonus = horse_f3_bonus_map.get(hname, 0.0)
-              
-               # 【オッズボーナスを完全削除しました】
 
-               base_score = 70.0 + ability_bonus + time_bonus + np.random.normal(0, 3.0)
+               base_score = 70.0 + ability_bonus + speed_bonus + np.random.normal(0, 3.0)
 
                if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
                    base_score += 6.0
@@ -327,7 +342,7 @@ if df_race is not None and not df_race.empty:
            tokui_baba = str(r.get('得意馬場', '指定なし'))
            wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
 
-           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_time_bonus_map.get(hname, 0.0)
+           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_speed_bonus_map.get(hname, 0.0)
           
            if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]: b_score += 4.0
            elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]: b_score += 4.0 + (horse_f3_bonus_map.get(hname, 0.0) * 0.5)
@@ -346,7 +361,7 @@ if df_race is not None and not df_race.empty:
        times = []
        for i in range(len(res_df)):
            hname = str(res_df.iloc[i].get('馬名', ''))
-           time_mod = -horse_time_bonus_map.get(hname, 0.0) * 0.15
+           time_mod = -horse_speed_bonus_map.get(hname, 0.0) * 0.15
            t = base_seconds + (i * 0.3) + time_mod + np.random.uniform(0.0, 0.3)
            times.append(round(max(base_seconds - 2.0, t), 1))
 
@@ -354,8 +369,8 @@ if df_race is not None and not df_race.empty:
        return res_df
 
    st.markdown("<br>", unsafe_allow_html=True)
-   if st.button("🚀 オッズ無しで10,000回展開シミュレーションを実行する"):
-       with st.spinner("出馬表を解析し10,000回シミュレーションを実行中..."):
+   if st.button("🚀 スピード指数＆直近6走ベースで10,000回展開シミュレーションを実行する"):
+       with st.spinner("各馬のスピード指数を計算して10,000回シミュレーションを実行中..."):
            st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, num_simulations=10000)
            st.session_state['sim_executed'] = True
 
@@ -367,7 +382,7 @@ if df_race is not None and not df_race.empty:
        display_df = df_simulated[display_columns].copy()
 
        display_df['勝率(%)'] = display_df['勝率(%)'].apply(lambda x: f"{x:.1f}%")
-       display_df['連対率(%)'] = display_df['連対率(%)'].apply(lambda x: f"{x:.1f}%")
+       display_df['連対率(%)'] = display_df['連対率(%)'].apply(lambda x: f"{x:%:.1f}%" if False else f"{x:.1f}%")
        display_df['複勝率(%)'] = display_df['複勝率(%)'].apply(lambda x: f"{x:.1f}%")
 
        st.dataframe(display_df, use_container_width=True, hide_index=True)
