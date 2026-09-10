@@ -36,7 +36,7 @@ st.markdown("""
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（スピード指数・直近6走評価版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（距離適正フィルター搭載版）</h2>", unsafe_allow_html=True)
 
 # 1. マスターデータの読み込み準備
 master_df = None
@@ -234,14 +234,13 @@ if df_race is not None and not df_race.empty:
        horse_ability_map = {}
        horse_speed_bonus_map = {}
        horse_f3_bonus_map = {}
+       horse_distance_bonus_map = {} # 【追加】距離適正ボーナス
 
        if master_data is not None and '馬名' in master_data.columns:
-           # 日付の降順（新しい順）に並べ替え可能ならソート
            sort_cols = [c for c in ['年', '月', '日'] if c in master_data.columns]
            if sort_cols:
                master_data = master_data.sort_values(by=sort_cols, ascending=False)
 
-           # 【各馬「直近6走」のみに絞り込む処理】
            recent_master_data = master_data.groupby('馬名').head(6).copy()
 
            # 1. 平均着順の計算
@@ -252,22 +251,19 @@ if df_race is not None and not df_race.empty:
                    if not pd.isna(af):
                        horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
 
-           # 2. 距離の歪みをなくすため「1000mあたりのスピード（秒）」に換算して評価
+           # 2. 1000mあたりのスピード換算
            if '走破タイム' in recent_master_data.columns and '距離' in recent_master_data.columns:
                recent_master_data['走破タイム_num'] = pd.to_numeric(recent_master_data['走破タイム'], errors='coerce')
                recent_master_data['距離_num'] = pd.to_numeric(recent_master_data['距離'], errors='coerce')
               
-               # 各レースの1000mあたり所要時間（小さいほどスピードが速い）を算出
                recent_master_data['speed_per_1000m'] = recent_master_data['走破タイム_num'] / (recent_master_data['距離_num'] / 1000.0)
               
                avg_speeds = recent_master_data.groupby('馬名')['speed_per_1000m'].mean()
                if not avg_speeds.empty:
                    mean_all_speed = avg_speeds.mean()
-                   # 平均スピードとの差（速いほどプラス：平均より所要時間が短い）
                    speed_diffs = (mean_all_speed - avg_speeds).to_dict()
                    for hname, sd in speed_diffs.items():
                        if not pd.isna(sd):
-                           # 今回の対象距離に合わせたスケールに変換してボーナス化
                            horse_speed_bonus_map[hname] = max(-3.0, min(8.0, sd * (target_distance / 1000.0) * 1.5))
 
            # 3. 上がり3Fの評価
@@ -280,6 +276,23 @@ if df_race is not None and not df_race.empty:
                    for hname, fd in f3_diffs.items():
                        if not pd.isna(fd):
                            horse_f3_bonus_map[hname] = max(-2.0, min(6.0, fd * 1.5))
+
+           # 4. 【追加】距離適正フィルター（今回のターゲット距離と過去走の距離の近さを評価）
+           if '距離' in recent_master_data.columns:
+               def calc_distance_score(group):
+                   # 今回の距離との差の絶対値の最小値（近いレースがあるほど高評価）
+                   d_diffs = np.abs(group['距離_num'] - target_distance)
+                   min_diff = d_diffs.min()
+                   if min_diff <= 200:   # ±200m以内なら大得意
+                       return 4.0
+                   elif min_diff <= 400: # ±400m以内なら許容範囲
+                       return 1.5
+                   else:                 # それ以上離れているとマイナスまたは適性なし
+                       return -2.0
+
+               dist_scores = recent_master_data.groupby('馬名').apply(calc_distance_score).to_dict()
+               for hname, dscore in dist_scores.items():
+                   horse_distance_bonus_map[hname] = dscore
 
        n_horses = len(res_df)
        win_counts = np.zeros(n_horses)
@@ -297,8 +310,10 @@ if df_race is not None and not df_race.empty:
                ability_bonus = horse_ability_map.get(hname, 2.5)
                speed_bonus = horse_speed_bonus_map.get(hname, 0.0)
                f3_bonus = horse_f3_bonus_map.get(hname, 0.0)
+               distance_bonus = horse_distance_bonus_map.get(hname, 0.0) # 【追加】
 
-               base_score = 70.0 + ability_bonus + speed_bonus + np.random.normal(0, 3.0)
+               # 基本スコアに距離適正ボーナスを加味
+               base_score = 70.0 + ability_bonus + speed_bonus + distance_bonus + np.random.normal(0, 3.0)
 
                if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
                    base_score += 6.0
@@ -342,7 +357,7 @@ if df_race is not None and not df_race.empty:
            tokui_baba = str(r.get('得意馬場', '指定なし'))
            wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
 
-           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_speed_bonus_map.get(hname, 0.0)
+           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_speed_bonus_map.get(hname, 0.0) + horse_distance_bonus_map.get(hname, 0.0)
           
            if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]: b_score += 4.0
            elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]: b_score += 4.0 + (horse_f3_bonus_map.get(hname, 0.0) * 0.5)
@@ -369,8 +384,8 @@ if df_race is not None and not df_race.empty:
        return res_df
 
    st.markdown("<br>", unsafe_allow_html=True)
-   if st.button("🚀 スピード指数＆直近6走ベースで10,000回展開シミュレーションを実行する"):
-       with st.spinner("各馬のスピード指数を計算して10,000回シミュレーションを実行中..."):
+   if st.button("🚀 スピード指数＆距離適正フィルターで10,000回展開シミュレーションを実行する"):
+       with st.spinner("各馬のスピード指数と距離適性を計算して10,000回シミュレーションを実行中..."):
            st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, num_simulations=10000)
            st.session_state['sim_executed'] = True
 
@@ -382,7 +397,7 @@ if df_race is not None and not df_race.empty:
        display_df = df_simulated[display_columns].copy()
 
        display_df['勝率(%)'] = display_df['勝率(%)'].apply(lambda x: f"{x:.1f}%")
-       display_df['連対率(%)'] = display_df['連対率(%)'].apply(lambda x: f"{x:%:.1f}%" if False else f"{x:.1f}%")
+       display_df['連対率(%)'] = display_df['連対率(%)'].apply(lambda x: f"{x:.1f}%")
        display_df['複勝率(%)'] = display_df['複勝率(%)'].apply(lambda x: f"{x:.1f}%")
 
        st.dataframe(display_df, use_container_width=True, hide_index=True)
