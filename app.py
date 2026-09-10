@@ -98,7 +98,6 @@ if uploaded_image is not None:
                    if '脚質' not in df_race.columns:
                        df_race['脚質'] = '差し'
                   
-                   # 各馬ごとの「得意馬場」列を初期化（デフォルトは「指定なし」）
                    df_race['得意馬場'] = '指定なし'
 
                    st.session_state['custom_df_race'] = df_race
@@ -146,12 +145,10 @@ if df_race is not None and not df_race.empty:
    """, unsafe_allow_html=True)
 
    st.markdown("### ✍️ 出走馬データの確認・手動微調整（脚質・得意馬場）")
-   st.markdown("AIが読み取った内容を確認・修正できます。**「脚質」**（逃げ/先行/差し/追込）や、その馬が最も得意とする**「得意馬場」**（良/稍重/重/不良/指定なし）をプルダウンから自由に書き換えてください。")
+   st.markdown("AIが読み取った内容を確認・修正できます。**「脚質」**や**「得意馬場」**をプルダウンから自由に書き換えてください。")
 
-   # 編集可能なテーブル (st.data_editor)
    edit_columns = [c for c in ['枠番', '馬番', '馬名', 'オッズ', '脚質', '得意馬場'] if c in df_race.columns]
   
-   # カラムが足りない場合のフォールバック
    for c in ['枠番', '馬番', '馬名', 'オッズ', '脚質', '得意馬場']:
        if c not in df_race.columns:
            if c == '脚質':
@@ -188,7 +185,6 @@ if df_race is not None and not df_race.empty:
        key="race_data_editor"
    )
 
-   # 編集結果を反映
    for col in edit_columns:
        df_race[col] = edited_df[col]
 
@@ -221,7 +217,6 @@ if df_race is not None and not df_race.empty:
 
        surface = str(res_df.iloc[0].get('芝・ダ', 'ダ')).strip()
 
-       # 基本のタイム基準
        if 'ダ' in surface:
            base_seconds = (distance / 1000.0) * 61.5
            condition_time_add = {"良": 0.0, "稍重": -0.8, "重": -1.8, "不良": -3.0}.get(condition, 0.0)
@@ -260,26 +255,22 @@ if df_race is not None and not df_race.empty:
                odds_bonus = max(0.0, 12.0 - np.log(max(odds, 1.1)) * 3.5)
                base_score = 70.0 + ability_bonus + odds_bonus + np.random.normal(0, 3.0)
 
-               # ペース補正
                if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
                    base_score += 6.0
                elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
                    base_score += 6.0
 
-               # バイアス補正
                if bias == "内有利" and wakuban <= 3:
                    base_score += 4.0
                elif bias == "外有利" and wakuban >= 6:
                    base_score += 4.0
 
-               # ダート等で重・不良（脚抜きが良い高速馬場）のときは前目にボーナス
                if 'ダ' in surface and condition in ["重", "不良"]:
                    if kyakushitsu in ["逃げ", "先行"]:
                        base_score += 3.0
 
-               # 個別の「得意馬場」一致ボーナス
                if tokui_baba == condition:
-                   base_score += 5.0  . # その馬がもっとも得意とする馬場なら大きくプラス！
+                   base_score += 5.0
 
                sim_scores.append(base_score)
 
@@ -297,7 +288,6 @@ if df_race is not None and not df_race.empty:
        res_df['連対率(%)'] = (place_counts / num_simulations) * 100
        res_df['複勝率(%)'] = (show_counts / num_simulations) * 100
 
-       # ソート用の一時スコア計算
        sim_scores_mean = []
        for idx, r in res_df.iterrows():
            hname = str(r.get('馬名', ''))
