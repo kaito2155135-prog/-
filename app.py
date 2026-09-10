@@ -36,7 +36,7 @@ st.markdown("""
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（距離適正・距離の壁フィルター搭載版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（馬場別実績・距離適正フィルター搭載版）</h2>", unsafe_allow_html=True)
 
 # 1. マスターデータの読み込み準備
 master_df = None
@@ -77,7 +77,7 @@ if uploaded_image is not None:
                    image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
                    response = client.models.generate_content(
-                       model='gemini-3.6-flash',
+                       model='gemini-2.5-flash',
                        contents=[
                            image_part,
                            "この画像は競馬の出馬表です。上部に記載されている「場所（競馬場名 例:阪神など）」「距離（例:1600m）」「芝・ダ（芝かダートか）」を読み取ってください。\n"
@@ -201,7 +201,7 @@ if df_race is not None and not df_race.empty:
    with col_p3:
        selected_condition = st.selectbox("当日の馬場状態", ["良", "稍重", "重", "不良"], index=1)
 
-   # 距離カテゴリの自動判定（短距離・マイル・中距離・長距離）
+   # 距離カテゴリの自動判定
    if race_distance <= 1400:
        race_category = "短距離"
    elif race_distance <= 1800:
@@ -211,8 +211,8 @@ if df_race is not None and not df_race.empty:
    else:
        race_category = "長距離"
 
-   st.info(f"💡 現在のレース設定距離（{race_distance}m）は **『{race_category}』** に分類されます。距離の壁フィルターにより、カテゴリ違いの馬を適切に評価・減点します。")
-   distance_strictness = st.slider("🎯 距離適正フィルターの厳しさ（距離カテゴリ不適合のペナルティ倍率）", min_value=0.0, max_value=3.0, value=1.5, step=0.5, help="長距離戦でマイラー（マイル実績馬）などをどれだけ強く割り引くかを調整できます。")
+   st.info(f"💡 現在のレース設定距離（{race_distance}m）は **『{race_category}』** に分類されます。また、**『{race_surface}』のレースのため、過去の同条件（{race_surface}）の実績のみを抽出して評価します。**")
+   distance_strictness = st.slider("🎯 距離適正フィルターの厳しさ（距離カテゴリ不適合のペナルティ倍率）", min_value=0.0, max_value=3.0, value=1.5, step=0.5)
 
    st.markdown("---")
 
@@ -252,7 +252,21 @@ if df_race is not None and not df_race.empty:
            if sort_cols:
                master_data = master_data.sort_values(by=sort_cols, ascending=False)
 
-           recent_master_data = master_data.groupby('馬名').head(6).copy()
+           # ★【重要改善】予想レースが「芝」なら芝の過去走のみ、「ダート」ならダートの過去走のみを抽出する！
+           if '芝・ダ' in master_data.columns:
+               target_surface_keyword = "ダ" if "ダ" in surface else "芝"
+               if "ダ" in target_surface_keyword:
+                   filtered_master = master_data[master_data['芝・ダ'].str.contains("ダ", na=False)].copy()
+               else:
+                   filtered_master = master_data[~master_data['芝・ダ'].str.contains("ダ", na=False)].copy()
+              
+               # もし該当レースが少なすぎる場合のフォールバック
+               if len(filtered_master) < 5:
+                   filtered_master = master_data.copy()
+           else:
+               filtered_master = master_data.copy()
+
+           recent_master_data = filtered_master.groupby('馬名').head(6).copy()
 
            # 1. 平均着順の計算
            if '着順' in recent_master_data.columns:
@@ -408,8 +422,8 @@ if df_race is not None and not df_race.empty:
        return res_df
 
    st.markdown("<br>", unsafe_allow_html=True)
-   if st.button("🚀 距離の壁フィルターを適用して10,000回シミュレーションを実行"):
-       with st.spinner("距離適正（距離の壁）を厳しく計算して10,000回シミュレーションを実行中..."):
+   if st.button("🚀 馬場別実績フィルターを適用してシミュレーションを実行"):
+       with st.spinner("芝/ダート別の実績を抽出して10,000回シミュレーションを実行中..."):
            st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, race_category, distance_strictness, num_simulations=10000)
            st.session_state['sim_executed'] = True
 
@@ -426,7 +440,7 @@ if df_race is not None and not df_race.empty:
 
        st.dataframe(display_df, use_container_width=True, hide_index=True)
    else:
-       st.info("👆 スライダーで距離適正の厳しさを調整し、上のボタンを押してシミュレーションを実行してください。")
+       st.info("👆 設定を確認し、上のボタンを押してシミュレーションを実行してください。")
 
 else:
    st.info("👈 サイドバーから未来のレースの出馬表スクショをアップロードするか、過去データを選択してください。")
