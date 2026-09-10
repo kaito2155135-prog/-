@@ -27,7 +27,7 @@ st.markdown("""
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（マスターデータ連動版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（馬場状態完全連動版）</h2>", unsafe_allow_html=True)
 
 # 1. マスターデータの読み込み準備
 master_df = None
@@ -110,11 +110,13 @@ if df_race is not None and not df_race.empty:
    st.sidebar.info(f"**{selected_race}**\n\n頭数: {len(df_race)}頭")
 
    st.markdown("### ⚙️ 展開・馬場コンディション設定")
-   col_p1, col_p2 = st.columns(2)
+   col_p1, col_p2, col_p3 = st.columns(3)
    with col_p1:
-       selected_pace = st.radio("ペース想定", ["S（スロー）", "M（ミドル）", "H（ハイ）"], index=1, horizontal=True)
+       selected_pace = st.radio("ペース想定", ["S（スロー）", "M（ミドル）", "H（ハイ）"], index=1)
    with col_p2:
-       selected_bias = st.radio("トラックバイアス（馬場・傾向）", ["フラット", "内有利", "外有利"], index=0, horizontal=True)
+       selected_bias = st.radio("トラックバイアス", ["フラット", "内有利", "外有利"], index=0)
+   with col_p3:
+       selected_condition = st.selectbox("馬場状態", ["良", "稍重", "重", "不良"], index=0)
 
    st.markdown("---")
 
@@ -126,7 +128,7 @@ if df_race is not None and not df_race.empty:
        else:
            return f"{s:.1f}秒"
 
-   def run_monte_carlo_simulation(df_r, pace, bias, master_data, num_simulations=10000):
+   def run_monte_carlo_simulation(df_r, pace, bias, condition, master_data, num_simulations=10000):
        res_df = df_r.copy()
        try:
            distance = float(res_df.iloc[0].get('距離', 1600.0))
@@ -135,11 +137,21 @@ if df_race is not None and not df_race.empty:
 
        surface = str(res_df.iloc[0].get('芝・ダ', '芝')).strip()
 
-       # 【修正】芝・ダートに応じて現実的な走破タイムの基準値を設定（例: ダート1800mなら約1分50秒前後になるよう調整）
+       # 基本のタイム基準
        if 'ダ' in surface:
            base_seconds = (distance / 1000.0) * 61.5
        else:
            base_seconds = (distance / 1000.0) * 58.0
+
+       # 馬場状態によるタイム遅延・補正係数
+       condition_time_add = {
+           "良": 0.0,
+           "稍重": 0.8,
+           "重": 1.8,
+           "不良": 3.0
+       }.get(condition, 0.0)
+
+       base_seconds += condition_time_add
 
        # マスターデータから各馬の過去実績（平均着順など）を計算して辞書にする
        horse_ability_map = {}
@@ -148,7 +160,6 @@ if df_race is not None and not df_race.empty:
            avg_finishes = master_data.groupby('馬名')['着順_num'].mean().to_dict()
            for hname, af in avg_finishes.items():
                if not pd.isna(af):
-                   # 平均着順が良い（1に近い）ほど高いボーナス点（最大+15点）
                    horse_ability_map[hname] = max(0.0, 15.0 - (af - 1) * 1.2)
 
        n_horses = len(res_df)
@@ -167,25 +178,26 @@ if df_race is not None and not df_race.empty:
                except:
                    odds = 10.0
 
-               # 1. マスターデータの過去実績ボーナス（データがない馬は0）
                ability_bonus = horse_ability_map.get(hname, 5.0)
-
-               # 2. オッズによる評価（低オッズ＝人気馬ほど基礎力が高く評価される）
                odds_bonus = max(0.0, 12.0 - np.log(max(odds, 1.1)) * 3.5)
-
-               # 3. 総合基礎スコア ＋ 運（正規乱数）
                base_score = 70.0 + ability_bonus + odds_bonus + np.random.normal(0, 3.0)
 
-               # 4. ペース・バイアス補正
+               # ペース補正
                if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
                    base_score += 6.0
                elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
                    base_score += 6.0
 
+               # バイアス補正
                if bias == "内有利" and wakuban <= 3:
                    base_score += 4.0
                elif bias == "外有利" and wakuban >= 6:
                    base_score += 4.0
+
+               # 馬場状態（重・不良）による適性補正（タフな馬場では先行・パワー型に微加点など）
+               if condition in ["重", "不良"]:
+                   if kyakushitsu in ["逃げ", "先行"]:
+                       base_score += 2.5
 
                sim_scores.append(base_score)
 
@@ -219,6 +231,7 @@ if df_race is not None and not df_race.empty:
            elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]: b_score += 4.0
            if bias == "内有利" and wakuban <= 3: b_score += 2.0
            elif bias == "外有利" and wakuban >= 6: b_score += 2.0
+           if condition in ["重", "不良"] and kyakushitsu in ["逃げ", "先行"]: b_score += 1.5
            sim_scores_mean.append(b_score)
 
        res_df['temp_score'] = sim_scores_mean
@@ -227,7 +240,6 @@ if df_race is not None and not df_race.empty:
 
        times = []
        for i in range(len(res_df)):
-           # 着順が下がるにつれてタイムが現実的にわずかに遅くなるよう調整
            t = base_seconds + (i * 0.3) + np.random.uniform(0.0, 0.4)
            times.append(round(t, 1))
 
@@ -236,12 +248,12 @@ if df_race is not None and not df_race.empty:
 
    st.markdown("<br>", unsafe_allow_html=True)
    if st.button("🚀 10,000回展開シミュレーションを実行する"):
-       with st.spinner("マスターデータとオッズを元に10,000回シミュレーションを実行中..."):
-           st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, master_df, num_simulations=10000)
+       with st.spinner("馬場状態・展開・オッズを元に10,000回シミュレーションを実行中..."):
+           st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, num_simulations=10000)
            st.session_state['sim_executed'] = True
 
    if st.session_state.get('sim_executed', False) and 'df_simulated' in st.session_state:
-       st.markdown("<br><h3>🏆 10,000回シミュレーション結果（確率分析）</h3>", unsafe_allow_html=True)
+       st.markdown(f"<br><h3>🏆 10,000回シミュレーション結果（馬場: {selected_condition}）</h3>", unsafe_allow_html=True)
 
        df_simulated = st.session_state['df_simulated']
        display_columns = [c for c in ['着順予測', '馬番', '馬名', 'オッズ', '脚質', '勝率(%)', '連対率(%)', '複勝率(%)', '予測走破タイム'] if c in df_simulated.columns]
@@ -253,7 +265,7 @@ if df_race is not None and not df_race.empty:
 
        st.dataframe(display_df, use_container_width=True, hide_index=True)
    else:
-       st.info("👆 上のボタンを押すと、マスターデータ実績とオッズを考慮したシミュレーション結果が表示されます。")
+       st.info("👆 馬場状態（良・稍重・重・不良）を選んでボタンを押すと、タフさや時計のかかり具合を反映したシミュレーションが行われます。")
 
 else:
    st.info("👈 サイドバーから未来のレースの出馬表スクショをアップロードするか、過去データを選択してください。")
