@@ -36,7 +36,7 @@ st.markdown("""
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（出馬表画像対応版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（能力・オッズボーナス半減版）</h2>", unsafe_allow_html=True)
 
 # 1. マスターデータの読み込み準備
 master_df = None
@@ -92,7 +92,6 @@ if uploaded_image is not None:
 
                    df_race = pd.DataFrame(parsed_data)
                   
-                   # データの補正
                    if '場所' not in df_race.columns:
                        df_race['場所'] = '阪神'
                    if '距離' not in df_race.columns:
@@ -242,7 +241,8 @@ if df_race is not None and not df_race.empty:
                avg_finishes = master_data.groupby('馬名')['着順_num'].mean().to_dict()
                for hname, af in avg_finishes.items():
                    if not pd.isna(af):
-                       horse_ability_map[hname] = max(0.0, 15.0 - (af - 1) * 1.2)
+                       # 【基礎能力ボーナスを半分（0.5）に修正】
+                       horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
 
            if '走破タイム' in master_data.columns:
                master_data['走破タイム_num'] = pd.to_numeric(master_data['走破タイム'], errors='coerce')
@@ -281,11 +281,12 @@ if df_race is not None and not df_race.empty:
                except:
                    odds = 10.0
 
-               ability_bonus = horse_ability_map.get(hname, 5.0)
+               # 基礎能力ボーナス（未登録馬のデフォルトも5.0の半分の2.5に）
+               ability_bonus = horse_ability_map.get(hname, 2.5)
                time_bonus = horse_time_bonus_map.get(hname, 0.0)
                f3_bonus = horse_f3_bonus_map.get(hname, 0.0)
               
-               # オッズボーナス半減
+               # オッズボーナスも半減
                odds_bonus = max(0.0, 12.0 - np.log(max(odds, 1.1)) * 3.5) * 0.5
 
                base_score = 70.0 + ability_bonus + time_bonus + odds_bonus + np.random.normal(0, 3.0)
@@ -337,7 +338,7 @@ if df_race is not None and not df_race.empty:
                odds = 10.0
 
            odds_bonus_mean = max(0.0, 12.0 - np.log(max(odds, 1.1)) * 3.5) * 0.5
-           b_score = 70.0 + horse_ability_map.get(hname, 5.0) + horse_time_bonus_map.get(hname, 0.0) + odds_bonus_mean
+           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_time_bonus_map.get(hname, 0.0) + odds_bonus_mean
           
            if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]: b_score += 4.0
            elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]: b_score += 4.0 + (horse_f3_bonus_map.get(hname, 0.0) * 0.5)
