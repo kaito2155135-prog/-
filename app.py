@@ -36,7 +36,7 @@ st.markdown("""
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（オッズボーナス半減版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（出馬表画像対応版）</h2>", unsafe_allow_html=True)
 
 # 1. マスターデータの読み込み準備
 master_df = None
@@ -56,7 +56,7 @@ df_race = None
 if uploaded_image is not None:
    st.sidebar.image(uploaded_image, caption="アップロードされた出馬表", use_container_width=True)
    if st.sidebar.button("✨ 画像からAI解析を実行"):
-       with st.spinner("AIが馬名やオッズを読み取っています..."):
+       with st.spinner("AIがレース情報や出馬表を解析しています..."):
            try:
                from google import genai
                from google.genai import types
@@ -80,8 +80,10 @@ if uploaded_image is not None:
                        model='gemini-3.6-flash',
                        contents=[
                            image_part,
-                           "この画像は競馬の出馬表です。記載されている「枠番」「馬番」「馬名」「オッズ（人気順や倍率など）」「脚質」に加え、もし画像内から「場所（競馬場名）」や「距離」や「芝・ダ（ダートか芝か）」が読み取れればそれも含めて、以下のJSON配列の形式のみで正確に出力してください。他の余分なテキストやマークダウンのバッククォートは含めないでください。\n"
-                           '[{"枠番": 1, "馬番": 1, "馬名": "馬名A", "オッズ": 13.9, "脚質": "差し", "場所": "東京", "距離": 1800, "芝・ダ": "ダ"}, ...]'
+                           "この画像は競馬の出馬表です。上部に記載されている「場所（競馬場名 例:阪神など）」「距離（例:1600m）」「芝・ダ（芝かダートか）」を読み取ってください。\n"
+                           "また、各馬の「枠番」「馬番」「馬名」「オッズ（人気・倍率）」、そして右端にある「脚質」の傾向（例: [・先..]なら先行、[..差追]なら差し・追込などから「逃げ」「先行」「中団」「差し」「追込」のいずれかに分類）を読み取ってください。\n"
+                           "結果は必ず以下のJSON配列の形式のみで正確に出力してください。他の余分なテキストやマークダウンのバッククォートは含めないでください。\n"
+                           '[{"場所": "阪神", "距離": 1600, "芝・ダ": "芝", "枠番": 1, "馬番": 1, "馬名": "スマートワイス", "オッズ": 13.9, "脚質": "先行"}, ...]'
                        ]
                    )
 
@@ -89,14 +91,18 @@ if uploaded_image is not None:
                    parsed_data = json.loads(cleaned_text)
 
                    df_race = pd.DataFrame(parsed_data)
+                  
+                   # データの補正
                    if '場所' not in df_race.columns:
-                       df_race['場所'] = '東京'
+                       df_race['場所'] = '阪神'
                    if '距離' not in df_race.columns:
-                       df_race['距離'] = 1800.0 
+                       df_race['距離'] = 1600.0 
                    if '芝・ダ' not in df_race.columns:
-                       df_race['芝・ダ'] = 'ダ'
+                       df_race['芝・ダ'] = '芝'
                    if '脚質' not in df_race.columns:
                        df_race['脚質'] = '差し'
+                   if 'オッズ' not in df_race.columns:
+                       df_race['オッズ'] = 10.0
                   
                    df_race['得意馬場'] = '指定なし'
 
@@ -126,11 +132,11 @@ if df_race is not None and not df_race.empty:
 
    sample_row = df_race.iloc[0]
    race_place = sample_row.get('場所', '不明')
-   race_surface = sample_row.get('芝・ダ', 'ダ')
+   race_surface = sample_row.get('芝・ダ', '芝')
    try:
-       race_distance = int(float(sample_row.get('距離', 1800)))
+       race_distance = int(float(sample_row.get('距離', 1600)))
    except:
-       race_distance = 1800
+       race_distance = 1600
 
    st.markdown(f"""
        <div class="race-info-box">
@@ -196,7 +202,7 @@ if df_race is not None and not df_race.empty:
    with col_p2:
        selected_bias = st.radio("トラックバイアス", ["フラット", "内有利", "外有利"], index=0)
    with col_p3:
-       selected_condition = st.selectbox("当日の馬場状態", ["良", "稍重", "重", "不良"], index=0)
+       selected_condition = st.selectbox("当日の馬場状態", ["良", "稍重", "重", "不良"], index=1)
 
    st.markdown("---")
 
@@ -211,11 +217,11 @@ if df_race is not None and not df_race.empty:
    def run_monte_carlo_simulation(df_r, pace, bias, condition, master_data, num_simulations=10000):
        res_df = df_r.copy()
        try:
-           distance = float(res_df.iloc[0].get('距離', 1800.0))
+           distance = float(res_df.iloc[0].get('距離', 1600.0))
        except:
-           distance = 1800.0
+           distance = 1600.0
 
-       surface = str(res_df.iloc[0].get('芝・ダ', 'ダ')).strip()
+       surface = str(res_df.iloc[0].get('芝・ダ', '芝')).strip()
 
        if 'ダ' in surface:
            base_seconds = (distance / 1000.0) * 61.5
@@ -279,7 +285,7 @@ if df_race is not None and not df_race.empty:
                time_bonus = horse_time_bonus_map.get(hname, 0.0)
                f3_bonus = horse_f3_bonus_map.get(hname, 0.0)
               
-               # 【オッズボーナスを半分（0.5を掛け算）に修正】
+               # オッズボーナス半減
                odds_bonus = max(0.0, 12.0 - np.log(max(odds, 1.1)) * 3.5) * 0.5
 
                base_score = 70.0 + ability_bonus + time_bonus + odds_bonus + np.random.normal(0, 3.0)
@@ -330,7 +336,6 @@ if df_race is not None and not df_race.empty:
            except:
                odds = 10.0
 
-           # 平均スコア側のオッズボーナスも同様に半分にする
            odds_bonus_mean = max(0.0, 12.0 - np.log(max(odds, 1.1)) * 3.5) * 0.5
            b_score = 70.0 + horse_ability_map.get(hname, 5.0) + horse_time_bonus_map.get(hname, 0.0) + odds_bonus_mean
           
@@ -360,7 +365,7 @@ if df_race is not None and not df_race.empty:
 
    st.markdown("<br>", unsafe_allow_html=True)
    if st.button("🚀 微調整を反映して10,000回展開シミュレーションを実行する"):
-       with st.spinner("オッズボーナスを半減して10,000回シミュレーションを実行中..."):
+       with st.spinner("出馬表を解析し10,000回シミュレーションを実行中..."):
            st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, num_simulations=10000)
            st.session_state['sim_executed'] = True
 
