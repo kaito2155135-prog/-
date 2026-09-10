@@ -24,10 +24,19 @@ st.markdown("""
        background: linear-gradient(to bottom, #e6c547, #c1960d);
        border-color: #ffffff;
    }
+   .race-info-box {
+       background-color: #1a1a1a;
+       border: 1px solid #d4af37;
+       padding: 15px;
+       border-radius: 8px;
+       margin-bottom: 20px;
+       color: #ffffff;
+       text-align: center;
+   }
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（ダート馬場適正完全対応版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（条件表示対応版）</h2>", unsafe_allow_html=True)
 
 # 1. マスターデータの読み込み準備
 master_df = None
@@ -71,8 +80,8 @@ if uploaded_image is not None:
                        model='gemini-3.6-flash',
                        contents=[
                            image_part,
-                           "この画像は競馬の出馬表です。記載されている「枠番」「馬番」「馬名」「オッズ（人気順や倍率など）」「脚質」に加え、もし画像内から「距離」や「芝・ダ（ダートか芝か）」が読み取れればそれも含めて、以下のJSON配列の形式のみで正確に出力してください。他の余分なテキストやマークダウンのバッククォートは含めないでください。\n"
-                           '[{"枠番": 1, "馬番": 1, "馬名": "馬名A", "オッズ": 13.9, "脚質": "差し", "距離": 1800, "芝・ダ": "ダ"}, ...]'
+                           "この画像は競馬の出馬表です。記載されている「枠番」「馬番」「馬名」「オッズ（人気順や倍率など）」「脚質」に加え、もし画像内から「場所（競馬場名）」や「距離」や「芝・ダ（ダートか芝か）」が読み取れればそれも含めて、以下のJSON配列の形式のみで正確に出力してください。他の余分なテキストやマークダウンのバッククォートは含めないでください。\n"
+                           '[{"枠番": 1, "馬番": 1, "馬名": "馬名A", "オッズ": 13.9, "脚質": "差し", "場所": "東京", "距離": 1800, "芝・ダ": "ダ"}, ...]'
                        ]
                    )
 
@@ -80,6 +89,8 @@ if uploaded_image is not None:
                    parsed_data = json.loads(cleaned_text)
 
                    df_race = pd.DataFrame(parsed_data)
+                   if '場所' not in df_race.columns:
+                       df_race['場所'] = '東京'
                    if '距離' not in df_race.columns:
                        df_race['距離'] = 1800.0 
                    if '芝・ダ' not in df_race.columns:
@@ -108,6 +119,28 @@ else:
 if df_race is not None and not df_race.empty:
    st.sidebar.markdown("---")
    st.sidebar.info(f"**{selected_race}**\n\n頭数: {len(df_race)}頭")
+
+   # レース情報（場所・芝/ダ・距離）の抽出
+   sample_row = df_race.iloc[0]
+   race_place = sample_row.get('場所', '不明')
+   race_surface = sample_row.get('芝・ダ', 'ダ')
+   try:
+       race_distance = int(float(sample_row.get('距離', 1800)))
+   except:
+       race_distance = 1800
+
+   # 画面上部にレース条件パネルを表示
+   st.markdown(f"""
+       <div class="race-info-box">
+           <h3 style="margin: 0; color: #f1c40f;">📌 選択中レース情報</h3>
+           <p style="font-size: 18px; margin: 5px 0 0 0;">
+               <b>競馬場:</b> {race_place} &nbsp;|&nbsp;
+               <b>馬場種別:</b> {race_surface} &nbsp;|&nbsp;
+               <b>距離:</b> {race_distance}m &nbsp;|&nbsp;
+               <b>出走頭数:</b> {len(df_race)}頭
+           </p>
+       </div>
+   """, unsafe_allow_html=True)
 
    st.markdown("### ⚙️ 展開・馬場コンディション設定")
    col_p1, col_p2, col_p3 = st.columns(3)
@@ -140,8 +173,7 @@ if df_race is not None and not df_race.empty:
        # 基本のタイム基準（良馬場をベースにする）
        if 'ダ' in surface:
            base_seconds = (distance / 1000.0) * 61.5
-          
-           # 【重要】ダートは馬場が重くなるほど脚抜きが良くなり時計が「速く（マイナスに）」なる
+           # ダート：重・不良ほど脚抜きが良くなり時計が「速く（マイナスに）」なる
            condition_time_add = {
                "良": 0.0,
                "稍重": -0.8,
@@ -149,7 +181,7 @@ if df_race is not None and not df_race.empty:
                "不良": -3.0
            }.get(condition, 0.0)
        else:
-           # 芝の場合は従来通り重くなるほどタイムがかかる（プラス）
+           # 芝：重・不良ほどタフになりタイムがかかる（プラス）
            base_seconds = (distance / 1000.0) * 58.0
            condition_time_add = {
                "良": 0.0,
@@ -201,7 +233,7 @@ if df_race is not None and not df_race.empty:
                elif bias == "外有利" and wakuban >= 6:
                    base_score += 4.0
 
-               # ダート等で重・不良（脚抜きが良い高速馬場）のときは、前目（逃げ・先行）に有利な補正を強める
+               # ダート等で重・不良（脚抜きが良い高速馬場）のときは、前目（逃げ・先行）に有利な補正
                if 'ダ' in surface and condition in ["重", "不良"]:
                    if kyakushitsu in ["逃げ", "先行"]:
                        base_score += 3.0
@@ -256,12 +288,12 @@ if df_race is not None and not df_race.empty:
 
    st.markdown("<br>", unsafe_allow_html=True)
    if st.button("🚀 10,000回展開シミュレーションを実行する"):
-       with st.spinner("馬場状態（脚抜き・時計の早さ）を反映して10,000回シミュレーションを実行中..."):
+       with st.spinner("シミュレーションを実行中..."):
            st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, num_simulations=10000)
            st.session_state['sim_executed'] = True
 
    if st.session_state.get('sim_executed', False) and 'df_simulated' in st.session_state:
-       st.markdown(f"<br><h3>🏆 10,000回シミュレーション結果（馬場: {selected_condition}）</h3>", unsafe_allow_html=True)
+       st.markdown(f"<br><h3>🏆 10,000回シミュレーション結果（{race_place} {race_surface}{race_distance}m / 馬場: {selected_condition}）</h3>", unsafe_allow_html=True)
 
        df_simulated = st.session_state['df_simulated']
        display_columns = [c for c in ['着順予測', '馬番', '馬名', 'オッズ', '脚質', '勝率(%)', '連対率(%)', '複勝率(%)', '予測走破タイム'] if c in df_simulated.columns]
@@ -273,7 +305,7 @@ if df_race is not None and not df_race.empty:
 
        st.dataframe(display_df, use_container_width=True, hide_index=True)
    else:
-       st.info("👆 馬場状態（良・稍重・重・不良）を選んで実行すると、ダート特有の「脚抜きが良くなって時計が速くなる現象」が反映されます。")
+       st.info("👆 条件を確認・調整してボタンを押すとシミュレーションが実行されます。")
 
 else:
    st.info("👈 サイドバーから未来のレースの出馬表スクショをアップロードするか、過去データを選択してください。")
