@@ -58,14 +58,14 @@ if uploaded_image is not None:
                 else:
                     client = genai.Client(api_key=api_key)
                    
-                    # 正しい画像パーツの渡し方
                     image_part = types.Part.from_bytes(
                         data=image_bytes,
                         mime_type=mime_type,
                     )
                    
+                    # モデル名をエラーメッセージの指示通り gemini-3.6-flash に変更
                     response = client.models.generate_content(
-                        model='gemini-2.5-flash',
+                        model='gemini-3.6-flash',
                         contents=[
                             image_part,
                             "この画像は競馬の出馬表です。記載されている「枠番」「馬番」「馬名」「オッズ（人気順や倍率など）」をすべて読み取り、以下のJSON配列の形式のみで正確に出力してください。他の余分なテキストやマークダウンのバッククォートは含めないでください。\n"
