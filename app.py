@@ -77,7 +77,7 @@ if uploaded_image is not None:
                    image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
                    response = client.models.generate_content(
-                       model='gemini-3.6-flash',
+                       model='gemini-2.5-flash',
                        contents=[
                            image_part,
                            "この画像は競馬の出馬表です。上部に記載されている「場所（競馬場名 例:東京、阪神、福島など）」「距離（例:1600m）」「芝・ダ（芝かダートか）」を読み取ってください。\n"
@@ -143,7 +143,6 @@ if df_race is not None and not df_race.empty:
        "京都": 403.9, "中山": 310.0, "小倉": 293.0, "函館": 262.1,
        "福島": 292.0, "札幌": 266.1
    }
-   # 部分一致でも検索できるようにする
    straight_len = 400.0  # デフォルト標準
    for k, v in straight_lengths.items():
        if k in race_place:
@@ -254,7 +253,6 @@ if df_race is not None and not df_race.empty:
 
        base_seconds += condition_time_add
 
-       # 直線の長さに応じた「末脚（上がり3F）の有効係数」を算出 (直線300mを基準1.0、新潟や東京は約1.4〜1.5、小回り福島等は約0.6〜0.7)
        f3_weight_factor = max(0.4, min(1.6, straight_length / 350.0))
 
        horse_ability_map = {}
@@ -304,7 +302,7 @@ if df_race is not None and not df_race.empty:
                        if not pd.isna(sd):
                            horse_speed_bonus_map[hname] = max(-3.0, min(8.0, sd * (target_distance / 1000.0) * 1.5))
 
-           # 3. 上がり3F（末脚係数を掛け合わせる）
+           # 3. 上がり3F
            if '上がり3Fタイム' in recent_master_data.columns:
                recent_master_data['上がり3F_num'] = pd.to_numeric(recent_master_data['上がり3Fタイム'], errors='coerce')
                avg_f3 = recent_master_data.groupby('馬名')['上がり3F_num'].mean()
@@ -313,7 +311,6 @@ if df_race is not None and not df_race.empty:
                    f3_diffs = (mean_all_f3 - avg_f3).to_dict()
                    for hname, fd in f3_diffs.items():
                        if not pd.isna(fd):
-                           # 直線の長さに応じた係数を適用（直線が短いと末脚の効果が薄れる）
                            horse_f3_bonus_map[hname] = max(-3.0, min(10.0, fd * 2.5 * f3_weight_factor))
 
            # 4. 重賞実績ボーナス
@@ -381,24 +378,25 @@ if df_race is not None and not df_race.empty:
 
                base_score = 70.0 + ability_bonus + speed_bonus + dist_fit_bonus + grade_bonus + np.random.normal(0, 3.0)
 
-               # 小回りコース（直線短い）なら逃げ・先行にボーナス、長直線なら差し・追込の末脚をさらに加速
                if straight_length <= 320:
                    if kyakushitsu in ["逃げ", "先行"]:
                        base_score += 5.0
                    elif kyakushitsu in ["差し", "追込"]:
-                       base_score -= 2.0  # 小回りでは後ろからの馬にマイナス補正
+                       base_score -= 2.0
 
+               # ▼ 修正箇所：スローのボーナスを 3.0 に変更、ハイのボーナスを 4.5 に変更 ▼
                if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
-                   base_score += 5.0
+                   base_score += 3.0
                elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
-                   base_score += 6.0 + (f3_bonus * 0.9)
+                   base_score += 4.5 + (f3_bonus * 0.9)
                else:
                    base_score += (f3_bonus * 0.6)
 
+               # ▼ 修正箇所：トラックバイアスのボーナスを内外ともに 3.0 に変更 ▼
                if bias == "内有利" and wakuban <= 3:
-                   base_score += 4.0
+                   base_score += 3.0
                elif bias == "外有利" and wakuban >= 6:
-                   base_score += 4.0
+                   base_score += 3.0
 
                if tokui_baba == condition:
                    base_score += 5.0
@@ -429,10 +427,10 @@ if df_race is not None and not df_race.empty:
            b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_speed_bonus_map.get(hname, 0.0) + horse_distance_fit_map.get(hname, 0.0) + horse_grade_bonus_map.get(hname, 0.0)
           
            if straight_length <= 320 and kyakushitsu in ["逃げ", "先行"]: b_score += 3.0
-           if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]: b_score += 4.0
-           elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]: b_score += 4.0 + (horse_f3_bonus_map.get(hname, 0.0) * 0.5)
-           if bias == "内有利" and wakuban <= 3: b_score += 2.0
-           elif bias == "外有利" and wakuban >= 6: b_score += 2.0
+           if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]: b_score += 3.0
+           elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]: b_score += 3.5 + (horse_f3_bonus_map.get(hname, 0.0) * 0.5)
+           if bias == "内有利" and wakuban <= 3: b_score += 1.5
+           elif bias == "外有利" and wakuban >= 6: b_score += 1.5
            if tokui_baba == condition: b_score += 4.0
            sim_scores_mean.append(b_score)
 
