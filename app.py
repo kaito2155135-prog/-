@@ -36,7 +36,7 @@ st.markdown("""
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（手動微調整・得意馬場対応版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（走破タイム・上がり3F反映版）</h2>", unsafe_allow_html=True)
 
 # 1. マスターデータの読み込み準備
 master_df = None
@@ -226,13 +226,43 @@ if df_race is not None and not df_race.empty:
 
        base_seconds += condition_time_add
 
+       # マスターデータからタイム情報（走破タイム、上がり3Fタイム）や着順を集計
        horse_ability_map = {}
-       if master_data is not None and '馬名' in master_data.columns and '着順' in master_data.columns:
-           master_data['着順_num'] = pd.to_numeric(master_data['着順'], errors='coerce')
-           avg_finishes = master_data.groupby('馬名')['着順_num'].mean().to_dict()
-           for hname, af in avg_finishes.items():
-               if not pd.isna(af):
-                   horse_ability_map[hname] = max(0.0, 15.0 - (af - 1) * 1.2)
+       horse_time_bonus_map = {}
+       horse_f3_bonus_map = {}
+
+       if master_data is not None and '馬名' in master_data.columns:
+           # 1. 平均着順による基礎能力
+           if '着順' in master_data.columns:
+               master_data['着順_num'] = pd.to_numeric(master_data['着順'], errors='coerce')
+               avg_finishes = master_data.groupby('馬名')['着順_num'].mean().to_dict()
+               for hname, af in avg_finishes.items():
+                   if not pd.isna(af):
+                       horse_ability_map[hname] = max(0.0, 15.0 - (af - 1) * 1.2)
+
+           # 2. 平均走破タイムの速さによるスピードボーナス
+           if '走破タイム' in master_data.columns:
+               master_data['走破タイム_num'] = pd.to_numeric(master_data['走破タイム'], errors='coerce')
+               avg_times = master_data.groupby('馬名')['走破タイム_num'].mean()
+               if not avg_times.empty:
+                   mean_all_time = avg_times.mean()
+                   # 平均よりタイムが速い（数値が小さい）ほどプラスボーナス
+                   time_diffs = (mean_all_time - avg_times).to_dict()
+                   for hname, td in time_diffs.items():
+                       if not pd.isna(td):
+                           horse_time_bonus_map[hname] = max(-3.0, min(8.0, td * 1.5))
+
+           # 3. 平均上がり3Fタイムの速さによる末脚ボーナス
+           if '上がり3Fタイム' in master_data.columns:
+               master_data['上がり3F_num'] = pd.to_numeric(master_data['上がり3Fタイム'], errors='coerce')
+               avg_f3 = master_data.groupby('馬名')['上がり3F_num'].mean()
+               if not avg_f3.empty:
+                   mean_all_f3 = avg_f3.mean()
+                   # 上がり3Fが速い（数値が小さい）ほどプラスボーナス
+                   f3_diffs = (mean_all_f3 - avg_f3).to_dict()
+                   for hname, fd in f3_diffs.items():
+                       if not pd.isna(fd):
+                           horse_f3_bonus_map[hname] = max(-2.0, min(6.0, fd * 1.5))
 
        n_horses = len(res_df)
        win_counts = np.zeros(n_horses)
@@ -252,14 +282,23 @@ if df_race is not None and not df_race.empty:
                    odds = 10.0
 
                ability_bonus = horse_ability_map.get(hname, 5.0)
+               time_bonus = horse_time_bonus_map.get(hname, 0.0)      # 走破タイムの速さボーナス
+               f3_bonus = horse_f3_bonus_map.get(hname, 0.0)          # 上がり3Fの切れ味ボーナス
                odds_bonus = max(0.0, 12.0 - np.log(max(odds, 1.1)) * 3.5)
-               base_score = 70.0 + ability_bonus + odds_bonus + np.random.normal(0, 3.0)
 
+               base_score = 70.0 + ability_bonus + time_bonus + odds_bonus + np.random.normal(0, 3.0)
+
+               # ペース補正 ＋ 上がり3F（切れ味）の相乗効果
                if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
                    base_score += 6.0
                elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
-                   base_score += 6.0
+                   # ハイペース時は上がり3Fが速い差し・追込馬にさらに強力なボーナス！
+                   base_score += 6.0 + (f3_bonus * 0.8)
+               else:
+                   # ミドル等の通常時も上がり3Fが速い馬には少しプラス
+                   base_score += (f3_bonus * 0.4)
 
+               # バイアス補正
                if bias == "内有利" and wakuban <= 3:
                    base_score += 4.0
                elif bias == "外有利" and wakuban >= 6:
@@ -299,9 +338,9 @@ if df_race is not None and not df_race.empty:
            except:
                odds = 10.0
 
-           b_score = 70.0 + horse_ability_map.get(hname, 5.0) + max(0.0, 12.0 - np.log(max(odds, 1.1)) * 3.5)
+           b_score = 70.0 + horse_ability_map.get(hname, 5.0) + horse_time_bonus_map.get(hname, 0.0) + max(0.0, 12.0 - np.log(max(odds, 1.1)) * 3.5)
            if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]: b_score += 4.0
-           elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]: b_score += 4.0
+           elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]: b_score += 4.0 + (horse_f3_bonus_map.get(hname, 0.0) * 0.5)
            if bias == "内有利" and wakuban <= 3: b_score += 2.0
            elif bias == "外有利" and wakuban >= 6: b_score += 2.0
            if 'ダ' in surface and condition in ["重", "不良"] and kyakushitsu in ["逃げ", "先行"]:
@@ -316,15 +355,18 @@ if df_race is not None and not df_race.empty:
 
        times = []
        for i in range(len(res_df)):
-           t = base_seconds + (i * 0.3) + np.random.uniform(0.0, 0.4)
-           times.append(round(t, 1))
+           # 予測走破タイムにも馬ごとの走破タイム実績（スピード指数）を軽く反映させる
+           hname = str(res_df.iloc[i].get('馬名', ''))
+           time_mod = -horse_time_bonus_map.get(hname, 0.0) * 0.15
+           t = base_seconds + (i * 0.3) + time_mod + np.random.uniform(0.0, 0.3)
+           times.append(round(max(base_seconds - 2.0, t), 1))
 
        res_df['予測走破タイム'] = [format_time(t) for t in times]
        return res_df
 
    st.markdown("<br>", unsafe_allow_html=True)
    if st.button("🚀 微調整を反映して10,000回展開シミュレーションを実行する"):
-       with st.spinner("微調整データを反映して10,000回シミュレーションを実行中..."):
+       with st.spinner("タイムデータや微調整を反映して10,000回シミュレーションを実行中..."):
            st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, num_simulations=10000)
            st.session_state['sim_executed'] = True
 
