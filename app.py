@@ -27,7 +27,7 @@ st.markdown("""
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（馬場状態完全連動版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（ダート馬場適正完全対応版）</h2>", unsafe_allow_html=True)
 
 # 1. マスターデータの読み込み準備
 master_df = None
@@ -81,9 +81,9 @@ if uploaded_image is not None:
 
                    df_race = pd.DataFrame(parsed_data)
                    if '距離' not in df_race.columns:
-                       df_race['距離'] = 1600.0 
+                       df_race['距離'] = 1800.0 
                    if '芝・ダ' not in df_race.columns:
-                       df_race['芝・ダ'] = '芝'
+                       df_race['芝・ダ'] = 'ダ'
                    df_race['馬場状態'] = '良'
                    df_race['略レース名'] = '解析レース'
 
@@ -131,25 +131,32 @@ if df_race is not None and not df_race.empty:
    def run_monte_carlo_simulation(df_r, pace, bias, condition, master_data, num_simulations=10000):
        res_df = df_r.copy()
        try:
-           distance = float(res_df.iloc[0].get('距離', 1600.0))
+           distance = float(res_df.iloc[0].get('距離', 1800.0))
        except:
-           distance = 1600.0
+           distance = 1800.0
 
-       surface = str(res_df.iloc[0].get('芝・ダ', '芝')).strip()
+       surface = str(res_df.iloc[0].get('芝・ダ', 'ダ')).strip()
 
-       # 基本のタイム基準
+       # 基本のタイム基準（良馬場をベースにする）
        if 'ダ' in surface:
            base_seconds = (distance / 1000.0) * 61.5
+          
+           # 【重要】ダートは馬場が重くなるほど脚抜きが良くなり時計が「速く（マイナスに）」なる
+           condition_time_add = {
+               "良": 0.0,
+               "稍重": -0.8,
+               "重": -1.8,
+               "不良": -3.0
+           }.get(condition, 0.0)
        else:
+           # 芝の場合は従来通り重くなるほどタイムがかかる（プラス）
            base_seconds = (distance / 1000.0) * 58.0
-
-       # 馬場状態によるタイム遅延・補正係数
-       condition_time_add = {
-           "良": 0.0,
-           "稍重": 0.8,
-           "重": 1.8,
-           "不良": 3.0
-       }.get(condition, 0.0)
+           condition_time_add = {
+               "良": 0.0,
+               "稍重": 0.8,
+               "重": 1.8,
+               "不良": 3.0
+           }.get(condition, 0.0)
 
        base_seconds += condition_time_add
 
@@ -194,10 +201,10 @@ if df_race is not None and not df_race.empty:
                elif bias == "外有利" and wakuban >= 6:
                    base_score += 4.0
 
-               # 馬場状態（重・不良）による適性補正（タフな馬場では先行・パワー型に微加点など）
-               if condition in ["重", "不良"]:
+               # ダート等で重・不良（脚抜きが良い高速馬場）のときは、前目（逃げ・先行）に有利な補正を強める
+               if 'ダ' in surface and condition in ["重", "不良"]:
                    if kyakushitsu in ["逃げ", "先行"]:
-                       base_score += 2.5
+                       base_score += 3.0
 
                sim_scores.append(base_score)
 
@@ -231,7 +238,8 @@ if df_race is not None and not df_race.empty:
            elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]: b_score += 4.0
            if bias == "内有利" and wakuban <= 3: b_score += 2.0
            elif bias == "外有利" and wakuban >= 6: b_score += 2.0
-           if condition in ["重", "不良"] and kyakushitsu in ["逃げ", "先行"]: b_score += 1.5
+           if 'ダ' in surface and condition in ["重", "不良"] and kyakushitsu in ["逃げ", "先行"]:
+               b_score += 2.0
            sim_scores_mean.append(b_score)
 
        res_df['temp_score'] = sim_scores_mean
@@ -248,7 +256,7 @@ if df_race is not None and not df_race.empty:
 
    st.markdown("<br>", unsafe_allow_html=True)
    if st.button("🚀 10,000回展開シミュレーションを実行する"):
-       with st.spinner("馬場状態・展開・オッズを元に10,000回シミュレーションを実行中..."):
+       with st.spinner("馬場状態（脚抜き・時計の早さ）を反映して10,000回シミュレーションを実行中..."):
            st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, num_simulations=10000)
            st.session_state['sim_executed'] = True
 
@@ -265,7 +273,7 @@ if df_race is not None and not df_race.empty:
 
        st.dataframe(display_df, use_container_width=True, hide_index=True)
    else:
-       st.info("👆 馬場状態（良・稍重・重・不良）を選んでボタンを押すと、タフさや時計のかかり具合を反映したシミュレーションが行われます。")
+       st.info("👆 馬場状態（良・稍重・重・不良）を選んで実行すると、ダート特有の「脚抜きが良くなって時計が速くなる現象」が反映されます。")
 
 else:
    st.info("👈 サイドバーから未来のレースの出馬表スクショをアップロードするか、過去データを選択してください。")
