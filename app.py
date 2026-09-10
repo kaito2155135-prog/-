@@ -36,7 +36,7 @@ st.markdown("""
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（強力距離適正フィルター搭載版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（距離適正・距離の壁フィルター搭載版）</h2>", unsafe_allow_html=True)
 
 # 1. マスターデータの読み込み準備
 master_df = None
@@ -192,7 +192,7 @@ if df_race is not None and not df_race.empty:
        df_race[col] = edited_df[col]
 
    st.markdown("---")
-   st.markdown("### ⚙️ 全体コンディション設定 & フィルター調整")
+   st.markdown("### ⚙️ 全体コンディション設定 & 距離適正フィルター詳細")
    col_p1, col_p2, col_p3 = st.columns(3)
    with col_p1:
        selected_pace = st.radio("ペース想定", ["S（スロー）", "M（ミドル）", "H（ハイ）"], index=1)
@@ -201,8 +201,18 @@ if df_race is not None and not df_race.empty:
    with col_p3:
        selected_condition = st.selectbox("当日の馬場状態", ["良", "稍重", "重", "不良"], index=1)
 
-   # 距離適正フィルターの効き目（ペナルティの強さ）を調整するスライダー
-   distance_filter_weight = st.slider("🎯 距離適正フィルターの厳しさ（ペナルティ倍率）", min_value=0.5, max_value=3.0, value=1.5, step=0.25, help="数値が大きいほど、今回の距離実績がない馬が大きく順位を落とします。")
+   # 距離カテゴリの自動判定（短距離・マイル・中距離・長距離）
+   if race_distance <= 1400:
+       race_category = "短距離"
+   elif race_distance <= 1800:
+       race_category = "マイル"
+   elif race_distance <= 2200:
+       race_category = "中距離"
+   else:
+       race_category = "長距離" # 2500mなどはここ
+
+   st.info(f"💡 現在のレース設定距離（{race_distance}m）は **『{race_category}』** に分類されます。距離の壁フィルターにより、カテゴリ違いの馬を適切に評価・減点します。")
+   distance_strictness = st.slider("🎯 距離適正フィルターの厳しさ（距離カテゴリ不適合のペナルティ倍率）", min_value=0.0, max_value=3.0, value=1.5, step=0.5, help="長距離戦でマイラー（マイル実績馬）などをどれだけ強く割り引くかを調整できます。")
 
    st.markdown("---")
 
@@ -214,7 +224,7 @@ if df_race is not None and not df_race.empty:
        else:
            return f"{s:.1f}秒"
 
-   def run_monte_carlo_simulation(df_r, pace, bias, condition, master_data, dist_weight, num_simulations=10000):
+   def run_monte_carlo_simulation(df_r, pace, bias, condition, master_data, target_cat, strictness, num_simulations=10000):
        res_df = df_r.copy()
        try:
            target_distance = float(res_df.iloc[0].get('距離', 1600.0))
@@ -235,7 +245,7 @@ if df_race is not None and not df_race.empty:
        horse_ability_map = {}
        horse_speed_bonus_map = {}
        horse_f3_bonus_map = {}
-       horse_distance_bonus_map = {}
+       horse_distance_fit_map = {}
 
        if master_data is not None and '馬名' in master_data.columns:
            sort_cols = [c for c in ['年', '月', '日'] if c in master_data.columns]
@@ -270,7 +280,7 @@ if df_race is not None and not df_race.empty:
            # 3. 上がり3Fの評価
            if '上がり3Fタイム' in recent_master_data.columns:
                recent_master_data['上がり3F_num'] = pd.to_numeric(recent_master_data['上がり3Fタイム'], errors='coerce')
-               avg_f3 = recent_master_data.groupby('馬名')['上がり3F_num'].mean()
+               avg_f3 = recent_master_data.groupby('馬名']['上がり3F_num'].mean()
                if not avg_f3.empty:
                    mean_all_f3 = avg_f3.mean()
                    f3_diffs = (mean_all_f3 - avg_f3).to_dict()
@@ -278,26 +288,41 @@ if df_race is not None and not df_race.empty:
                        if not pd.isna(fd):
                            horse_f3_bonus_map[hname] = max(-2.0, min(6.0, fd * 1.5))
 
-           # 4. 強力・距離適正フィルター（直近6走の中に近い距離のレースがあるか）
+           # 4. 【距離カテゴリ適正判定】
+           # 各馬が直近6走でどの距離カテゴリを走ってきたかを評価
            if '距離' in recent_master_data.columns:
                recent_master_data['距離_num'] = pd.to_numeric(recent_master_data['距離'], errors='coerce')
                
-               def calc_distance_score(group):
-                   distances = group['距離_num'].dropna()
-                   if len(distances) == 0:
-                       return -5.0 * dist_weight # 履歴がない場合は大幅マイナス
+               def evaluate_distance_fit(group):
+                   dists = group['距離_num'].dropna()
+                   if len(dists) == 0:
+                       return 0.0
                    
-                   min_diff = np.abs(distances - target_distance).min()
-                   if min_diff <= 200:   # ±200m以内（適性抜群）
-                       return 6.0 * dist_weight
-                   elif min_diff <= 500: # ±500m以内（許容範囲）
-                       return 1.0 * dist_weight
-                   else:                 # 500m以上離れている（極端な距離不足・距離延長）
-                       return -8.0 * dist_weight
+                   # 今回のターゲット距離との絶対値の平均
+                   mean_diff = np.abs(dists - target_distance).mean()
+                   
+                   # 長距離（2500mなど）の場合、普段マイル〜中距離メインの馬には強烈なペナルティを課す
+                   if target_cat == "長距離":
+                       # 直近の平均距離が2200m未満（マイル・中距離中心）なら大幅マイナス
+                       avg_run_dist = dists.mean()
+                       if avg_run_dist < 2100:
+                           return -8.0 * strictness  # 距離の壁ペナルティ
+                       elif avg_run_dist >= 2300:
+                           return 5.0              # 長距離実績ありボーナス
+                       else:
+                           return 0.0
+                   else:
+                       # 一般的な距離の場合の近さ評価
+                       if mean_diff <= 300:
+                           return 4.0
+                       elif mean_diff <= 600:
+                           return 1.0
+                       else:
+                           return -3.0 * strictness
 
-               dist_scores = recent_master_data.groupby('馬名').apply(calc_distance_score).to_dict()
-               for hname, dscore in dist_scores.items():
-                   horse_distance_bonus_map[hname] = dscore
+               fit_scores = recent_master_data.groupby('馬名').apply(evaluate_distance_fit).to_dict()
+               for hname, fscore in fit_scores.items():
+                   horse_distance_fit_map[hname] = fscore
 
        n_horses = len(res_df)
        win_counts = np.zeros(n_horses)
@@ -315,9 +340,10 @@ if df_race is not None and not df_race.empty:
                ability_bonus = horse_ability_map.get(hname, 2.5)
                speed_bonus = horse_speed_bonus_map.get(hname, 0.0)
                f3_bonus = horse_f3_bonus_map.get(hname, 0.0)
-               distance_bonus = horse_distance_bonus_map.get(hname, -3.0 * dist_weight) # 履歴なしのデフォルトはペナルティ
+               dist_fit_bonus = horse_distance_fit_map.get(hname, 0.0)
 
-               base_score = 70.0 + ability_bonus + speed_bonus + distance_bonus + np.random.normal(0, 3.0)
+               # 基本スコアに距離適正（距離の壁）を反映
+               base_score = 70.0 + ability_bonus + speed_bonus + dist_fit_bonus + np.random.normal(0, 3.0)
 
                if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
                    base_score += 6.0
@@ -361,7 +387,7 @@ if df_race is not None and not df_race.empty:
            tokui_baba = str(r.get('得意馬場', '指定なし'))
            wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
 
-           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_speed_bonus_map.get(hname, 0.0) + horse_distance_bonus_map.get(hname, -3.0 * dist_weight)
+           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_speed_bonus_map.get(hname, 0.0) + horse_distance_fit_map.get(hname, 0.0)
           
            if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]: b_score += 4.0
            elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]: b_score += 4.0 + (horse_f3_bonus_map.get(hname, 0.0) * 0.5)
@@ -388,9 +414,9 @@ if df_race is not None and not df_race.empty:
        return res_df
 
    st.markdown("<br>", unsafe_allow_html=True)
-   if st.button("🚀 強力距離適正フィルターを適用して10,000回シミュレーションを実行"):
-       with st.spinner("距離適正を厳しく評価して10,000回シミュレーションを実行中..."):
-           st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, distance_filter_weight, num_simulations=10000)
+   if st.button("🚀 距離の壁フィルターを適用して10,000回シミュレーションを実行"):
+       with st.spinner("距離適正（距離の壁）を厳しく計算して10,000回シミュレーションを実行中..."):
+           st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, race_category, distance_strictness, num_simulations=10000)
            st.session_state['sim_executed'] = True
 
    if st.session_state.get('sim_executed', False) and 'df_simulated' in st.session_state:
