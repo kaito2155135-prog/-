@@ -41,7 +41,10 @@ if uploaded_image is not None:
         with st.spinner("AIが馬名やオッズを読み取っています..."):
             try:
                 from google import genai
+                from google.genai import types
+               
                 image_bytes = uploaded_image.getvalue()
+                mime_type = uploaded_image.type if uploaded_image.type else "image/jpeg"
                
                 # APIキーの取得（Secrets または 環境変数）
                 api_key = None
@@ -54,10 +57,17 @@ if uploaded_image is not None:
                     st.error("⚠️ GEMINI_API_KEY が設定されていません。StreamlitのSecretsに設定してください。")
                 else:
                     client = genai.Client(api_key=api_key)
+                   
+                    # 正しい画像パーツの渡し方
+                    image_part = types.Part.from_bytes(
+                        data=image_bytes,
+                        mime_type=mime_type,
+                    )
+                   
                     response = client.models.generate_content(
                         model='gemini-2.5-flash',
                         contents=[
-                            image_bytes,
+                            image_part,
                             "この画像は競馬の出馬表です。記載されている「枠番」「馬番」「馬名」「オッズ（人気順や倍率など）」をすべて読み取り、以下のJSON配列の形式のみで正確に出力してください。他の余分なテキストやマークダウンのバッククォートは含めないでください。\n"
                             '[{"枠番": 1, "馬番": 1, "馬名": "馬名A", "オッズ": 13.9, "脚質": "差し"}, ...]'
                         ]
@@ -187,7 +197,6 @@ if df_race is not None and not df_race.empty:
         res_df['予測走破タイム'] = [format_time(t) for t in times]
         return res_df
 
-    # ボタン式に変更：このボタンを押したときだけ1万回シミュレーションが走る
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🚀 10,000回展開シミュレーションを実行する"):
         with st.spinner("10,000回の展開シミュレーションを実行中..."):
