@@ -43,7 +43,14 @@ if uploaded_image is not None:
                 from google import genai
                 image_bytes = uploaded_image.getvalue()
                
-                client = genai.Client()
+                # StreamlitのSecretsまたは環境変数からAPIキーを取得
+                api_key = None
+                try:
+                    api_key = st.secrets["GEMINI_API_KEY"]
+                except:
+                    api_key = os.environ.get("GEMINI_API_KEY")
+               
+                client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
                     model='gemini-2.5-flash',
                     contents=[
@@ -67,7 +74,7 @@ if uploaded_image is not None:
             except Exception as e:
                 st.error(f"解析に失敗しました: {e}")
 
-# セッションにデータがあればそれ延续、なければ既存のCSVフォールバック
+# セッションにデータがあれば利用
 if 'custom_df_race' in st.session_state:
     df_race = st.session_state['custom_df_race']
     selected_race = "アップロードされた未来のレース"
@@ -118,10 +125,9 @@ if df_race is not None and not df_race.empty:
        
         n_horses = len(res_df)
         win_counts = np.zeros(n_horses)
-        place_counts = np.zeros(n_horses) # 2着以内
-        show_counts = np.zeros(n_horses)  # 3着以内
+        place_counts = np.zeros(n_horses)
+        show_counts = np.zeros(n_horses)
        
-        # モンテカルロシミュレーション (10000回)
         for _ in range(num_simulations):
             sim_scores = []
             for idx, r in res_df.iterrows():
@@ -141,7 +147,7 @@ if df_race is not None and not df_race.empty:
                    
                 sim_scores.append(base_score)
                
-            sorted_indices = np.argsort(sim_scores)[::-1] # スコアが高い順
+            sorted_indices = np.argsort(sim_scores)[::-1]
             win_counts[sorted_indices[0]] += 1
             if n_horses > 1:
                 place_counts[sorted_indices[0]] += 1
@@ -155,7 +161,6 @@ if df_race is not None and not df_race.empty:
         res_df['連対率(%)'] = (place_counts / num_simulations) * 100
         res_df['複勝率(%)'] = (show_counts / num_simulations) * 100
        
-        # 平均的な想定タイムの計算用スコア算出
         sim_scores_mean = []
         for idx, r in res_df.iterrows():
             kyakushitsu = str(r.get('脚質', '差し'))
@@ -184,10 +189,9 @@ if df_race is not None and not df_race.empty:
 
     st.markdown("<br><h3>🏆 10,000回シミュレーション結果（確率分析）</h3>", unsafe_allow_html=True)
    
-    display_columns = [c for c in ['着順予測', '馬番', '馬名', '脚質', '勝率(%)', '連対率(%)', '複勝率(%)', '予測走破タイム'] if c in df_simulated.columns]
+    display_columns = [c for c in ['着順予測', '馬番', '馬名', 'オッズ', '脚質', '勝率(%)', '連対率(%)', '複勝率(%)', '予測走破タイム'] if c in df_simulated.columns]
     display_df = df_simulated[display_columns].copy()
    
-    # 確率をパーセンテージ表記に整形
     display_df['勝率(%)'] = display_df['勝率(%)'].apply(lambda x: f"{x:.1f}%")
     display_df['連対率(%)'] = display_df['連対率(%)'].apply(lambda x: f"{x:.1f}%")
     display_df['複勝率(%)'] = display_df['複勝率(%)'].apply(lambda x: f"{x:.1f}%")
