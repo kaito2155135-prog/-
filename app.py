@@ -27,9 +27,18 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（1万回試行 ＆ スクショ読込）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（マスターデータ連動版）</h2>", unsafe_allow_html=True)
 
-# 1. 画像アップロードによる出馬表自動読み込み
+# 1. マスターデータの読み込み準備
+master_df = None
+csv_filename = "keiba_master_data.csv"
+if os.path.exists(csv_filename):
+    try:
+        master_df = pd.read_csv(csv_filename, encoding='utf-8')
+    except:
+        master_df = pd.read_csv(csv_filename, encoding='cp932')
+
+# 2. 画像アップロードによる出馬表自動読み込み
 st.sidebar.markdown("### 📥 出馬表スクショから読み込む")
 uploaded_image = st.sidebar.file_uploader("出馬表の画像をアップロード", type=['png', 'jpg', 'jpeg'])
 
@@ -46,7 +55,6 @@ if uploaded_image is not None:
                 image_bytes = uploaded_image.getvalue()
                 mime_type = uploaded_image.type if uploaded_image.type else "image/jpeg"
                
-                # APIキーの取得（Secrets または 環境変数）
                 api_key = None
                 try:
                     api_key = st.secrets["GEMINI_API_KEY"]
@@ -57,18 +65,13 @@ if uploaded_image is not None:
                     st.error("⚠️ GEMINI_API_KEY が設定されていません。StreamlitのSecretsに設定してください。")
                 else:
                     client = genai.Client(api_key=api_key)
+                    image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
                    
-                    image_part = types.Part.from_bytes(
-                        data=image_bytes,
-                        mime_type=mime_type,
-                    )
-                   
-                    # モデル名をエラーメッセージの指示通り gemini-3.6-flash に変更
                     response = client.models.generate_content(
                         model='gemini-3.6-flash',
                         contents=[
                             image_part,
-                            "この画像は競馬の出馬表です。記載されている「枠番」「馬番」「馬名」「オッズ（人気順や倍率など）」をすべて読み取り、以下のJSON配列の形式のみで正確に出力してください。他の余分なテキストやマークダウンのバッククォートは含めないでください。\n"
+                            "この画像は競馬の出馬表です。記載されている「枠番」「馬番」「馬名」「オッズ（人気順や倍率など）」「脚質」をすべて読み取り、以下のJSON配列の形式のみで正確に出力してください。他の余分なテキストやマークダウンのバッククォートは含めないでください。\n"
                             '[{"枠番": 1, "馬番": 1, "馬名": "馬名A", "オッズ": 13.9, "脚質": "差し"}, ...]'
                         ]
                     )
@@ -87,26 +90,20 @@ if uploaded_image is not None:
             except Exception as e:
                 st.error(f"解析に失敗しました: {e}")
 
-# セッションにデータがあれば利用
+# セッションまたは過去データ選択
 if 'custom_df_race' in st.session_state:
     df_race = st.session_state['custom_df_race']
     selected_race = "アップロードされた未来のレース"
 else:
-    csv_filename = "keiba_master_data.csv"
-    if os.path.exists(csv_filename):
-        try:
-            df = pd.read_csv(csv_filename, encoding='utf-8')
-        except:
-            df = pd.read_csv(csv_filename, encoding='cp932')
-        df['レースID'] = df['年'].astype(str) + "年" + df['月'].astype(str) + "月" + df['日'].astype(str) + " " + df['場所'] + " " + df['レース番号'].astype(str) + "R " + df['略レース名'].astype(str)
-        race_list = df['レースID'].unique()
+    if master_df is not None and not master_df.empty:
+        master_df['レースID'] = master_df['年'].astype(str) + "年" + master_df['月'].astype(str) + "月" + master_df['日'].astype(str) + " " + master_df['場所'] + " " + master_df['レース番号'].astype(str) + "R " + master_df['略レース名'].astype(str)
+        race_list = master_df['レースID'].unique()
         selected_race = st.sidebar.selectbox("🎯 過去のレースを選択", race_list)
-        df_race = df[df['レースID'] == selected_race].copy()
+        df_race = master_df[master_df['レースID'] == selected_race].copy()
     else:
         df_race = None
 
 if df_race is not None and not df_race.empty:
-    row_info = df_race.iloc[0]
     st.sidebar.markdown("---")
     st.sidebar.info(f"**{selected_race}**\n\n頭数: {len(df_race)}頭")
    
@@ -127,7 +124,7 @@ if df_race is not None and not df_race.empty:
         else:
             return f"{s:.1f}秒"
 
-    def run_monte_carlo_simulation(df_r, pace, bias, num_simulations=10000):
+    def run_monte_carlo_simulation(df_r, pace, bias, master_data, num_simulations=10000):
         res_df = df_r.copy()
         try:
             distance = float(res_df.iloc[0].get('距離', 1600.0))
@@ -136,6 +133,16 @@ if df_race is not None and not df_race.empty:
            
         base_seconds = (distance / 1000.0) * 57.2
        
+        # マスターデータから各馬の過去実績（平均着順など）を計算して辞書にする
+        horse_ability_map = {}
+        if master_data is not None and '馬名' in master_data.columns and '着順' in master_data.columns:
+            master_data['着順_num'] = pd.to_numeric(master_data['着順'], errors='coerce')
+            avg_finishes = master_data.groupby('馬名')['着順_num'].mean().to_dict()
+            for hname, af in avg_finishes.items():
+                if not pd.isna(af):
+                    # 平均着順が良い（1に近い）ほど高いボーナス点（最大+15点）
+                    horse_ability_map[hname] = max(0.0, 15.0 - (af - 1) * 1.2)
+
         n_horses = len(res_df)
         win_counts = np.zeros(n_horses)
         place_counts = np.zeros(n_horses)
@@ -144,19 +151,33 @@ if df_race is not None and not df_race.empty:
         for _ in range(num_simulations):
             sim_scores = []
             for idx, r in res_df.iterrows():
+                hname = str(r.get('name') or r.get('馬名', ''))
                 kyakushitsu = str(r.get('脚質', '差し'))
                 wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
+                try:
+                    odds = float(r.get('オッズ', 10.0))
+                except:
+                    odds = 10.0
                
-                base_score = np.random.uniform(70, 95) + np.random.normal(0, 3.5)
+                # 1. マスターデータの過去実績ボーナス（データがない馬は0）
+                ability_bonus = horse_ability_map.get(hname, 5.0)
+               
+                # 2. オッズによる評価（低オッズ＝人気馬ほど基礎力が高く評価される）
+                odds_bonus = max(0.0, 12.0 - np.log(max(odds, 1.1)) * 3.5)
+               
+                # 3. 総合基礎スコア ＋ 運（正規乱数）
+                base_score = 70.0 + ability_bonus + odds_bonus + np.random.normal(0, 3.0)
+               
+                # 4. ペース・バイアス補正
                 if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
-                    base_score += 8.0
+                    base_score += 6.0
                 elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
-                    base_score += 8.0
+                    base_score += 6.0
                    
                 if bias == "内有利" and wakuban <= 3:
-                    base_score += 5.0
+                    base_score += 4.0
                 elif bias == "外有利" and wakuban >= 6:
-                    base_score += 5.0
+                    base_score += 4.0
                    
                 sim_scores.append(base_score)
                
@@ -174,15 +195,22 @@ if df_race is not None and not df_race.empty:
         res_df['連対率(%)'] = (place_counts / num_simulations) * 100
         res_df['複勝率(%)'] = (show_counts / num_simulations) * 100
        
+        # ソート用の一時スコア計算
         sim_scores_mean = []
         for idx, r in res_df.iterrows():
+            hname = str(r.get('馬名', ''))
             kyakushitsu = str(r.get('脚質', '差し'))
             wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
-            b_score = 80.0
-            if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]: b_score += 5.0
-            elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]: b_score += 5.0
-            if bias == "内有利" and wakuban <= 3: b_score += 3.0
-            elif bias == "外有利" and wakuban >= 6: b_score += 3.0
+            try:
+                odds = float(r.get('オッズ', 10.0))
+            except:
+                odds = 10.0
+               
+            b_score = 70.0 + horse_ability_map.get(hname, 5.0) + max(0.0, 12.0 - np.log(max(odds, 1.1)) * 3.5)
+            if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]: b_score += 4.0
+            elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]: b_score += 4.0
+            if bias == "内有利" and wakuban <= 3: b_score += 2.0
+            elif bias == "外有利" and wakuban >= 6: b_score += 2.0
             sim_scores_mean.append(b_score)
            
         res_df['temp_score'] = sim_scores_mean
@@ -191,7 +219,7 @@ if df_race is not None and not df_race.empty:
        
         times = []
         for i in range(len(res_df)):
-            t = base_seconds + (i * 0.18) + np.random.uniform(0.0, 0.3)
+            t = base_seconds + (i * 0.15) + np.random.uniform(0.0, 0.2)
             times.append(round(t, 1))
            
         res_df['予測走破タイム'] = [format_time(t) for t in times]
@@ -199,8 +227,8 @@ if df_race is not None and not df_race.empty:
 
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🚀 10,000回展開シミュレーションを実行する"):
-        with st.spinner("10,000回の展開シミュレーションを実行中..."):
-            st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, num_simulations=10000)
+        with st.spinner("マスターデータとオッズを元に10,000回シミュレーションを実行中..."):
+            st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, master_df, num_simulations=10000)
             st.session_state['sim_executed'] = True
 
     if st.session_state.get('sim_executed', False) and 'df_simulated' in st.session_state:
@@ -216,7 +244,7 @@ if df_race is not None and not df_race.empty:
        
         st.dataframe(display_df, use_container_width=True, hide_index=True)
     else:
-        st.info("👆 上のボタンを押すと、10,000回シミュレーションと確率分析結果が表示されます。")
+        st.info("👆 上のボタンを押すと、マスターデータ実績とオッズを考慮したシミュレーション結果が表示されます。")
 
 else:
     st.info("👈 サイドバーから未来のレースの出馬表スクショをアップロードするか、過去データを選択してください。")
