@@ -244,13 +244,31 @@ if df_race is not None and not df_race.empty:
 
        surface = str(surface_type).strip()
 
-       # 一律の秒数加算ではなく、距離1000mあたりの比例計算 ＋ 競馬場別係数に変更
+       # 🟢 【アップデート部分】距離カテゴリ（短・マイル・中・長）ごとの1000mあたり基準タイム＆馬場状態の増減（時計がかかる方向へ修正）
        if 'ダ' in surface:
-           base_seconds = (target_distance / 1000.0) * 61.8
-           condition_time_add = {"良": 0.0, "稍重": -0.5, "重": -1.2, "不良": -2.0}.get(condition, 0.0)
+           if target_distance <= 1400:
+               base_rate_per_1000 = 61.5
+           elif target_distance <= 1800:
+               base_rate_per_1000 = 63.0
+           elif target_distance <= 2200:
+               base_rate_per_1000 = 64.5
+           else:
+               base_rate_per_1000 = 66.0
+
+           base_seconds = (target_distance / 1000.0) * base_rate_per_1000
+           condition_time_add = {"良": 0.0, "稍重": 0.5, "重": 1.5, "不良": 3.0}.get(condition, 0.0)
        else:
-           base_seconds = (target_distance / 1000.0) * 56.8
-           condition_time_add = {"良": 0.0, "稍重": 0.5, "重": 1.2, "不良": 2.0}.get(condition, 0.0)
+           if target_distance <= 1400:
+               base_rate_per_1000 = 57.5  # 短距離
+           elif target_distance <= 1800:
+               base_rate_per_1000 = 59.0  # マイル
+           elif target_distance <= 2200:
+               base_rate_per_1000 = 60.5  # 中距離（2200mなら約2分13秒ベース）
+           else:
+               base_rate_per_1000 = 62.0  # 長距離
+
+           base_seconds = (target_distance / 1000.0) * base_rate_per_1000
+           condition_time_add = {"良": 0.0, "稍重": 1.0, "重": 2.5, "不良": 4.5}.get(condition, 0.0)
 
        base_seconds += condition_time_add
 
