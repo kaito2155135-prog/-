@@ -235,7 +235,7 @@ if df_race is not None and not df_race.empty:
        else:
            return f"{s:.1f}秒"
 
-   def run_monte_carlo_simulation(df_r, pace, bias, condition, master_data, target_cat, strictness, straight_length, num_simulations=10000):
+   def run_monte_carlo_simulation(df_r, pace, bias, condition, master_data, target_cat, strictness, straight_length, place_name, num_simulations=10000):
        res_df = df_r.copy()
        try:
            target_distance = float(res_df.iloc[0].get('距離', 1600.0))
@@ -244,14 +244,31 @@ if df_race is not None and not df_race.empty:
 
        surface = str(res_df.iloc[0].get('芝・ダ', '芝')).strip()
 
+       # ▼ 修正：基準タイムを現実的な平均タイム水準に変更（ダート:約66秒/1000m、芝:約60秒/1000m + コース補正）
        if 'ダ' in surface:
-           base_seconds = (target_distance / 1000.0) * 61.5
+           base_seconds = (target_distance / 1000.0) * 66.0
            condition_time_add = {"良": 0.0, "稍重": -0.8, "重": -1.8, "不良": -3.0}.get(condition, 0.0)
        else:
-           base_seconds = (target_distance / 1000.0) * 58.0
+           base_seconds = (target_distance / 1000.0) * 60.0
            condition_time_add = {"良": 0.0, "稍重": 0.8, "重": 1.8, "不良": 3.0}.get(condition, 0.0)
 
        base_seconds += condition_time_add
+
+       # コースごとのタフさ（坂やコーナーのきつさ）による基本補正（秒）
+       # 中山や福島、函館などは時計がかかるためプラス補正を加算
+       course_time_offset = 0.0
+       if "中山" in place_name:
+           course_time_offset = 4.5
+       elif "阪神" in place_name:
+           course_time_offset = 3.0
+       elif "京都" in place_name:
+           course_time_offset = 1.5
+       elif "東京" in place_name:
+           course_time_offset = 0.5
+       elif "福島" in place_name or "小倉" in place_name:
+           course_time_offset = 3.5
+
+       base_seconds += course_time_offset
 
        f3_weight_factor = max(0.4, min(1.6, straight_length / 350.0))
 
@@ -384,7 +401,6 @@ if df_race is not None and not df_race.empty:
                    elif kyakushitsu in ["差し", "追込"]:
                        base_score -= 2.0
 
-               # ▼ 修正箇所：スローのボーナスを 3.0 に変更、ハイのボーナスを 4.5 に変更 ▼
                if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
                    base_score += 3.0
                elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
@@ -392,7 +408,6 @@ if df_race is not None and not df_race.empty:
                else:
                    base_score += (f3_bonus * 0.6)
 
-               # ▼ 修正箇所：トラックバイアスのボーナスを内外ともに 3.0 に変更 ▼
                if bias == "内有利" and wakuban <= 3:
                    base_score += 3.0
                elif bias == "外有利" and wakuban >= 6:
@@ -451,7 +466,7 @@ if df_race is not None and not df_race.empty:
    st.markdown("<br>", unsafe_allow_html=True)
    if st.button("🚀 コース特性（直線長）連動シミュレーションを実行"):
        with st.spinner(f"{race_place}（直線 {straight_len}m）の特性を反映して10,000回シミュレーションを実行中..."):
-           st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, race_category, distance_strictness, straight_len, num_simulations=10000)
+           st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, race_category, distance_strictness, straight_len, race_place, num_simulations=10000)
            st.session_state['sim_executed'] = True
 
    if st.session_state.get('sim_executed', False) and 'df_simulated' in st.session_state:
@@ -463,7 +478,7 @@ if df_race is not None and not df_race.empty:
 
        display_df['勝率(%)'] = display_df['勝率(%)'].apply(lambda x: f"{x:.1f}%")
        display_df['連対率(%)'] = display_df['連対率(%)'].apply(lambda x: f"{x:.1f}%")
-       display_df['複勝率(%)'] = display_df['複勝率(%)'].apply(lambda x: f"{x:.1f}%")
+       display_df['複勝率(%)'] = display_df['複勝率(%)'].apply(lambda x: f"{x:.1f}ミクロン" if False else f"{x:.1f}%")
 
        st.dataframe(display_df, use_container_width=True, hide_index=True)
    else:
