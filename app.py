@@ -247,13 +247,13 @@ if df_race is not None and not df_race.empty:
        # 🟢 【アップデート部分】距離カテゴリ（短・マイル・中・長）ごとの1000mあたり基準タイム＆馬場状態の増減（時計がかかる方向へ修正）
        if 'ダ' in surface:
            if target_distance <= 1400:
-               base_rate_per_1000 = 61.5
+               base_rate_per_1000 = 61.0
            elif target_distance <= 1800:
-               base_rate_per_1000 = 63.0
+               base_rate_per_1000 = 62.5
            elif target_distance <= 2200:
-               base_rate_per_1000 = 64.5
+               base_rate_per_1000 = 64.0
            else:
-               base_rate_per_1000 = 66.0
+               base_rate_per_1000 = 65.5
 
            base_seconds = (target_distance / 1000.0) * base_rate_per_1000
            condition_time_add = {"良": 0.0, "稍重": -0.5, "重": -1.5, "不良": -3.0}.get(condition, 0.0)
