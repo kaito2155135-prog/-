@@ -181,7 +181,7 @@ if df_race is not None and not df_race.empty:
            "脚質": st.column_config.SelectboxColumn(
                "脚質",
                help="馬の脚質を選択してください",
-               options=["逃げ", "先行", "中団", "差し", "追込"],
+               options=["逃げ", "先行", "差し", "追込"],
                required=True,
            ),
            "得意馬場": st.column_config.SelectboxColumn(
@@ -256,7 +256,7 @@ if df_race is not None and not df_race.empty:
                base_rate_per_1000 = 66.0
 
            base_seconds = (target_distance / 1000.0) * base_rate_per_1000
-           condition_time_add = {"良": 0.0, "稍重": 0.5, "重": 1.5, "不良": 3.0}.get(condition, 0.0)
+           condition_time_add = {"良": 0.0, "稍重": -0.5, "重": -1.5, "不良": -3.0}.get(condition, 0.0)
        else:
            if target_distance <= 1400:
                base_rate_per_1000 = 57.5  # 短距離
