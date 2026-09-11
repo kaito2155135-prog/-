@@ -77,7 +77,7 @@ if uploaded_image is not None:
                    image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
                    response = client.models.generate_content(
-                       model='gemini-3.6-flash',
+                       model='gemini-2.5-flash',
                        contents=[
                            image_part,
                            "この画像は競馬の出馬表です。上部に記載されている「場所（競馬場名 例:東京、阪神、福島など）」「距離（例:1600m）」「芝・ダ（芝かダートか）」を読み取ってください。\n"
@@ -293,11 +293,8 @@ if df_race is not None and not df_race.empty:
            else:
                filtered_master = master_data.copy()
 
-           # 基本性能評価用：直近6走
-           recent_master_data = filtered_master.groupby('馬名').head(6).copy()
-           
-           # 【追加】リピーター（コース実績）判定用：直近10走
-           course_fit_master_data = filtered_master.groupby('馬名').head(10).copy()
+           # 【修正】過去全レースではなく「直近12走以内」に変更
+           recent_master_data = filtered_master.groupby('馬名').head(12).copy()
 
            # 1. 平均着順
            if '着順' in recent_master_data.columns:
@@ -376,8 +373,8 @@ if df_race is not None and not df_race.empty:
                for hname, fscore in fit_scores.items():
                    horse_distance_fit_map[hname] = fscore
 
-           # 6. 得意競馬場（芝・ダートを分けて判定）の実績ボーナス 【直近10走のデータを使用】
-           if '場所' in course_fit_master_data.columns and '着順' in course_fit_master_data.columns and '芝・ダ' in course_fit_master_data.columns:
+           # 6. 得意競馬場（芝・ダートを分けて判定）の実績ボーナス
+           if '場所' in recent_master_data.columns and '着順' in recent_master_data.columns and '芝・ダ' in recent_master_data.columns:
                def calc_course_fit(group):
                    fit_bonus = 0.0
                    for _, row in group.iterrows():
@@ -387,12 +384,12 @@ if df_race is not None and not df_race.empty:
                        
                        if place_name in m_place and surface in m_surface:
                            if m_fin == 1:
-                               fit_bonus += 2.0
+                               fit_bonus += 3.5
                            elif m_fin <= 3:
-                               fit_bonus += 1.0
+                               fit_bonus += 1.5
                    return min(5.0, fit_bonus)
 
-               course_fits = course_fit_master_data.groupby('馬名').apply(calc_course_fit).to_dict()
+               course_fits = recent_master_data.groupby('馬名').apply(calc_course_fit).to_dict()
                for hname, cfit in course_fits.items():
                    horse_course_fit_map[hname] = cfit
 
