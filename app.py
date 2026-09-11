@@ -36,7 +36,7 @@ st.markdown("""
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（コース実績・リピーター適性連動版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（コース別・末脚特性連動版）</h2>", unsafe_allow_html=True)
 
 # 1. マスターデータの読み込み準備
 master_df = None
@@ -57,58 +57,58 @@ if uploaded_image is not None:
    st.sidebar.image(uploaded_image, caption="アップロードされた出馬表", use_container_width=True)
    if st.sidebar.button("✨ 画像からAI解析を実行"):
        with st.spinner("AIがレース情報や出馬表を解析しています..."):
+           try:
+               from google import genai
+               from google.genai import types
+
+               image_bytes = uploaded_image.getvalue()
+               mime_type = uploaded_image.type if uploaded_image.type else "image/jpeg"
+
+               api_key = None
                try:
-                   from google import genai
-                   from google.genai import types
+                   api_key = st.secrets["GEMINI_API_KEY"]
+               except:
+                   api_key = os.environ.get("GEMINI_API_KEY")
 
-                   image_bytes = uploaded_image.getvalue()
-                   mime_type = uploaded_image.type if uploaded_image.type else "image/jpeg"
+               if not api_key:
+                   st.error("⚠️ GEMINI_API_KEY が設定されていません。StreamlitのSecretsに設定してください。")
+               else:
+                   client = genai.Client(api_key=api_key)
+                   image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
-                   api_key = None
-                   try:
-                       api_key = st.secrets["GEMINI_API_KEY"]
-                   except:
-                       api_key = os.environ.get("GEMINI_API_KEY")
+                   response = client.models.generate_content(
+                       model='gemini-2.5-flash',
+                       contents=[
+                           image_part,
+                           "この画像は競馬の出馬表です。上部に記載されている「場所（競馬場名 例:東京、阪神、福島など）」「距離（例:1600m）」「芝・ダ（芝かダートか）」を読み取ってください。\n"
+                           "また、各馬の「枠番」「馬番」「馬名」「オッズ（人気・倍率）」、そして右端にある「脚質」の傾向（例: [・先..]なら先行、[..差追]なら差し・追込などから「逃げ」「先行」「中団」「差し」「追込」のいずれかに分類）を読み取ってください。\n"
+                           "結果は必ず以下のJSON配列の形式のみで正確に出力してください。他の余分なテキストやマークダウンのバッククォートは含めないでください。\n"
+                           '[{"場所": "東京", "距離": 2400, "芝・ダ": "芝", "枠番": 1, "馬番": 1, "馬名": "ラフターラインズ", "オッズ": 3.2, "脚質": "追込"}, ...]'
+                       ]
+                   )
 
-                   if not api_key:
-                       st.error("⚠️ GEMINI_API_KEY が設定されていません。StreamlitのSecretsに設定してください。")
-                   else:
-                       client = genai.Client(api_key=api_key)
-                       image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+                   cleaned_text = response.text.replace("```json", "").replace("```", "").strip()
+                   parsed_data = json.loads(cleaned_text)
 
-                       response = client.models.generate_content(
-                           model='gemini-3.6-flash',
-                           contents=[
-                               image_part,
-                               "この画像は競馬の出馬表です。上部に記載されている「場所（競馬場名 例:東京、阪神、福島など）」「距離（例:1600m）」「芝・ダ（芝かダートか）」を読み取ってください。\n"
-                               "また、各馬の「枠番」「馬番」「馬名」「オッズ（人気・倍率）」、そして右端にある「脚質」の傾向（例: [・先..]なら先行、[..差追]なら差し・追込などから「逃げ」「先行」「中団」「差し」「追込」のいずれかに分類）を読み取ってください。\n"
-                               "結果は必ず以下のJSON配列の形式のみで正確に出力してください。他の余分なテキストやマークダウンのバッククォートは含めないでください。\n"
-                               '[{"場所": "東京", "距離": 2400, "芝・ダ": "芝", "枠番": 1, "馬番": 1, "馬名": "ラフターラインズ", "オッズ": 3.2, "脚質": "追込"}, ...]'
-                           ]
-                       )
+                   df_race = pd.DataFrame(parsed_data)
+                  
+                   if '場所' not in df_race.columns:
+                       df_race['場所'] = '東京'
+                   if '距離' not in df_race.columns:
+                       df_race['距離'] = 2400.0 
+                   if '芝・ダ' not in df_race.columns:
+                       df_race['芝・ダ'] = '芝'
+                   if '脚質' not in df_race.columns:
+                       df_race['脚質'] = '追込'
+                   if 'オッズ' not in df_race.columns:
+                       df_race['オッズ'] = 5.0
+                  
+                   df_race['得意馬場'] = '指定なし'
 
-                       cleaned_text = response.text.replace("```json", "").replace("```", "").strip()
-                       parsed_data = json.loads(cleaned_text)
-
-                       df_race = pd.DataFrame(parsed_data)
-                      
-                       if '場所' not in df_race.columns:
-                           df_race['場所'] = '東京'
-                       if '距離' not in df_race.columns:
-                           df_race['距離'] = 2400.0 
-                       if '芝・ダ' not in df_race.columns:
-                           df_race['芝・ダ'] = '芝'
-                       if '脚質' not in df_race.columns:
-                           df_race['脚質'] = '追込'
-                       if 'オッズ' not in df_race.columns:
-                           df_race['オッズ'] = 5.0
-                      
-                       df_race['得意馬場'] = '指定なし'
-
-                       st.session_state['custom_df_race'] = df_race
-                       st.success("出馬表の読み込みに成功しました！下部で各馬の脚質や得意馬場を微調整できます。")
-               except Exception as e:
-                   st.error(f"解析に失敗しました: {e}")
+                   st.session_state['custom_df_race'] = df_race
+                   st.success("出馬表の読み込みに成功しました！下部で各馬の脚質や得意馬場を微調整できます。")
+           except Exception as e:
+               st.error(f"解析に失敗しました: {e}")
 
 # セッションまたは過去データ選択
 if 'custom_df_race' in st.session_state:
@@ -137,45 +137,23 @@ if df_race is not None and not df_race.empty:
    except:
        race_distance = 1600
 
-   # 競馬場ごとの直線の長さ（m）を芝・ダート別に定義
-   straight_lengths_dict = {
-       "芝": {
-           "新潟": 659.9, "東京": 525.9, "阪神": 473.6, "中京": 412.5,
-           "京都": 403.9, "中山": 310.0, "小倉": 293.0, "函館": 262.1,
-           "福島": 292.0, "札幌": 266.1
-       },
-       "ダ": {
-           "新潟": 353.9, "東京": 501.6, "阪神": 352.7, "中京": 410.7,
-           "京都": 329.1, "中山": 308.0, "小倉": 291.0, "函館": 260.1,
-           "福島": 295.7, "札幌": 264.3
-       }
+   # 競馬場ごとの直線の長さ（m）を定義
+   straight_lengths = {
+       "新潟": 659.9, "東京": 525.9, "阪神": 473.6, "中京": 412.5,
+       "京都": 403.9, "中山": 310.0, "小倉": 293.0, "函館": 262.1,
+       "福島": 292.0, "札幌": 266.1
    }
-
-   # 各競馬場ごとのタフさ係数
-   toughness_dict = {
-       "中山": 1.30, "札幌": 1.25, "函館": 1.25, "阪神": 1.20,
-       "福島": 1.15, "京都": 1.10, "中京": 1.05, "小倉": 1.00,
-       "東京": 0.95, "新潟": 0.90
-   }
-
-   surface_key = "ダ" if "ダ" in race_surface else "芝"
-   straight_len = 400.0  
-   for k, v in straight_lengths_dict[surface_key].items():
+   straight_len = 400.0  # デフォルト標準
+   for k, v in straight_lengths.items():
        if k in race_place:
            straight_len = v
-           break
-
-   course_toughness = 1.10
-   for k, v in toughness_dict.items():
-       if k in race_place:
-           course_toughness = v
            break
 
    st.markdown(f"""
        <div class="race-info-box">
            <h3 style="margin: 0; color: #f1c40f;">📌 選択中レース情報</h3>
            <p style="font-size: 18px; margin: 5px 0 0 0;">
-               <b>競馬場:</b> {race_place} (直線: {straight_len}m / タフ度: {course_toughness}) &nbsp;|&nbsp;
+               <b>競馬場:</b> {race_place} (直線: {straight_len}m) &nbsp;|&nbsp;
                <b>馬場種別:</b> {race_surface} &nbsp;|&nbsp;
                <b>距離:</b> {race_distance}m &nbsp;|&nbsp;
                <b>出走頭数:</b> {len(df_race)}頭
@@ -183,7 +161,7 @@ if df_race is not None and not df_race.empty:
        </div>
    """, unsafe_allow_html=True)
 
-   st.markdown("### ✍️ 出走出馬データの確認・手動微調整（脚質・得意馬場）")
+   st.markdown("### ✍️ 出走馬データの確認・手動微調整（脚質・得意馬場）")
    edit_columns = [c for c in ['枠番', '馬番', '馬名', 'オッズ', '脚質', '得意馬場'] if c in df_race.columns]
   
    for c in ['枠番', '馬番', '馬名', 'オッズ', '脚質', '得意馬場']:
@@ -203,7 +181,7 @@ if df_race is not None and not df_race.empty:
            "脚質": st.column_config.SelectboxColumn(
                "脚質",
                help="馬の脚質を選択してください",
-               options=["逃げ", "先行", "差し", "追込"],
+               options=["逃げ", "先行", "中団", "差し", "追込"],
                required=True,
            ),
            "得意馬場": st.column_config.SelectboxColumn(
@@ -244,7 +222,7 @@ if df_race is not None and not df_race.empty:
    else:
        race_category = "長距離"
 
-   st.info(f"💡 現在のレース設定距離（{race_distance}m）は **『{race_category}』** です。また、**『{race_place}』（直線 {straight_len}m / タフ度 {course_toughness}）** のコース特性に合わせて末脚やパワー（タフさ）、**リピーター（コース実績）** が自動評価されます。")
+   st.info(f"💡 現在のレース設定距離（{race_distance}m）は **『{race_category}』** です。また、**『{race_place}』（直線 {straight_len}m）** のコース特性に合わせて末脚（上がり3F）の影響度が自動調整されます。")
    distance_strictness = st.slider("🎯 距離適正フィルターの厳しさ（距離カテゴリ不適合のペナルティ倍率）", min_value=0.0, max_value=3.0, value=1.5, step=0.5)
 
    st.markdown("---")
@@ -257,7 +235,7 @@ if df_race is not None and not df_race.empty:
        else:
            return f"{s:.1f}秒"
 
-   def run_monte_carlo_simulation(df_r, pace, bias, condition, master_data, target_cat, strictness, straight_length, place_name, surface_type, toughness_val, num_simulations=10000):
+   def run_monte_carlo_simulation(df_r, pace, bias, condition, master_data, target_cat, strictness, straight_length, place_name, surface_type, num_simulations=10000):
        res_df = df_r.copy()
        try:
            target_distance = float(res_df.iloc[0].get('距離', 1600.0))
@@ -267,29 +245,11 @@ if df_race is not None and not df_race.empty:
        surface = str(surface_type).strip()
 
        if 'ダ' in surface:
-           if target_distance <= 1400:
-               base_rate_per_1000 = 60.5
-           elif target_distance <= 1800:
-               base_rate_per_1000 = 62.5
-           elif target_distance <= 2200:
-               base_rate_per_1000 = 64.0
-           else:
-               base_rate_per_1000 = 65.5
-
-           base_seconds = (target_distance / 1000.0) * base_rate_per_1000
-           condition_time_add = {"良": 0.0, "稍重": -0.5, "重": -1.5, "不良": -3.0}.get(condition, 0.0)
+           base_seconds = (target_distance / 1000.0) * 61.8
+           condition_time_add = {"良": 0.0, "稍重": -0.5, "重": -1.2, "不良": -2.0}.get(condition, 0.0)
        else:
-           if target_distance <= 1400:
-               base_rate_per_1000 = 57.5
-           elif target_distance <= 1800:
-               base_rate_per_1000 = 59.0
-           elif target_distance <= 2200:
-               base_rate_per_1000 = 60.5
-           else:
-               base_rate_per_1000 = 62.0
-
-           base_seconds = (target_distance / 1000.0) * base_rate_per_1000
-           condition_time_add = {"良": 0.0, "稍重": 1.0, "重": 2.5, "不良": 4.5}.get(condition, 0.0)
+           base_seconds = (target_distance / 1000.0) * 56.8
+           condition_time_add = {"良": 0.0, "稍重": 0.5, "重": 1.2, "不良": 2.0}.get(condition, 0.0)
 
        base_seconds += condition_time_add
 
@@ -307,10 +267,7 @@ if df_race is not None and not df_race.empty:
 
        base_seconds = base_seconds * course_speed_factor
 
-       if 'ダ' in surface:
-           f3_weight_factor = max(0.5, min(1.15, straight_length / 450.0))
-       else:
-           f3_weight_factor = max(0.4, min(1.6, straight_length / 350.0))
+       f3_weight_factor = max(0.4, min(1.6, straight_length / 350.0))
 
        horse_ability_map = {}
        horse_speed_bonus_map = {}
@@ -336,8 +293,13 @@ if df_race is not None and not df_race.empty:
            else:
                filtered_master = master_data.copy()
 
-           recent_master_data = filtered_master.groupby('馬名').head(10).copy()
+           # 基本性能評価用：直近6走
+           recent_master_data = filtered_master.groupby('馬名').head(6).copy()
+           
+           # 【追加】リピーター（コース実績）判定用：直近10走
+           course_fit_master_data = filtered_master.groupby('馬名').head(10).copy()
 
+           # 1. 平均着順
            if '着順' in recent_master_data.columns:
                recent_master_data['着順_num'] = pd.to_numeric(recent_master_data['着順'], errors='coerce')
                avg_finishes = recent_master_data.groupby('馬名')['着順_num'].mean().to_dict()
@@ -345,6 +307,7 @@ if df_race is not None and not df_race.empty:
                    if not pd.isna(af):
                        horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
 
+           # 2. スピード換算
            if '走破タイム' in recent_master_data.columns and '距離' in recent_master_data.columns:
                recent_master_data['走破タイム_num'] = pd.to_numeric(recent_master_data['走破タイム'], errors='coerce')
                recent_master_data['距離_num'] = pd.to_numeric(recent_master_data['距離'], errors='coerce')
@@ -358,6 +321,7 @@ if df_race is not None and not df_race.empty:
                        if not pd.isna(sd):
                            horse_speed_bonus_map[hname] = max(-3.0, min(10.0, sd * (target_distance / 1000.0) * 2.5))
 
+           # 3. 上がり3F
            if '上がり3Fタイム' in recent_master_data.columns:
                recent_master_data['上がり3F_num'] = pd.to_numeric(recent_master_data['上がり3Fタイム'], errors='coerce')
                avg_f3 = recent_master_data.groupby('馬名')['上がり3F_num'].mean()
@@ -368,6 +332,7 @@ if df_race is not None and not df_race.empty:
                        if not pd.isna(fd):
                            horse_f3_bonus_map[hname] = max(-3.0, min(10.0, fd * 2.5 * f3_weight_factor))
 
+           # 4. 重賞実績ボーナス
            if '略レース名' in recent_master_data.columns and '着順' in recent_master_data.columns:
                def calc_grade_bonus(group):
                    bonus = 0.0
@@ -388,6 +353,7 @@ if df_race is not None and not df_race.empty:
                for hname, gbonus in grade_bonuses.items():
                    horse_grade_bonus_map[hname] = gbonus
 
+           # 5. 距離カテゴリ適正判定
            if '距離' in recent_master_data.columns:
                recent_master_data['距離_num'] = pd.to_numeric(recent_master_data['距離'], errors='coerce')
                
@@ -410,8 +376,8 @@ if df_race is not None and not df_race.empty:
                for hname, fscore in fit_scores.items():
                    horse_distance_fit_map[hname] = fscore
 
-           # ★コース実績（リピーター適性）の評価ロジック
-           if '場所' in recent_master_data.columns and '着順' in recent_master_data.columns and '芝・ダ' in recent_master_data.columns:
+           # 6. 得意競馬場（芝・ダートを分けて判定）の実績ボーナス 【直近10走のデータを使用】
+           if '場所' in course_fit_master_data.columns and '着順' in course_fit_master_data.columns and '芝・ダ' in course_fit_master_data.columns:
                def calc_course_fit(group):
                    fit_bonus = 0.0
                    for _, row in group.iterrows():
@@ -419,15 +385,14 @@ if df_race is not None and not df_race.empty:
                        m_surface = str(row.get('芝・ダ', ''))
                        m_fin = pd.to_numeric(row.get('着順', 99), errors='coerce')
                        
-                       # 同一競馬場かつ同条件（芝・ダ）での実績を評価
                        if place_name in m_place and surface in m_surface:
                            if m_fin == 1:
-                               fit_bonus += 2.0  # 勝ち実績（リピーター強力）
+                               fit_bonus += 2.0
                            elif m_fin <= 3:
-                               fit_bonus += 1.0  # 好走実績
-                   return min(6.0, fit_bonus)
+                               fit_bonus += 1.0
+                   return min(5.0, fit_bonus)
 
-               course_fits = recent_master_data.groupby('馬名').apply(calc_course_fit).to_dict()
+               course_fits = course_fit_master_data.groupby('馬名').apply(calc_course_fit).to_dict()
                for hname, cfit in course_fits.items():
                    horse_course_fit_map[hname] = cfit
 
@@ -449,15 +414,9 @@ if df_race is not None and not df_race.empty:
                f3_bonus = horse_f3_bonus_map.get(hname, 0.0)
                dist_fit_bonus = horse_distance_fit_map.get(hname, 0.0)
                grade_bonus = horse_grade_bonus_map.get(hname, 0.0)
-               course_fit_bonus = horse_course_fit_map.get(hname, 0.0) # コース実績（リピーター）
+               course_fit_bonus = horse_course_fit_map.get(hname, 0.0)
 
-               toughness_effect = (toughness_val - 1.0) * 4.0
-               # コース実績ボーナスをベーススコアに加算
                base_score = 70.0 + ability_bonus + speed_bonus + dist_fit_bonus + grade_bonus + course_fit_bonus + np.random.normal(0, 3.0)
-
-               if toughness_val >= 1.2:
-                   if kyakushitsu in ["逃げ", "先行"]:
-                       base_score += toughness_effect * 1.5
 
                if straight_length <= 320:
                    if kyakushitsu in ["逃げ", "先行"]:
@@ -528,13 +487,13 @@ if df_race is not None and not df_race.empty:
        return res_df
 
    st.markdown("<br>", unsafe_allow_html=True)
-   if st.button("🚀 コース実績（リピーター適性）連動シミュレーションを実行"):
-       with st.spinner(f"{race_place}（直線 {straight_len}m / タフ度 {course_toughness}）の特性およびリピーター実績を反映して10,000回シミュレーションを実行中..."):
-           st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, race_category, distance_strictness, straight_len, race_place, race_surface, course_toughness, num_simulations=10000)
+   if st.button("🚀 コース特性（直線長）連動シミュレーションを実行"):
+       with st.spinner(f"{race_place}（直線 {straight_len}m）の特性を反映して10,000回シミュレーションを実行中..."):
+           st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, race_category, distance_strictness, straight_len, race_place, race_surface, num_simulations=10000)
            st.session_state['sim_executed'] = True
 
    if st.session_state.get('sim_executed', False) and 'df_simulated' in st.session_state:
-       st.markdown(f"<br><h3>🏆 10,000回シミュレーション結果（{race_place} 直線:{straight_len}m / タフ度:{course_toughness} / リピーター実績反映）</h3>", unsafe_allow_html=True)
+       st.markdown(f"<br><h3>🏆 10,000回シミュレーション結果（{race_place} 直線:{straight_len}m / {race_surface}{race_distance}m）</h3>", unsafe_allow_html=True)
 
        df_simulated = st.session_state['df_simulated']
        display_columns = [c for c in ['着順予測', '馬番', '馬名', 'オッズ', '脚質', '得意馬場', '勝率(%)', '連対率(%)', '複勝率(%)', '予測走破タイム'] if c in df_simulated.columns]
