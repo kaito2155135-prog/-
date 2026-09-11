@@ -137,17 +137,28 @@ if df_race is not None and not df_race.empty:
    except:
        race_distance = 1600
 
-   # 競馬場ごとの直線の長さ（m）を定義
-   straight_lengths = {
-       "新潟": 659.9, "東京": 525.9, "阪神": 473.6, "中京": 412.5,
-       "京都": 403.9, "中山": 310.0, "小倉": 293.0, "函館": 262.1,
-       "福島": 292.0, "札幌": 266.1
+      # 競馬場ごとの直線の長さ（m）を芝・ダート別に定義
+   straight_lengths_dict = {
+       "芝": {
+           "新潟": 659.9, "東京": 525.9, "阪神": 473.6, "中京": 412.5,
+           "京都": 403.9, "中山": 310.0, "小倉": 293.0, "函館": 262.1,
+           "福島": 292.0, "札幌": 266.1
+       },
+       "ダ": {
+           "新潟": 353.9, "東京": 501.6, "阪神": 352.7, "中京": 410.7,
+           "京都": 329.1, "中山": 308.0, "小倉": 291.0, "函館": 260.1,
+           "福島": 295.7, "札幌": 264.3
+       }
    }
-   straight_len = 400.0  # デフォルト標準
-   for k, v in straight_lengths.items():
+
+   # 選択されたサーフェイス（芝 or ダ）と競馬場名から直線の長さを正しく取得
+   surface_key = "ダ" if "ダ" in race_surface else "芝"
+   straight_len = 400.0  # デフォルト
+   for k, v in straight_lengths_dict[surface_key].items():
        if k in race_place:
            straight_len = v
            break
+
 
    st.markdown(f"""
        <div class="race-info-box">
