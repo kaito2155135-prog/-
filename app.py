@@ -36,7 +36,7 @@ st.markdown("""
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（コース別・末脚特性連動版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（コース実績・リピーター適性連動版）</h2>", unsafe_allow_html=True)
 
 # 1. マスターデータの読み込み準備
 master_df = None
@@ -151,7 +151,7 @@ if df_race is not None and not df_race.empty:
        }
    }
 
-   # 各競馬場ごとのタフさ係数（坂のキツさ、洋芝の重さ、コーナリング負荷など / 数値が大きいほどタフ・パワー要求）
+   # 各競馬場ごとのタフさ係数
    toughness_dict = {
        "中山": 1.35, "札幌": 1.30, "函館": 1.25, "阪神": 1.20,
        "福島": 1.15, "京都": 1.10, "中京": 1.05, "小倉": 1.00,
@@ -244,7 +244,7 @@ if df_race is not None and not df_race.empty:
    else:
        race_category = "長距離"
 
-   st.info(f"💡 現在のレース設定距離（{race_distance}m）は **『{race_category}』** です。また、**『{race_place}』（直線 {straight_len}m / タフ度 {course_toughness}）** のコース特性に合わせて末脚やパワー（タフさ）の補正が自動調整されます。")
+   st.info(f"💡 現在のレース設定距離（{race_distance}m）は **『{race_category}』** です。また、**『{race_place}』（直線 {straight_len}m / タフ度 {course_toughness}）** のコース特性に合わせて末脚やパワー（タフさ）、**リピーター（コース実績）** が自動評価されます。")
    distance_strictness = st.slider("🎯 距離適正フィルターの厳しさ（距離カテゴリ不適合のペナルティ倍率）", min_value=0.0, max_value=3.0, value=1.5, step=0.5)
 
    st.markdown("---")
@@ -336,7 +336,7 @@ if df_race is not None and not df_race.empty:
            else:
                filtered_master = master_data.copy()
 
-           recent_master_data = filtered_master.groupby('馬名').head(6).copy()
+           recent_master_data = filtered_master.groupby('馬名').head(10).copy()
 
            if '着順' in recent_master_data.columns:
                recent_master_data['着順_num'] = pd.to_numeric(recent_master_data['着順'], errors='coerce')
@@ -410,6 +410,7 @@ if df_race is not None and not df_race.empty:
                for hname, fscore in fit_scores.items():
                    horse_distance_fit_map[hname] = fscore
 
+           # ★コース実績（リピーター適性）の評価ロジック
            if '場所' in recent_master_data.columns and '着順' in recent_master_data.columns and '芝・ダ' in recent_master_data.columns:
                def calc_course_fit(group):
                    fit_bonus = 0.0
@@ -418,12 +419,13 @@ if df_race is not None and not df_race.empty:
                        m_surface = str(row.get('芝・ダ', ''))
                        m_fin = pd.to_numeric(row.get('着順', 99), errors='coerce')
                        
+                       # 同一競馬場かつ同条件（芝・ダ）での実績を評価
                        if place_name in m_place and surface in m_surface:
                            if m_fin == 1:
-                               fit_bonus += 3.5
+                               fit_bonus += 3.5  # 勝ち実績（リピーター強力）
                            elif m_fin <= 3:
-                               fit_bonus += 1.5
-                   return min(5.0, fit_bonus)
+                               fit_bonus += 1.5  # 好走実績
+                   return min(6.0, fit_bonus)
 
                course_fits = recent_master_data.groupby('馬名').apply(calc_course_fit).to_dict()
                for hname, cfit in course_fits.items():
@@ -447,15 +449,13 @@ if df_race is not None and not df_race.empty:
                f3_bonus = horse_f3_bonus_map.get(hname, 0.0)
                dist_fit_bonus = horse_distance_fit_map.get(hname, 0.0)
                grade_bonus = horse_grade_bonus_map.get(hname, 0.0)
-               course_fit_bonus = horse_course_fit_map.get(hname, 0.0)
+               course_fit_bonus = horse_course_fit_map.get(hname, 0.0) # コース実績（リピーター）
 
-               # タフ度（パワー・スタミナの要求度）に応じた補正
-               # タフな競馬場（中山・札幌など）では、スピードだけに頼る馬が減点され、パワー型や好走実績のある馬が相対的に浮上
                toughness_effect = (toughness_val - 1.0) * 4.0
+               # コース実績ボーナスをベーススコアに加算
                base_score = 70.0 + ability_bonus + speed_bonus + dist_fit_bonus + grade_bonus + course_fit_bonus + np.random.normal(0, 3.0)
 
                if toughness_val >= 1.2:
-                   # タフな馬場やコースでは、末脚一辺倒より前目（逃げ・先行）やパワータイプに恩恵、または馬場コンディション連動
                    if kyakushitsu in ["逃げ", "先行"]:
                        base_score += toughness_effect * 1.5
 
@@ -528,13 +528,13 @@ if df_race is not None and not df_race.empty:
        return res_df
 
    st.markdown("<br>", unsafe_allow_html=True)
-   if st.button("🚀 コース特性（直線長・タフ度）連動シミュレーションを実行"):
-       with st.spinner(f"{race_place}（直線 {straight_len}m / タフ度 {course_toughness}）の特性を反映して10,000回シミュレーションを実行中..."):
+   if st.button("🚀 コース実績（リピーター適性）連動シミュレーションを実行"):
+       with st.spinner(f"{race_place}（直線 {straight_len}m / タフ度 {course_toughness}）の特性およびリピーター実績を反映して10,000回シミュレーションを実行中..."):
            st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, race_category, distance_strictness, straight_len, race_place, race_surface, course_toughness, num_simulations=10000)
            st.session_state['sim_executed'] = True
 
    if st.session_state.get('sim_executed', False) and 'df_simulated' in st.session_state:
-       st.markdown(f"<br><h3>🏆 10,000回シミュレーション結果（{race_place} 直線:{straight_len}m / タフ度:{course_toughness} / {race_surface}{race_distance}m）</h3>", unsafe_allow_html=True)
+       st.markdown(f"<br><h3>🏆 10,000回シミュレーション結果（{race_place} 直線:{straight_len}m / タフ度:{course_toughness} / リピーター実績反映）</h3>", unsafe_allow_html=True)
 
        df_simulated = st.session_state['df_simulated']
        display_columns = [c for c in ['着順予測', '馬番', '馬名', 'オッズ', '脚質', '得意馬場', '勝率(%)', '連対率(%)', '複勝率(%)', '予測走破タイム'] if c in df_simulated.columns]
