@@ -253,20 +253,19 @@ if df_race is not None and not df_race.empty:
 
        base_seconds += condition_time_add
 
-       # ▼ 修正：すべての競馬場のオフセットを今より「2秒早くなる（2.0秒マイナス）」ように調整
        course_time_offset = 0.0
        if "中山" in place_name:
-           course_time_offset = 2.5   # 4.5 -> 2.5 (-2秒)
+           course_time_offset = 2.5
        elif "阪神" in place_name:
-           course_time_offset = 1.0   # 3.0 -> 1.0 (-2秒)
+           course_time_offset = 1.0
        elif "京都" in place_name:
-           course_time_offset = -0.5  # 1.5 -> -0.5 (-2秒)
+           course_time_offset = -0.5
        elif "東京" in place_name:
-           course_time_offset = -1.5  # 0.5 -> -1.5 (-2秒)
+           course_time_offset = -1.5
        elif "福島" in place_name or "小倉" in place_name:
-           course_time_offset = 1.5   # 3.5 -> 1.5 (-2秒)
+           course_time_offset = 1.5
        else:
-           course_time_offset = 0.0   # その他も必要に応じて設定
+           course_time_offset = 0.0
 
        base_seconds += course_time_offset
 
@@ -305,7 +304,7 @@ if df_race is not None and not df_race.empty:
                    if not pd.isna(af):
                        horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
 
-           # 2. スピード換算
+           # 2. スピード換算（係数を2.5に、上限を10.0に変更）
            if '走破タイム' in recent_master_data.columns and '距離' in recent_master_data.columns:
                recent_master_data['走破タイム_num'] = pd.to_numeric(recent_master_data['走破タイム'], errors='coerce')
                recent_master_data['距離_num'] = pd.to_numeric(recent_master_data['距離'], errors='coerce')
@@ -317,7 +316,7 @@ if df_race is not None and not df_race.empty:
                    speed_diffs = (mean_all_speed - avg_speeds).to_dict()
                    for hname, sd in speed_diffs.items():
                        if not pd.isna(sd):
-                           horse_speed_bonus_map[hname] = max(-3.0, min(8.0, sd * (target_distance / 1000.0) * 1.5))
+                           horse_speed_bonus_map[hname] = max(-3.0, min(10.0, sd * (target_distance / 1000.0) * 2.5))
 
            # 3. 上がり3F
            if '上がり3Fタイム' in recent_master_data.columns:
