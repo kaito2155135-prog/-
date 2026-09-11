@@ -244,7 +244,7 @@ if df_race is not None and not df_race.empty:
 
        surface = str(surface_type).strip()
 
-       # 【修正】一律の秒数加算ではなく、距離1000mあたりの比例計算 ＋ 競馬場別係数に変更
+       # 一律の秒数加算ではなく、距離1000mあたりの比例計算 ＋ 競馬場別係数に変更
        if 'ダ' in surface:
            base_seconds = (target_distance / 1000.0) * 61.8
            condition_time_add = {"良": 0.0, "稍重": -0.5, "重": -1.2, "不良": -2.0}.get(condition, 0.0)
