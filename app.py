@@ -244,7 +244,7 @@ if df_race is not None and not df_race.empty:
 
        surface = str(surface_type).strip()
 
-       # 🟢 距離カテゴリ（短・マイル・中・長）ごとの1000mあたり基準タイム＆馬場状態の増減
+       # 🟢 【アップデート部分】距離カテゴリ（短・マイル・中・長）ごとの1000mあたり基準タイム＆馬場状態の増減（時計がかかる方向へ修正）
        if 'ダ' in surface:
            if target_distance <= 1400:
                base_rate_per_1000 = 61.5
@@ -263,7 +263,7 @@ if df_race is not None and not df_race.empty:
            elif target_distance <= 1800:
                base_rate_per_1000 = 59.0  # マイル
            elif target_distance <= 2200:
-               base_rate_per_1000 = 60.5  # 中距離
+               base_rate_per_1000 = 60.5  # 中距離（2200mなら約2分13秒ベース）
            else:
                base_rate_per_1000 = 62.0  # 長距離
 
@@ -272,23 +272,23 @@ if df_race is not None and not df_race.empty:
 
        base_seconds += condition_time_add
 
-       # 競馬場ごとのスピード係数
+       # 競馬場ごとのスピード係数（1000mあたりの基準に対する倍率）
        course_speed_factor = 1.0
        if "中山" in place_name or "福島" in place_name:
-           course_speed_factor = 0.992
+           course_speed_factor = 0.992  # 若干タフ（時計がかかる）
        elif "京都" in place_name or "東京" in place_name:
-           course_speed_factor = 0.985
+           course_speed_factor = 0.985  # 高速馬場になりやすい
        elif "阪神" in place_name:
-           course_speed_factor = 0.988
+           course_speed_factor = 0.988  # 比較的時計が早い
        elif "小倉" in place_name:
            course_speed_factor = 0.986
        else:
            course_speed_factor = 1.0
 
        base_seconds = base_seconds * course_speed_factor
+
        f3_weight_factor = max(0.4, min(1.6, straight_length / 350.0))
 
-       # 過去データから馬ごとの能力・特性マップを作成
        horse_ability_map = {}
        horse_speed_bonus_map = {}
        horse_f3_bonus_map = {}
@@ -392,7 +392,7 @@ if df_race is not None and not df_race.empty:
                for hname, fscore in fit_scores.items():
                    horse_distance_fit_map[hname] = fscore
 
-           # 6. 得意競馬場・馬場実績ボーナス
+           # 6. 得意競馬場（芝・ダートを分けて判定）の実績ボーナス
            if '場所' in recent_master_data.columns and '着順' in recent_master_data.columns and '芝・ダ' in recent_master_data.columns:
                def calc_course_fit(group):
                    fit_bonus = 0.0
@@ -417,7 +417,6 @@ if df_race is not None and not df_race.empty:
        place_counts = np.zeros(n_horses)
        show_counts = np.zeros(n_horses)
 
-       # モンテカルロシミュレーションのループ（高速化・最適化済み）
        for _ in range(num_simulations):
            sim_scores = []
            for idx, r in res_df.iterrows():
