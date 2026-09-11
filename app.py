@@ -244,6 +244,7 @@ if df_race is not None and not df_race.empty:
 
        surface = str(surface_type).strip()
 
+       # 一律の秒数加算ではなく、距離1000mあたりの比例計算 ＋ 競馬場別係数に変更
        if 'ダ' in surface:
            base_seconds = (target_distance / 1000.0) * 61.8
            condition_time_add = {"良": 0.0, "稍重": -0.5, "重": -1.2, "不良": -2.0}.get(condition, 0.0)
@@ -253,13 +254,14 @@ if df_race is not None and not df_race.empty:
 
        base_seconds += condition_time_add
 
+       # 競馬場ごとのスピード係数（1000mあたりの基準に対する倍率）
        course_speed_factor = 1.0
        if "中山" in place_name or "福島" in place_name:
-           course_speed_factor = 0.992
+           course_speed_factor = 0.992  # 若干タフ（時計がかかる）
        elif "京都" in place_name or "東京" in place_name:
-           course_speed_factor = 0.985
+           course_speed_factor = 0.985  # 高速馬場になりやすい
        elif "阪神" in place_name:
-           course_speed_factor = 0.988
+           course_speed_factor = 0.988  # 比較的時計が早い
        elif "小倉" in place_name:
            course_speed_factor = 0.986
        else:
@@ -293,8 +295,7 @@ if df_race is not None and not df_race.empty:
            else:
                filtered_master = master_data.copy()
 
-           # 【修正】過去全レースではなく「直近12走以内」に変更
-           recent_master_data = filtered_master.groupby('馬名').head(12).copy()
+           recent_master_data = filtered_master.groupby('馬名').head(6).copy()
 
            # 1. 平均着順
            if '着順' in recent_master_data.columns:
