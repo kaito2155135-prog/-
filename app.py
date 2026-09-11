@@ -235,14 +235,14 @@ if df_race is not None and not df_race.empty:
        else:
            return f"{s:.1f}秒"
 
-   def run_monte_carlo_simulation(df_r, pace, bias, condition, master_data, target_cat, strictness, straight_length, place_name, num_simulations=10000):
+   def run_monte_carlo_simulation(df_r, pace, bias, condition, master_data, target_cat, strictness, straight_length, place_name, surface_type, num_simulations=10000):
        res_df = df_r.copy()
        try:
            target_distance = float(res_df.iloc[0].get('距離', 1600.0))
        except:
            target_distance = 1600.0
 
-       surface = str(res_df.iloc[0].get('芝・ダ', '芝')).strip()
+       surface = str(surface_type).strip()
 
        if 'ダ' in surface:
            base_seconds = (target_distance / 1000.0) * 66.0
@@ -276,6 +276,7 @@ if df_race is not None and not df_race.empty:
        horse_f3_bonus_map = {}
        horse_distance_fit_map = {}
        horse_grade_bonus_map = {}
+       horse_course_fit_map = {}
 
        if master_data is not None and '馬名' in master_data.columns:
            sort_cols = [c for c in ['年', '月', '日'] if c in master_data.columns]
@@ -373,6 +374,27 @@ if df_race is not None and not df_race.empty:
                for hname, fscore in fit_scores.items():
                    horse_distance_fit_map[hname] = fscore
 
+           # 6. 得意競馬場（芝・ダートを分けて判定）の実績ボーナス
+           if '場所' in recent_master_data.columns and '着順' in recent_master_data.columns and '芝・ダ' in recent_master_data.columns:
+               def calc_course_fit(group):
+                   fit_bonus = 0.0
+                   for _, row in group.iterrows():
+                       m_place = str(row.get('場所', ''))
+                       m_surface = str(row.get('芝・ダ', ''))
+                       m_fin = pd.to_numeric(row.get('着順', 99), errors='coerce')
+                       
+                       # 同じ競馬場かつ、芝・ダートの種別が一致する場合のみ加点対象にする
+                       if place_name in m_place and surface in m_surface:
+                           if m_fin == 1:
+                               fit_bonus += 3.5
+                           elif m_fin <= 3:
+                               fit_bonus += 1.5
+                   return min(5.0, fit_bonus)
+
+               course_fits = recent_master_data.groupby('馬名').apply(calc_course_fit).to_dict()
+               for hname, cfit in course_fits.items():
+                   horse_course_fit_map[hname] = cfit
+
        n_horses = len(res_df)
        win_counts = np.zeros(n_horses)
        place_counts = np.zeros(n_horses)
@@ -391,8 +413,9 @@ if df_race is not None and not df_race.empty:
                f3_bonus = horse_f3_bonus_map.get(hname, 0.0)
                dist_fit_bonus = horse_distance_fit_map.get(hname, 0.0)
                grade_bonus = horse_grade_bonus_map.get(hname, 0.0)
+               course_fit_bonus = horse_course_fit_map.get(hname, 0.0)
 
-               base_score = 70.0 + ability_bonus + speed_bonus + dist_fit_bonus + grade_bonus + np.random.normal(0, 3.0)
+               base_score = 70.0 + ability_bonus + speed_bonus + dist_fit_bonus + grade_bonus + course_fit_bonus + np.random.normal(0, 3.0)
 
                if straight_length <= 320:
                    if kyakushitsu in ["逃げ", "先行"]:
@@ -438,7 +461,7 @@ if df_race is not None and not df_race.empty:
            tokui_baba = str(r.get('得意馬場', '指定なし'))
            wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
 
-           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_speed_bonus_map.get(hname, 0.0) + horse_distance_fit_map.get(hname, 0.0) + horse_grade_bonus_map.get(hname, 0.0)
+           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_speed_bonus_map.get(hname, 0.0) + horse_distance_fit_map.get(hname, 0.0) + horse_grade_bonus_map.get(hname, 0.0) + horse_course_fit_map.get(hname, 0.0)
           
            if straight_length <= 320 and kyakushitsu in ["逃げ", "先行"]: b_score += 3.0
            if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]: b_score += 3.0
@@ -465,7 +488,7 @@ if df_race is not None and not df_race.empty:
    st.markdown("<br>", unsafe_allow_html=True)
    if st.button("🚀 コース特性（直線長）連動シミュレーションを実行"):
        with st.spinner(f"{race_place}（直線 {straight_len}m）の特性を反映して10,000回シミュレーションを実行中..."):
-           st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, race_category, distance_strictness, straight_len, race_place, num_simulations=10000)
+           st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, race_category, distance_strictness, straight_len, race_place, race_surface, num_simulations=10000)
            st.session_state['sim_executed'] = True
 
    if st.session_state.get('sim_executed', False) and 'df_simulated' in st.session_state:
