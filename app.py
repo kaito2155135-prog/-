@@ -336,7 +336,11 @@ if df_race is not None and not df_race.empty:
            else:
                filtered_master = master_data.copy()
 
-           recent_master_data = filtered_master.groupby('馬名').head(10).copy()
+           # 基本機能（能力・タイム・上がり・距離・グレード等）は直近6走を参照
+           recent_master_data = filtered_master.groupby('馬名').head(6).copy()
+
+           # リピーター判断（コース実績）用には直近10走を参照
+           repeater_master_data = filtered_master.groupby('馬名').head(10).copy()
 
            if '着順' in recent_master_data.columns:
                recent_master_data['着順_num'] = pd.to_numeric(recent_master_data['着順'], errors='coerce')
@@ -410,8 +414,8 @@ if df_race is not None and not df_race.empty:
                for hname, fscore in fit_scores.items():
                    horse_distance_fit_map[hname] = fscore
 
-           # ★コース実績（リピーター適性）の評価ロジック
-           if '場所' in recent_master_data.columns and '着順' in recent_master_data.columns and '芝・ダ' in recent_master_data.columns:
+           # ★コース実績（リピーター適性）の評価ロジック（直近10走を対象）
+           if '場所' in repeater_master_data.columns and '着順' in repeater_master_data.columns and '芝・ダ' in repeater_master_data.columns:
                def calc_course_fit(group):
                    fit_bonus = 0.0
                    for _, row in group.iterrows():
@@ -427,7 +431,7 @@ if df_race is not None and not df_race.empty:
                                fit_bonus += 1.0  # 好走実績
                    return min(6.0, fit_bonus)
 
-               course_fits = recent_master_data.groupby('馬名').apply(calc_course_fit).to_dict()
+               course_fits = repeater_master_data.groupby('馬名').apply(calc_course_fit).to_dict()
                for hname, cfit in course_fits.items():
                    horse_course_fit_map[hname] = cfit
 
