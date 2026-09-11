@@ -246,7 +246,7 @@ if df_race is not None and not df_race.empty:
        else:
            return f"{s:.1f}秒"
 
-   def run_monte_carlo_simulation(df_r, pace, bias, condition, master_data, target_cat, strictness, straight_length, place_name, surface_type, num_simulations=10000):
+     def run_monte_carlo_simulation(df_r, pace, bias, condition, master_data, target_cat, strictness, straight_length, place_name, surface_type, num_simulations=10000):
        res_df = df_r.copy()
        try:
            target_distance = float(res_df.iloc[0].get('距離', 1600.0))
@@ -255,7 +255,7 @@ if df_race is not None and not df_race.empty:
 
        surface = str(surface_type).strip()
 
-       # 🟢 【アップデート部分】距離カテゴリ（短・マイル・中・長）ごとの1000mあたり基準タイム＆馬場状態の増減（時計がかかる方向へ修正）
+       # 🟢 【アップデート部分】距離カテゴリごとの1000mあたり基準タイム＆馬場状態の増減
        if 'ダ' in surface:
            if target_distance <= 1400:
                base_rate_per_1000 = 60.5
@@ -274,7 +274,7 @@ if df_race is not None and not df_race.empty:
            elif target_distance <= 1800:
                base_rate_per_1000 = 59.0  # マイル
            elif target_distance <= 2200:
-               base_rate_per_1000 = 60.5  # 中距離（2200mなら約2分13秒ベース）
+               base_rate_per_1000 = 60.5  # 中距離
            else:
                base_rate_per_1000 = 62.0  # 長距離
 
@@ -283,14 +283,14 @@ if df_race is not None and not df_race.empty:
 
        base_seconds += condition_time_add
 
-       # 競馬場ごとのスピード係数（1000mあたりの基準に対する倍率）
+       # 競馬場ごとのスピード係数
        course_speed_factor = 1.0
        if "中山" in place_name or "福島" in place_name:
-           course_speed_factor = 0.992  # 若干タフ（時計がかかる）
+           course_speed_factor = 0.992
        elif "京都" in place_name or "東京" in place_name:
-           course_speed_factor = 0.985  # 高速馬場になりやすい
+           course_speed_factor = 0.985
        elif "阪神" in place_name:
-           course_speed_factor = 0.988  # 比較的時計が早い
+           course_speed_factor = 0.988
        elif "小倉" in place_name:
            course_speed_factor = 0.986
        else:
@@ -298,7 +298,13 @@ if df_race is not None and not df_race.empty:
 
        base_seconds = base_seconds * course_speed_factor
 
-       f3_weight_factor = max(0.4, min(1.6, straight_length / 350.0))
+       # 🟢 【今回の修正】芝とダートで直線長による末脚（3F）ボーナスの重み付けを切り分け
+       if 'ダ' in surface:
+           # ダートは直線が長くてもキレ味より持続力・先行力重視のため、末脚倍率の伸びをマイルドに抑える
+           f3_weight_factor = max(0.5, min(1.15, straight_length / 450.0))
+       else:
+           # 芝は直線長がダイレクトに末脚（キレ味）の有利不利に直結する
+           f3_weight_factor = max(0.4, min(1.6, straight_length / 350.0))
 
        horse_ability_map = {}
        horse_speed_bonus_map = {}
@@ -403,7 +409,7 @@ if df_race is not None and not df_race.empty:
                for hname, fscore in fit_scores.items():
                    horse_distance_fit_map[hname] = fscore
 
-           # 6. 得意競馬場（芝・ダートを分けて判定）の実績ボーナス
+           # 6. 得意競馬場実績ボーナス
            if '場所' in recent_master_data.columns and '着順' in recent_master_data.columns and '芝・ダ' in recent_master_data.columns:
                def calc_course_fit(group):
                    fit_bonus = 0.0
@@ -502,6 +508,8 @@ if df_race is not None and not df_race.empty:
        res_df['temp_score'] = sim_scores_mean
        res_df = res_df.sort_values(by=['勝率(%)', 'temp_score'], ascending=False).reset_index(drop=True)
        res_df['着順予測'] = range(1, len(res_df) + 1)
+
+
 
        times = []
        for i in range(len(res_df)):
