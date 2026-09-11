@@ -422,9 +422,9 @@ if df_race is not None and not df_race.empty:
                        # 同一競馬場かつ同条件（芝・ダ）での実績を評価
                        if place_name in m_place and surface in m_surface:
                            if m_fin == 1:
-                               fit_bonus += 3.5  # 勝ち実績（リピーター強力）
+                               fit_bonus += 2.0  # 勝ち実績（リピーター強力）
                            elif m_fin <= 3:
-                               fit_bonus += 1.5  # 好走実績
+                               fit_bonus += 1.0  # 好走実績
                    return min(6.0, fit_bonus)
 
                course_fits = recent_master_data.groupby('馬名').apply(calc_course_fit).to_dict()
