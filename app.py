@@ -77,7 +77,7 @@ if uploaded_image is not None:
                    image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
                    response = client.models.generate_content(
-                       model='gemini-3.6-flash',
+                       model='gemini-2.5-flash',
                        contents=[
                            image_part,
                            "この画像は競馬の出馬表です。上部に記載されている「場所（競馬場名 例:東京、阪神、福島など）」「距離（例:1600m）」「芝・ダ（芝かダートか）」を読み取ってください。\n"
@@ -244,30 +244,30 @@ if df_race is not None and not df_race.empty:
 
        surface = str(surface_type).strip()
 
+       # 【修正】一律の秒数加算ではなく、距離1000mあたりの比例計算 ＋ 競馬場別係数に変更
        if 'ダ' in surface:
-           base_seconds = (target_distance / 1000.0) * 66.0
-           condition_time_add = {"良": 0.0, "稍重": -0.8, "重": -1.8, "不良": -3.0}.get(condition, 0.0)
+           base_seconds = (target_distance / 1000.0) * 61.8
+           condition_time_add = {"良": 0.0, "稍重": -0.5, "重": -1.2, "不良": -2.0}.get(condition, 0.0)
        else:
-           base_seconds = (target_distance / 1000.0) * 60.0
-           condition_time_add = {"良": 0.0, "稍重": 0.8, "重": 1.8, "不良": 3.0}.get(condition, 0.0)
+           base_seconds = (target_distance / 1000.0) * 56.8
+           condition_time_add = {"良": 0.0, "稍重": 0.5, "重": 1.2, "不良": 2.0}.get(condition, 0.0)
 
        base_seconds += condition_time_add
 
-       course_time_offset = 0.0
-       if "中山" in place_name:
-           course_time_offset = 2.5
+       # 競馬場ごとのスピード係数（1000mあたりの基準に対する倍率）
+       course_speed_factor = 1.0
+       if "中山" in place_name or "福島" in place_name:
+           course_speed_factor = 0.992  # 若干タフ（時計がかかる）
+       elif "京都" in place_name or "東京" in place_name:
+           course_speed_factor = 0.985  # 高速馬場になりやすい
        elif "阪神" in place_name:
-           course_time_offset = 1.0
-       elif "京都" in place_name:
-           course_time_offset = -0.5
-       elif "東京" in place_name:
-           course_time_offset = -1.5
-       elif "福島" in place_name or "小倉" in place_name:
-           course_time_offset = 1.5
+           course_speed_factor = 0.988  # 比較的時計が早い
+       elif "小倉" in place_name:
+           course_speed_factor = 0.986
        else:
-           course_time_offset = 0.0
+           course_speed_factor = 1.0
 
-       base_seconds += course_time_offset
+       base_seconds = base_seconds * course_speed_factor
 
        f3_weight_factor = max(0.4, min(1.6, straight_length / 350.0))
 
@@ -305,7 +305,7 @@ if df_race is not None and not df_race.empty:
                    if not pd.isna(af):
                        horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
 
-           # 2. スピード換算（係数を2.5に、上限を10.0に変更）
+           # 2. スピード換算
            if '走破タイム' in recent_master_data.columns and '距離' in recent_master_data.columns:
                recent_master_data['走破タイム_num'] = pd.to_numeric(recent_master_data['走破タイム'], errors='coerce')
                recent_master_data['距離_num'] = pd.to_numeric(recent_master_data['距離'], errors='coerce')
@@ -383,7 +383,6 @@ if df_race is not None and not df_race.empty:
                        m_surface = str(row.get('芝・ダ', ''))
                        m_fin = pd.to_numeric(row.get('着順', 99), errors='coerce')
                        
-                       # 同じ競馬場かつ、芝・ダートの種別が一致する場合のみ加点対象にする
                        if place_name in m_place and surface in m_surface:
                            if m_fin == 1:
                                fit_bonus += 3.5
