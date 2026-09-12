@@ -4,7 +4,7 @@ import numpy as np
 import os
 import json
 
-st.set_page_config(page_title="本格競馬展開シミュレーター（公式基準タイム・クラス完全連動版）", layout="wide")
+st.set_page_config(page_title="本格競馬展開シミュレーター（公式基準タイム・距離補正完全版）", layout="wide")
 
 st.markdown("""
    <style>
@@ -36,7 +36,7 @@ st.markdown("""
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（公式基準タイム・クラス完全連動版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（公式基準タイム・距離補正完全版）</h2>", unsafe_allow_html=True)
 
 # Excel基準タイムデータの読み込み
 @st.cache_data
@@ -353,7 +353,7 @@ if df_race is not None and not df_race.empty:
 
            recent_master_data = filtered_master.groupby('馬名').head(10).copy()
 
-           # 走破タイム理論：過去走それぞれの条件（競馬場・距離・クラス・馬場）の公式基準タイムと突合して今回条件に換算
+           # 走破タイム理論＋距離増減補正（1F延長ごとに+1.0秒、1F短縮ごとに-1.0秒）
            def calc_soha_theory_score(group):
                derived_times = []
                for _, row in group.iterrows():
@@ -395,7 +395,12 @@ if df_race is not None and not df_race.empty:
                            past_base_time = (r_dist / 1000.0) * 59.0
 
                    time_diff = r_time - past_base_time
-                   converted_time = target_base_seconds + time_diff
+                   
+                   # 距離増減補正の適用 (1F = 200m, 1F延長毎に+1.0秒、短縮毎に-1.0秒)
+                   furlong_diff = (target_distance - r_dist) / 200.0
+                   distance_penalty_or_bonus = furlong_diff * 1.0
+
+                   converted_time = target_base_seconds + time_diff + distance_penalty_or_bonus
                    derived_times.append(converted_time)
                
                if not derived_times:
