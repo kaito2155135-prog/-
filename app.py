@@ -94,7 +94,7 @@ if uploaded_image is not None:
                        image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
                        response = client.models.generate_content(
-                           model='gemini-3.6-flash',
+                           model='gemini-2.5-flash',
                            contents=[
                                image_part,
                                "この画像は競馬の出馬表です。上部に記載されている以下のレース全体情報を必ず読み取ってください。\n"
@@ -308,7 +308,6 @@ if df_race is not None and not df_race.empty:
                (base_master_df['クラス'].str.contains(class_keyword, na=False))
            ]
            if match_target.empty:
-               # クラス完全一致がない場合は距離と競馬場だけで検索
                match_target = base_master_df[
                    (base_master_df['競馬場'].str.contains(place_name, na=False)) &
                    (base_master_df['芝/ダート'] == surface_keyword) &
@@ -331,10 +330,8 @@ if df_race is not None and not df_race.empty:
            f3_weight_factor = max(0.4, min(1.6, straight_length / 350.0))
 
        horse_ability_map = {}
-       horse_speed_bonus_map = {}
        horse_f3_bonus_map = {}
        horse_distance_fit_map = {}
-       horse_grade_bonus_map = {}
        horse_course_fit_map = {}
        horse_soha_theory_map = {} 
 
@@ -419,19 +416,6 @@ if df_race is not None and not df_race.empty:
                    if not pd.isna(af):
                        horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
 
-           if '走破タイム' in recent_master_data.columns and '距離' in recent_master_data.columns:
-               recent_master_data['走破タイム_num'] = pd.to_numeric(recent_master_data['走破タイム'], errors='coerce')
-               recent_master_data['距離_num'] = pd.to_numeric(recent_master_data['距離'], errors='coerce')
-               recent_master_data['speed_per_1000m'] = recent_master_data['走破タイム_num'] / (recent_master_data['距離_num'] / 1000.0)
-              
-               avg_speeds = recent_master_data.groupby('馬名')['speed_per_1000m'].mean()
-               if not avg_speeds.empty:
-                   mean_all_speed = avg_speeds.mean()
-                   speed_diffs = (mean_all_speed - avg_speeds).to_dict()
-                   for hname, sd in speed_diffs.items():
-                       if not pd.isna(sd):
-                           horse_speed_bonus_map[hname] = max(-3.0, min(10.0, sd * (target_distance / 1000.0) * 2.5))
-
            if '上がり3Fタイム' in recent_master_data.columns:
                recent_master_data['上がり3F_num'] = pd.to_numeric(recent_master_data['上がり3Fタイム'], errors='coerce')
                avg_f3 = recent_master_data.groupby('馬名')['上がり3F_num'].mean()
@@ -486,14 +470,13 @@ if df_race is not None and not df_race.empty:
                wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
 
                ability_bonus = horse_ability_map.get(hname, 2.5)
-               speed_bonus = horse_speed_bonus_map.get(hname, 0.0)
                f3_bonus = horse_f3_bonus_map.get(hname, 0.0)
                dist_fit_bonus = horse_distance_fit_map.get(hname, 0.0)
                course_fit_bonus = horse_course_fit_map.get(hname, 0.0)
                soha_theory_bonus = horse_soha_theory_map.get(hname, 0.0) 
 
                toughness_effect = (toughness_val - 1.0) * 4.0
-               base_score = 70.0 + ability_bonus + speed_bonus + soha_theory_bonus + dist_fit_bonus + course_fit_bonus + np.random.normal(0, 3.0)
+               base_score = 70.0 + ability_bonus + soha_theory_bonus + dist_fit_bonus + course_fit_bonus + np.random.normal(0, 3.0)
 
                if toughness_val >= 1.2 and kyakushitsu in ["逃げ", "先行"]:
                    base_score += toughness_effect * 1.5
@@ -533,11 +516,7 @@ if df_race is not None and not df_race.empty:
        sim_scores_mean = []
        for idx, r in res_df.iterrows():
            hname = str(r.get('馬名', ''))
-           kyakushitsu = str(r.get('脚質', '差し'))
-           tokui_baba = str(r.get('得意馬場', '指定なし'))
-           wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
-
-           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_speed_bonus_map.get(hname, 0.0) + horse_soha_theory_map.get(hname, 0.0) + horse_distance_fit_map.get(hname, 0.0) + horse_course_fit_map.get(hname, 0.0)
+           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_soha_theory_map.get(hname, 0.0) + horse_distance_fit_map.get(hname, 0.0) + horse_course_fit_map.get(hname, 0.0)
            sim_scores_mean.append(b_score)
 
        res_df['temp_score'] = sim_scores_mean
@@ -547,7 +526,7 @@ if df_race is not None and not df_race.empty:
        times = []
        for i in range(len(res_df)):
            hname = str(res_df.iloc[i].get('馬名', ''))
-           time_mod = -horse_speed_bonus_map.get(hname, 0.0) * 0.15 - horse_soha_theory_map.get(hname, 0.0) * 0.1
+           time_mod = -horse_soha_theory_map.get(hname, 0.0) * 0.1
            t = target_base_seconds + (i * 0.25) + time_mod + np.random.uniform(0.0, 0.2)
            times.append(round(max(target_base_seconds - 2.0, t), 1))
 
