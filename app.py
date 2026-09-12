@@ -433,10 +433,10 @@ if df_race is not None and not df_race.empty:
                        # 上位クラス経験馬が下位クラスに出る場合は少し有利に補正
                        class_level_penalty = class_diff * 0.15 
 
-                   # ★パターンAの適用：直近連勝馬はクラス昇級の壁（ペナルティ）を無効化し、さらに勢いボーナス(-0.5秒分)を付与
+                   # ★パターンAの適用：直近連勝馬はクラス昇級の壁（ペナルティ）を無効化し、さらに勢いボーナス(-0.2秒分)を付与
                    if is_rising_star:
                        class_level_penalty = 0.0
-                       time_diff -= 0.5  # 勢いがある馬のパフォーマンスを高く評価
+                       time_diff -= 0.2  # 勢いがある馬のパフォーマンスを高く評価
 
                    # 変換タイムにクラスレベル補正も含めて反映
                    converted_time = target_base_seconds + time_diff + distance_penalty_or_bonus + class_level_penalty
