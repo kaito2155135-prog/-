@@ -345,13 +345,8 @@ if df_race is not None and not df_race.empty:
                    filtered_master = master_data[master_data['芝・ダ'].str.contains("ダ", na=False)].copy()
                else:
                    filtered_master = master_data[~master_data['芝・ダ'].str.contains("ダ", na=False)].copy()
-              
-               if len(filtered_master) < 5:
-                   filtered_master = master_data.copy()
-           else:
-               filtered_master = master_data.copy()
 
-           recent_master_data = filtered_master.groupby('馬名').head(10).copy()
+           recent_master_data = filtered_master.groupby('馬名').head（6).copy()
 
            # クラスの階層マップ（レベル差・昇級ペナルティ計算用）
            class_rank_map = {
