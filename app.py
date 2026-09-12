@@ -351,10 +351,10 @@ if df_race is not None and not df_race.empty:
                    
                    # 1. 過去走の馬場状態に応じた良馬場へのタイム補正
                    if "ダ" in r_surface:
-                       baba_sec_add = {"良": 0.0, "稍重": -0.5, "重": -1.0, "不良": -0.5}.get(r_baba, 0.0)
+                       baba_sec_add = {"良": 0.0, "稍重": 0.5, "重": 1.0, "不良": 0.5}.get(r_baba, 0.0)
                        adjusted_time = r_time - baba_sec_add
                    else:
-                       baba_sec_add = {"良": 0.0, "稍重": 0.5, "重": 1.0, "不良": 1.5}.get(r_baba, 0.0)
+                       baba_sec_add = {"良": 0.0, "稍重": -0.5, "重": -1.0, "不良": -1.5}.get(r_baba, 0.0)
                        adjusted_time = r_time - baba_sec_add
                    
                    # 2. 過去走のラップ単価から今回距離への換算（200mラップ × ハロン数 ＋ 距離増減補正）
