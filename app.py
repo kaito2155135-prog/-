@@ -242,7 +242,7 @@ if df_race is not None and not df_race.empty:
    else:
        race_category = "長距離"
 
-   st.info(f"💡 現在のレース設定距離（{race_distance}m）は **『{race_category}』** です。また、ユーザーご提示の**『走破タイム理論（別距離の通過ラップ換算＆200mごとの±2.0秒補正）』**およびコース実績・リピーター適性が自動適用されます。")
+   st.info(f"💡 現在のレース設定距離（{race_distance}m）は **『{race_category}』** です。また、**『走破タイム理論（馬場状態補正 ＆ 200mごとに±1.0秒の距離換算）』**が自動適用されます。")
    distance_strictness = st.slider("🎯 距離適正フィルターの厳しさ（距離カテゴリ不適合のペナルティ倍率）", min_value=0.0, max_value=3.0, value=1.5, step=0.5)
 
    st.markdown("---")
@@ -287,7 +287,6 @@ if df_race is not None and not df_race.empty:
                base_rate_per_1000 = 62.0
 
            base_seconds = (target_distance / 1000.0) * base_rate_per_1000
-           # 芝の場合の馬場状態による補正（ユーザー理論: 良=0, 稍重・重=+0.5~2.5, 不良=+4.5）
            condition_time_add = {"良": 0.0, "稍重": 0.5, "重": 1.5, "不良": 3.0}.get(condition, 0.0)
 
        base_seconds += condition_time_add
@@ -317,7 +316,7 @@ if df_race is not None and not df_race.empty:
        horse_distance_fit_map = {}
        horse_grade_bonus_map = {}
        horse_course_fit_map = {}
-       horse_soha_theory_map = {} # ★走破タイム理論に基づく換算スピードボーナス
+       horse_soha_theory_map = {} 
 
        if master_data is not None and '馬名' in master_data.columns:
            sort_cols = [c for c in ['年', '月', '日'] if c in master_data.columns]
@@ -338,32 +337,40 @@ if df_race is not None and not df_race.empty:
 
            recent_master_data = filtered_master.groupby('馬名').head(10).copy()
 
-           # ★【走破タイム理論の実装】別距離からの通過・走破タイム換算ロジック
-           # ユーザー理論: 200m短縮ごとに -2.0秒、延長ごとに +2.0秒、着差や馬場差を加味して今回の想定距離の走破タイムを導出
+           # ★【走破タイム理論の実装】馬場状態補正（芝:重馬場なら短縮 / ダート:重馬場なら遅く）＆ 200mごとに±1.0秒の距離換算
            def calc_soha_theory_score(group):
                derived_times = []
                for _, row in group.iterrows():
                    r_dist = pd.to_numeric(row.get('距離', 0), errors='coerce')
                    r_time = pd.to_numeric(row.get('走破タイム', 0), errors='coerce')
-                   r_basho = str(row.get('場所', ''))
+                   r_baba = str(row.get('馬場', row.get('馬場状態', '良'))).strip()
+                   r_surface = str(row.get('芝・ダ', surface))
+                   
                    if pd.isna(r_dist) or pd.isna(r_time) or r_dist <= 0 or r_time <= 0:
                        continue
                    
-                   # 距離差（m）
-                   dist_diff = target_distance - r_dist  # 例: 今回1200m - 前回1600m = -400m（短縮）
-                   # 200mあたり±2.0秒の換算則（短縮ならマイナス、延長ならプラス）
-                   conversion_sec = (dist_diff / 200.0) * 2.0
+                   # 1. 過去走の馬場状態に応じた良馬場換算
+                   if "ダ" in r_surface:
+                       # ダートは重・不良で時計が速くなるため、良馬場基準に戻すためにプラス補正（遅くする）
+                       baba_sec_add = {"良": 0.0, "稍重": -0.2, "重": -0.5, "不良": -1.0}.get(r_baba, 0.0)
+                       adjusted_time = r_time - baba_sec_add
+                   else:
+                       # 芝は重・不良で時計がかかる（遅くなる）ため、良馬場基準に戻すためにマイナス補正（短縮する）
+                       baba_sec_add = {"良": 0.0, "稍重": 0.5, "重": 1.5, "不良": 3.0}.get(r_baba, 0.0)
+                       adjusted_time = r_time - baba_sec_add
                    
-                   # 想定走破タイム = 過去タイム + 距離換算
-                   estimated_time = r_time + conversion_sec
+                   # 2. 距離差（m）の換算（200mごとに ±1.0秒）
+                   dist_diff = target_distance - r_dist  
+                   conversion_sec = (dist_diff / 200.0) * 1.0
+                   
+                   # 3. 想定走破タイム算出
+                   estimated_time = adjusted_time + conversion_sec
                    derived_times.append(estimated_time)
                
                if not derived_times:
                    return 0.0
-               # 最も優秀（最速）な換算走破タイムを採用
+               
                best_derived = min(derived_times)
-               # 基準タイムとの差分からボーナスを算出（速いほどプラス）
-               # 基準となるbase_secondsよりも速ければボーナス大
                time_advantage = base_seconds - best_derived
                return max(-5.0, min(12.0, time_advantage * 3.0))
 
@@ -481,11 +488,10 @@ if df_race is not None and not df_race.empty:
                dist_fit_bonus = horse_distance_fit_map.get(hname, 0.0)
                grade_bonus = horse_grade_bonus_map.get(hname, 0.0)
                course_fit_bonus = horse_course_fit_map.get(hname, 0.0)
-               soha_theory_bonus = horse_soha_theory_map.get(hname, 0.0) # ★走破タイム理論スコアの合算
+               soha_theory_bonus = horse_soha_theory_map.get(hname, 0.0) 
 
                toughness_effect = (toughness_val - 1.0) * 4.0
                
-               # ベーススコアに走破タイム理論の換算ボーナスを反映
                base_score = 70.0 + ability_bonus + speed_bonus + soha_theory_bonus + dist_fit_bonus + grade_bonus + course_fit_bonus + np.random.normal(0, 3.0)
 
                if toughness_val >= 1.2:
