@@ -356,18 +356,26 @@ if df_race is not None and not df_race.empty:
            # クラスの階層マップ（レベル差・昇級ペナルティ計算用）
            class_rank_map = {
                "新馬": 1,
-               "未勝利": 2,
-               "1勝": 3, "1勝クラス": 3,
-               "2勝": 4, "2勝クラス": 4,
-               "3勝": 5, "3勝クラス": 5,
-               "OP": 6, "オープン": 6,
-               "リステッド": 7,
-               "G3": 8, "G2": 9, "G1": 10
+               "未勝利": 1,
+               "1勝": 2, "1勝クラス": 2,
+               "2勝": 3, "2勝クラス": 3,
+               "3勝": 4, "3勝クラス": 4,
+               "OP": 5, "オープン": 5,
+               "リステッド": 5,
+               "G3": 6, "G2": 7, "G1": 8
            }
 
-           # 走破タイム理論＋距離増減補正 ＋ クラスレベル差補正
+           # 走破タイム理論＋距離増減補正 ＋ クラスレベル差補正 ＋ パターンA（直近2走連勝補正）
            def calc_soha_theory_score(group):
                derived_times = []
+               
+               # ★パターンAの判定：直近2走がどちらも1着（連勝中）かチェック
+               is_rising_star = False
+               if len(group) >= 2:
+                   recent_finishes = pd.to_numeric(group.head(2)['着順'], errors='coerce').tolist()
+                   if len(recent_finishes) >= 2 and recent_finishes[0] == 1 and recent_finishes[1] == 1:
+                       is_rising_star = True
+
                for _, row in group.iterrows():
                    r_course = str(row.get('場所', row.get('競馬場', place_name))).strip()
                    r_dist = pd.to_numeric(row.get('距離', 0), errors='coerce')
@@ -412,7 +420,7 @@ if df_race is not None and not df_race.empty:
                    furlong_diff = (target_distance - r_dist) / 200.0
                    distance_penalty_or_bonus = furlong_diff * 1.0
 
-                   # ★追加：クラス間レベル差補正（昇級戦などのクラスの壁を考慮）
+                   # クラス間レベル差補正（昇級戦などのクラスの壁を考慮）
                    past_c_rank = class_rank_map.get(r_class.replace("クラス", ""), 3)
                    target_c_rank = class_rank_map.get(target_cls.replace("クラス", ""), 3)
                    class_diff = target_c_rank - past_c_rank
@@ -424,6 +432,11 @@ if df_race is not None and not df_race.empty:
                    elif class_diff < 0:
                        # 上位クラス経験馬が下位クラスに出る場合は少し有利に補正
                        class_level_penalty = class_diff * 0.15 
+
+                   # ★パターンAの適用：直近連勝馬はクラス昇級の壁（ペナルティ）を無効化し、さらに勢いボーナス(-0.5秒分)を付与
+                   if is_rising_star:
+                       class_level_penalty = 0.0
+                       time_diff -= 0.5  # 勢いがある馬のパフォーマンスを高く評価
 
                    # 変換タイムにクラスレベル補正も含めて反映
                    converted_time = target_base_seconds + time_diff + distance_penalty_or_bonus + class_level_penalty
@@ -582,7 +595,7 @@ if df_race is not None and not df_race.empty:
 
        display_df['勝率(%)'] = display_df['勝率(%)'].apply(lambda x: f"{x:.1f}%")
        display_df['連対率(%)'] = display_df['連対率(%)'].apply(lambda x: f"{x:.1f}%")
-       display_df['複勝率(%)'] = display_df['複勝率(%)'].apply(lambda x: f"{x:.1f}%")
+       display_df['複勝率(%)'] = display_df['複勝率(%)'].apply(lambda x: f"{x: .1f}%")
 
        st.dataframe(display_df, use_container_width=True, hide_index=True)
    else:
