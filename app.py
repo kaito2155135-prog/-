@@ -353,7 +353,19 @@ if df_race is not None and not df_race.empty:
 
            recent_master_data = filtered_master.groupby('馬名').head(10).copy()
 
-           # 走破タイム理論＋距離増減補正（1F延長ごとに+1.0秒、1F短縮ごとに-1.0秒）
+           # クラスの階層マップ（レベル差・昇級ペナルティ計算用）
+           class_rank_map = {
+               "新馬": 1,
+               "未勝利": 2,
+               "1勝": 3, "1勝クラス": 3,
+               "2勝": 4, "2勝クラス": 4,
+               "3勝": 5, "3勝クラス": 5,
+               "OP": 6, "オープン": 6,
+               "リステッド": 7,
+               "G3": 8, "G2": 9, "G1": 10
+           }
+
+           # 走破タイム理論＋距離増減補正 ＋ クラスレベル差補正
            def calc_soha_theory_score(group):
                derived_times = []
                for _, row in group.iterrows():
@@ -400,7 +412,21 @@ if df_race is not None and not df_race.empty:
                    furlong_diff = (target_distance - r_dist) / 200.0
                    distance_penalty_or_bonus = furlong_diff * 1.0
 
-                   converted_time = target_base_seconds + time_diff + distance_penalty_or_bonus
+                   # ★追加：クラス間レベル差補正（昇級戦などのクラスの壁を考慮）
+                   past_c_rank = class_rank_map.get(r_class.replace("クラス", ""), 3)
+                   target_c_rank = class_rank_map.get(target_cls.replace("クラス", ""), 3)
+                   class_diff = target_c_rank - past_c_rank
+                   
+                   class_level_penalty = 0.0
+                   if class_diff > 0:
+                       # 下級条件から上のクラスに挑む場合、ペースや相手強化の壁としてタイム価値を少し割り引き（ペナルティ）
+                       class_level_penalty = class_diff * 0.25 
+                   elif class_diff < 0:
+                       # 上位クラス経験馬が下位クラスに出る場合は少し有利に補正
+                       class_level_penalty = class_diff * 0.15 
+
+                   # 変換タイムにクラスレベル補正も含めて反映
+                   converted_time = target_base_seconds + time_diff + distance_penalty_or_bonus + class_level_penalty
                    derived_times.append(converted_time)
                
                if not derived_times:
