@@ -4,7 +4,7 @@ import numpy as np
 import os
 import json
 
-st.set_page_config(page_title="本格競馬展開シミュレーター", layout="wide")
+st.set_page_config(page_title="本格競馬展開シミュレーター（走破タイム理論搭載版）", layout="wide")
 
 st.markdown("""
    <style>
@@ -36,7 +36,7 @@ st.markdown("""
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（コース実績・リピーター適性連動版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（走破タイム理論・リピーター適性連動版）</h2>", unsafe_allow_html=True)
 
 # 1. マスターデータの読み込み準備
 master_df = None
@@ -137,7 +137,6 @@ if df_race is not None and not df_race.empty:
    except:
        race_distance = 1600
 
-   # 競馬場ごとの直線の長さ（m）を芝・ダート別に定義
    straight_lengths_dict = {
        "芝": {
            "新潟": 659.9, "東京": 525.9, "阪神": 473.6, "中京": 412.5,
@@ -151,7 +150,6 @@ if df_race is not None and not df_race.empty:
        }
    }
 
-   # 各競馬場ごとのタフさ係数
    toughness_dict = {
        "中山": 1.15, "札幌": 1.20, "函館": 1.20, "阪神": 1.10,
        "福島": 1.10, "京都": 1.05, "中京": 1.05, "小倉": 1.00,
@@ -226,7 +224,7 @@ if df_race is not None and not df_race.empty:
        df_race[col] = edited_df[col]
 
    st.markdown("---")
-   st.markdown("### ⚙️ 全体コンディション設定 & 距離適正フィルター詳細")
+   st.markdown("### ⚙️ 全体コンディション設定 & 走破タイム理論パラメータ")
    col_p1, col_p2, col_p3 = st.columns(3)
    with col_p1:
        selected_pace = st.radio("ペース想定", ["S（スロー）", "M（ミドル）", "H（ハイ）"], index=1)
@@ -244,7 +242,7 @@ if df_race is not None and not df_race.empty:
    else:
        race_category = "長距離"
 
-   st.info(f"💡 現在のレース設定距離（{race_distance}m）は **『{race_category}』** です。また、**『{race_place}』（直線 {straight_len}m / タフ度 {course_toughness}）** のコース特性に合わせて末脚やパワー（タフさ）、**リピーター（コース実績）** が自動評価されます。")
+   st.info(f"💡 現在のレース設定距離（{race_distance}m）は **『{race_category}』** です。また、ユーザーご提示の**『走破タイム理論（別距離の通過ラップ換算＆200mごとの±2.0秒補正）』**およびコース実績・リピーター適性が自動適用されます。")
    distance_strictness = st.slider("🎯 距離適正フィルターの厳しさ（距離カテゴリ不適合のペナルティ倍率）", min_value=0.0, max_value=3.0, value=1.5, step=0.5)
 
    st.markdown("---")
@@ -289,7 +287,8 @@ if df_race is not None and not df_race.empty:
                base_rate_per_1000 = 62.0
 
            base_seconds = (target_distance / 1000.0) * base_rate_per_1000
-           condition_time_add = {"良": 0.0, "稍重": 1.0, "重": 2.5, "不良": 4.5}.get(condition, 0.0)
+           # 芝の場合の馬場状態による補正（ユーザー理論: 良=0, 稍重・重=+0.5~2.5, 不良=+4.5）
+           condition_time_add = {"良": 0.0, "稍重": 0.5, "重": 1.5, "不良": 3.0}.get(condition, 0.0)
 
        base_seconds += condition_time_add
 
@@ -318,6 +317,7 @@ if df_race is not None and not df_race.empty:
        horse_distance_fit_map = {}
        horse_grade_bonus_map = {}
        horse_course_fit_map = {}
+       horse_soha_theory_map = {} # ★走破タイム理論に基づく換算スピードボーナス
 
        if master_data is not None and '馬名' in master_data.columns:
            sort_cols = [c for c in ['年', '月', '日'] if c in master_data.columns]
@@ -336,11 +336,40 @@ if df_race is not None and not df_race.empty:
            else:
                filtered_master = master_data.copy()
 
-           # 基本機能（能力・タイム・上がり・距離・グレード等）は直近6走を参照
-           recent_master_data = filtered_master.groupby('馬名').head(6).copy()
+           recent_master_data = filtered_master.groupby('馬名').head(10).copy()
 
-           # リピーター判断（コース実績）用には直近10走を参照
-           repeater_master_data = filtered_master.groupby('馬名').head(10).copy()
+           # ★【走破タイム理論の実装】別距離からの通過・走破タイム換算ロジック
+           # ユーザー理論: 200m短縮ごとに -2.0秒、延長ごとに +2.0秒、着差や馬場差を加味して今回の想定距離の走破タイムを導出
+           def calc_soha_theory_score(group):
+               derived_times = []
+               for _, row in group.iterrows():
+                   r_dist = pd.to_numeric(row.get('距離', 0), errors='coerce')
+                   r_time = pd.to_numeric(row.get('走破タイム', 0), errors='coerce')
+                   r_basho = str(row.get('場所', ''))
+                   if pd.isna(r_dist) or pd.isna(r_time) or r_dist <= 0 or r_time <= 0:
+                       continue
+                   
+                   # 距離差（m）
+                   dist_diff = target_distance - r_dist  # 例: 今回1200m - 前回1600m = -400m（短縮）
+                   # 200mあたり±2.0秒の換算則（短縮ならマイナス、延長ならプラス）
+                   conversion_sec = (dist_diff / 200.0) * 2.0
+                   
+                   # 想定走破タイム = 過去タイム + 距離換算
+                   estimated_time = r_time + conversion_sec
+                   derived_times.append(estimated_time)
+               
+               if not derived_times:
+                   return 0.0
+               # 最も優秀（最速）な換算走破タイムを採用
+               best_derived = min(derived_times)
+               # 基準タイムとの差分からボーナスを算出（速いほどプラス）
+               # 基準となるbase_secondsよりも速ければボーナス大
+               time_advantage = base_seconds - best_derived
+               return max(-5.0, min(12.0, time_advantage * 3.0))
+
+           soha_scores = recent_master_data.groupby('馬名').apply(calc_soha_theory_score).to_dict()
+           for hname, sscore in soha_scores.items():
+               horse_soha_theory_map[hname] = sscore
 
            if '着順' in recent_master_data.columns:
                recent_master_data['着順_num'] = pd.to_numeric(recent_master_data['着順'], errors='coerce')
@@ -414,24 +443,22 @@ if df_race is not None and not df_race.empty:
                for hname, fscore in fit_scores.items():
                    horse_distance_fit_map[hname] = fscore
 
-           # ★コース実績（リピーター適性）の評価ロジック（直近10走を対象）
-           if '場所' in repeater_master_data.columns and '着順' in repeater_master_data.columns and '芝・ダ' in repeater_master_data.columns:
+           # コース実績（リピーター適性）の評価ロジック
+           if '場所' in recent_master_data.columns and '着順' in recent_master_data.columns and '芝・ダ' in recent_master_data.columns:
                def calc_course_fit(group):
                    fit_bonus = 0.0
                    for _, row in group.iterrows():
                        m_place = str(row.get('場所', ''))
                        m_surface = str(row.get('芝・ダ', ''))
                        m_fin = pd.to_numeric(row.get('着順', 99), errors='coerce')
-                       
-                       # 同一競馬場かつ同条件（芝・ダ）での実績を評価
                        if place_name in m_place and surface in m_surface:
                            if m_fin == 1:
-                               fit_bonus += 2.0  # 勝ち実績（リピーター強力）
+                               fit_bonus += 2.0  
                            elif m_fin <= 3:
-                               fit_bonus += 1.0  # 好走実績
+                               fit_bonus += 1.0  
                    return min(6.0, fit_bonus)
 
-               course_fits = repeater_master_data.groupby('馬名').apply(calc_course_fit).to_dict()
+               course_fits = recent_master_data.groupby('馬名').apply(calc_course_fit).to_dict()
                for hname, cfit in course_fits.items():
                    horse_course_fit_map[hname] = cfit
 
@@ -453,11 +480,13 @@ if df_race is not None and not df_race.empty:
                f3_bonus = horse_f3_bonus_map.get(hname, 0.0)
                dist_fit_bonus = horse_distance_fit_map.get(hname, 0.0)
                grade_bonus = horse_grade_bonus_map.get(hname, 0.0)
-               course_fit_bonus = horse_course_fit_map.get(hname, 0.0) # コース実績（リピーター）
+               course_fit_bonus = horse_course_fit_map.get(hname, 0.0)
+               soha_theory_bonus = horse_soha_theory_map.get(hname, 0.0) # ★走破タイム理論スコアの合算
 
                toughness_effect = (toughness_val - 1.0) * 4.0
-               # コース実績ボーナスをベーススコアに加算
-               base_score = 70.0 + ability_bonus + speed_bonus + dist_fit_bonus + grade_bonus + course_fit_bonus + np.random.normal(0, 3.0)
+               
+               # ベーススコアに走破タイム理論の換算ボーナスを反映
+               base_score = 70.0 + ability_bonus + speed_bonus + soha_theory_bonus + dist_fit_bonus + grade_bonus + course_fit_bonus + np.random.normal(0, 3.0)
 
                if toughness_val >= 1.2:
                    if kyakushitsu in ["逃げ", "先行"]:
@@ -507,7 +536,7 @@ if df_race is not None and not df_race.empty:
            tokui_baba = str(r.get('得意馬場', '指定なし'))
            wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
 
-           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_speed_bonus_map.get(hname, 0.0) + horse_distance_fit_map.get(hname, 0.0) + horse_grade_bonus_map.get(hname, 0.0) + horse_course_fit_map.get(hname, 0.0)
+           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_speed_bonus_map.get(hname, 0.0) + horse_soha_theory_map.get(hname, 0.0) + horse_distance_fit_map.get(hname, 0.0) + horse_grade_bonus_map.get(hname, 0.0) + horse_course_fit_map.get(hname, 0.0)
           
            if straight_length <= 320 and kyakushitsu in ["逃げ", "先行"]: b_score += 3.0
            if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]: b_score += 3.0
@@ -524,7 +553,7 @@ if df_race is not None and not df_race.empty:
        times = []
        for i in range(len(res_df)):
            hname = str(res_df.iloc[i].get('馬名', ''))
-           time_mod = -horse_speed_bonus_map.get(hname, 0.0) * 0.15
+           time_mod = -horse_speed_bonus_map.get(hname, 0.0) * 0.15 - horse_soha_theory_map.get(hname, 0.0) * 0.1
            t = base_seconds + (i * 0.3) + time_mod + np.random.uniform(0.0, 0.3)
            times.append(round(max(base_seconds - 2.0, t), 1))
 
@@ -532,13 +561,13 @@ if df_race is not None and not df_race.empty:
        return res_df
 
    st.markdown("<br>", unsafe_allow_html=True)
-   if st.button("🚀 コース実績（リピーター適性）連動シミュレーションを実行"):
-       with st.spinner(f"{race_place}（直線 {straight_len}m / タフ度 {course_toughness}）の特性およびリピーター実績を反映して10,000回シミュレーションを実行中..."):
+   if st.button("🚀 走破タイム理論＆リピーター適性連動シミュレーションを実行"):
+       with st.spinner(f"{race_place}（直線 {straight_len}m / タフ度 {course_toughness}）の特性および走破タイム理論を反映して10,000回シミュレーションを実行中..."):
            st.session_state['df_simulated'] = run_monte_carlo_simulation(df_race, selected_pace, selected_bias, selected_condition, master_df, race_category, distance_strictness, straight_len, race_place, race_surface, course_toughness, num_simulations=10000)
            st.session_state['sim_executed'] = True
 
    if st.session_state.get('sim_executed', False) and 'df_simulated' in st.session_state:
-       st.markdown(f"<br><h3>🏆 10,000回シミュレーション結果（{race_place} 直線:{straight_len}m / タフ度:{course_toughness} / リピーター実績反映）</h3>", unsafe_allow_html=True)
+       st.markdown(f"<br><h3>🏆 10,000回シミュレーション結果（{race_place} 直線:{straight_len}m / タフ度:{course_toughness} / 走破タイム理論反映）</h3>", unsafe_allow_html=True)
 
        df_simulated = st.session_state['df_simulated']
        display_columns = [c for c in ['着順予測', '馬番', '馬名', 'オッズ', '脚質', '得意馬場', '勝率(%)', '連対率(%)', '複勝率(%)', '予測走破タイム'] if c in df_simulated.columns]
