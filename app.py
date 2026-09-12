@@ -337,7 +337,7 @@ if df_race is not None and not df_race.empty:
 
            recent_master_data = filtered_master.groupby('馬名').head(10).copy()
 
-           # ★【走破タイム理論の実装】馬場状態補正（芝:重馬場なら短縮 / ダート:重馬場なら遅く）＆ 200mごとに±1.0秒の距離換算
+           # ★【走破タイム理論】ベスト値（min）ではなく「中央値（np.median）」で評価するように変更
            def calc_soha_theory_score(group):
                derived_times = []
                for _, row in group.iterrows():
@@ -351,11 +351,9 @@ if df_race is not None and not df_race.empty:
                    
                    # 1. 過去走の馬場状態に応じた良馬場換算
                    if "ダ" in r_surface:
-                       # ダートは重・不良で時計が速くなるため、良馬場基準に戻すためにプラス補正（遅くする）
                        baba_sec_add = {"良": 0.0, "稍重": -0.2, "重": -0.5, "不良": -1.0}.get(r_baba, 0.0)
                        adjusted_time = r_time - baba_sec_add
                    else:
-                       # 芝は重・不良で時計がかかる（遅くなる）ため、良馬場基準に戻すためにマイナス補正（短縮する）
                        baba_sec_add = {"良": 0.0, "稍重": 0.5, "重": 1.5, "不良": 3.0}.get(r_baba, 0.0)
                        adjusted_time = r_time - baba_sec_add
                    
@@ -370,8 +368,9 @@ if df_race is not None and not df_race.empty:
                if not derived_times:
                    return 0.0
                
-               best_derived = min(derived_times)
-               time_advantage = base_seconds - best_derived
+               # ★ ここを最速(min)から中央値(median)に変更
+               median_derived = np.median(derived_times)
+               time_advantage = base_seconds - median_derived
                return max(-5.0, min(12.0, time_advantage * 3.0))
 
            soha_scores = recent_master_data.groupby('馬名').apply(calc_soha_theory_score).to_dict()
