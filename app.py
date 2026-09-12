@@ -242,7 +242,7 @@ if df_race is not None and not df_race.empty:
    else:
        race_category = "長距離"
 
-   st.info(f"💡 現在のレース設定距離（{race_distance}m）は **『{race_category}』** です。また、**『走破タイム理論（馬場状態補正 ＆ 200mごとに±1.0秒の距離換算）』**が自動適用されます。")
+   st.info(f"💡 現在のレース設定距離（{race_distance}m）は **『{race_category}』** です。また、**『走破タイム理論（過去のラップ単価ベースの距離換算 ＆ 馬場状態補正）』**が自動適用されます。")
    distance_strictness = st.slider("🎯 距離適正フィルターの厳しさ（距離カテゴリ不適合のペナルティ倍率）", min_value=0.0, max_value=3.0, value=1.5, step=0.5)
 
    st.markdown("---")
@@ -337,7 +337,7 @@ if df_race is not None and not df_race.empty:
 
            recent_master_data = filtered_master.groupby('馬名').head(10).copy()
 
-           # ★【走破タイム理論】ベスト値（min）ではなく「中央値（np.median）」で評価するように変更
+           # ★【走破タイム理論】中央値ベース ＆ 正しいラップ単価・距離換算・馬場補正ロジック
            def calc_soha_theory_score(group):
                derived_times = []
                for _, row in group.iterrows():
@@ -349,7 +349,7 @@ if df_race is not None and not df_race.empty:
                    if pd.isna(r_dist) or pd.isna(r_time) or r_dist <= 0 or r_time <= 0:
                        continue
                    
-                   # 1. 過去走の馬場状態に応じた良馬場換算
+                   # 1. 過去走の馬場状態に応じた良馬場へのタイム補正
                    if "ダ" in r_surface:
                        baba_sec_add = {"良": 0.0, "稍重": -0.2, "重": -0.5, "不良": -1.0}.get(r_baba, 0.0)
                        adjusted_time = r_time - baba_sec_add
@@ -357,18 +357,24 @@ if df_race is not None and not df_race.empty:
                        baba_sec_add = {"良": 0.0, "稍重": 0.5, "重": 1.5, "不良": 3.0}.get(r_baba, 0.0)
                        adjusted_time = r_time - baba_sec_add
                    
-                   # 2. 距離差（m）の換算（200mごとに ±1.0秒）
-                   dist_diff = target_distance - r_dist  
-                   conversion_sec = (dist_diff / 200.0) * 1.0
-                   
-                   # 3. 想定走破タイム算出
-                   estimated_time = adjusted_time + conversion_sec
-                   derived_times.append(estimated_time)
+                   # 2. 過去走のラップ単価から今回距離への換算（200mラップ × ハロン数 ＋ 距離増減補正）
+                   # 例: 1000m60秒なら200mあたり12秒。1200mなら12*6=72秒。そこに200mの距離延長補正(+1秒)を加えて73秒。
+                   furlongs_in_past = r_dist / 200.0
+                   if furlongs_in_past > 0:
+                       lap_unit = adjusted_time / furlongs_in_past
+                       furlongs_in_target = target_distance / 200.0
+                       base_converted_time = lap_unit * furlongs_in_target
+                       
+                       dist_diff = target_distance - r_dist
+                       # 距離増減の追加ペナルティ/ボーナス（200mにつき ±1.0秒の補正）
+                       distance_mod = (dist_diff / 200.0) * 1.0
+                       
+                       estimated_time = base_converted_time + distance_mod
+                       derived_times.append(estimated_time)
                
                if not derived_times:
                    return 0.0
                
-               # ★ ここを最速(min)から中央値(median)に変更
                median_derived = np.median(derived_times)
                time_advantage = base_seconds - median_derived
                return max(-5.0, min(12.0, time_advantage * 3.0))
