@@ -103,7 +103,6 @@ if os.path.exists(csv_filename):
 if master_df is not None and "馬名" in master_df.columns:
   master_df["馬名_clean"] = master_df["馬名"].apply(normalize_horse_name)
 
-# 変数名をmaster_dataに統一（未存在時のエラーを防ぐ）
 master_data = master_df
 
 st.sidebar.markdown("### 📥 出馬表スクショから読み込む")
@@ -534,9 +533,15 @@ if df_race is not None and not df_race.empty:
       }
 
       def calc_theories_score(group):
+        h_name = group["馬名_clean"].iloc[0]
         derived_times = []
         derived_f3s = []
         is_rising_star = False
+
+        # ▼▼▼ デバッグ用ログ出力 ▼▼▼
+        st.write(
+            f"【デバッグ】馬名: {h_name} | 過去データ取得数: {len(group)}"
+        )
 
         if len(group) >= 2:
           cleaned_finishes = []
@@ -610,7 +615,6 @@ if df_race is not None and not df_race.empty:
               )
 
             time_diff = past_base_time - r_time
-
             furlong_diff = (target_distance - r_dist) / 200.0
 
             if target_distance <= 1400:
@@ -631,14 +635,12 @@ if df_race is not None and not df_race.empty:
               class_level_penalty = 0.0
               time_diff += 0.2
 
-            # ▼▼▼ 修正箇所：converted_timeの計算でtime_diffを正しくマイナスする ▼▼▼
             converted_time = (
                 target_base_seconds
                 - time_diff
                 + distance_penalty_or_bonus
                 + class_level_penalty
             )
-            # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
             derived_times.append(converted_time)
 
           if not pd.isna(r_f3_time) and r_f3_time > 0:
@@ -699,6 +701,13 @@ if df_race is not None and not df_race.empty:
           combined_score = (soha_score * 0.7) + (f3_score * 0.3)
         else:
           combined_score = (soha_score * 0.6) + (f3_score * 0.4)
+
+        # ▼▼▼ デバッグ用ログ出力（計算後スコア） ▼▼▼
+        st.write(
+            f"   -> スコア結果 [{h_name}]: soha={soha_score:.2f},"
+            f" f3={f3_score:.2f}, combined={combined_score:.2f} (derived_times:"
+            f" {len(derived_times)})"
+        )
 
         return pd.Series({
             "soha_score": soha_score,
