@@ -103,6 +103,9 @@ if os.path.exists(csv_filename):
 if master_df is not None and "馬名" in master_df.columns:
   master_df["馬名_clean"] = master_df["馬名"].apply(normalize_horse_name)
 
+# 変数名をmaster_dataに統一（未存在時のエラーを防ぐ）
+master_data = master_df
+
 st.sidebar.markdown("### 📥 出馬表スクショから読み込む")
 uploaded_image = st.sidebar.file_uploader(
     "出馬表の画像をアップロード", type=["png", "jpg", "jpeg"]
@@ -206,23 +209,23 @@ if "custom_df_race" in st.session_state:
   selected_race = "アップロードされた出馬表レース"
   meta_info = st.session_state.get("custom_race_meta", {})
 else:
-  if master_df is not None and not master_df.empty:
-    master_df["レースID"] = (
-        master_df["年"].astype(str)
+  if master_data is not None and not master_data.empty:
+    master_data["レースID"] = (
+        master_data["年"].astype(str)
         + "年"
-        + master_df["月"].astype(str)
+        + master_data["月"].astype(str)
         + "月"
-        + master_df["日"].astype(str)
+        + master_data["日"].astype(str)
         + " "
-        + master_df["場所"]
+        + master_data["場所"]
         + " "
-        + master_df["レース番号"].astype(str)
+        + master_data["レース番号"].astype(str)
         + "R "
-        + master_df["略レース名"].astype(str)
+        + master_data["略レース名"].astype(str)
     )
-    race_list = master_df["レースID"].unique()
+    race_list = master_data["レースID"].unique()
     selected_race = st.sidebar.selectbox("🎯 過去のレースを選択", race_list)
-    df_race = master_df[master_df["レースID"] == selected_race].copy()
+    df_race = master_data[master_data["レースID"] == selected_race].copy()
     if "馬名_clean" not in df_race.columns and "馬名" in df_race.columns:
       df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
     if "得意馬場" not in df_race.columns:
