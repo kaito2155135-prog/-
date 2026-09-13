@@ -144,7 +144,7 @@ if uploaded_image is not None:
           )
 
           response = client.models.generate_content(
-              model="gemini-3.6-flash",
+              model="gemini-2.5-flash",
               contents=[
                   image_part,
                   (
@@ -500,6 +500,9 @@ if df_race is not None and not df_race.empty:
     horse_course_fit_map = {}
     horse_soha_theory_map = {}
 
+    # デバッグ表示用の一覧リストを保持
+    rising_star_debug_logs = []
+
     if master_data is not None and "馬名_clean" in master_data.columns:
       sort_cols = [c for c in ["年", "月", "日"] if c in master_data.columns]
       if sort_cols:
@@ -567,6 +570,15 @@ if df_race is not None and not df_race.empty:
           ):
             is_rising_star = True
 
+        # 🌟 ライジングスター発動状況を記録
+        rising_star_debug_logs.append({
+            "馬名": h_name,
+            "ライジングスター発動": is_rising_star,
+            "直近着順": (
+                cleaned_finishes if "cleaned_finishes" in locals() else []
+            ),
+        })
+
         for _, row in group.iterrows():
           r_course = str(
               row.get("場所", row.get("競馬場", place_name))
@@ -576,13 +588,9 @@ if df_race is not None and not df_race.empty:
           r_f3_time = pd.to_numeric(
               row.get("上がり3Fタイム", 0), errors="coerce"
           )
-          r_baba = str(
-              row.get("馬場状態", row.get("馬場", "良"))
-          ).strip()  # 画像対応
+          r_baba = str(row.get("馬場状態", row.get("馬場", "良"))).strip()
           r_surface = str(row.get("芝・ダ", surface)).strip()
-          r_class = str(
-              row.get("略レース名", row.get("クラス", "OP"))
-          ).strip()  # 画像対応 (略レース名を使用)
+          r_class = str(row.get("略レース名", row.get("クラス", "OP"))).strip()
           r_surface_keyword = "ダート" if "ダ" in r_surface else "芝"
           r_surface_short = "ダ" if "ダ" in r_surface else "芝"
 
@@ -741,6 +749,9 @@ if df_race is not None and not df_race.empty:
           if not pd.isna(af):
             horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
 
+    # 🌟 UI上で確認できるようにセッションステートへ保存
+    st.session_state["rising_star_debug_logs"] = rising_star_debug_logs
+
     n_horses = len(res_df)
     win_counts = np.zeros(n_horses)
     place_counts = np.zeros(n_horses)
@@ -868,6 +879,15 @@ if df_race is not None and not df_race.empty:
         " 基準上がり3F理論連動）</h3>",
         unsafe_allow_html=True,
     )
+
+    # 🌟 ライジングスター発動状況のデバッグ表示エリア
+    if (
+        "rising_star_debug_logs" in st.session_state
+        and st.session_state["rising_star_debug_logs"]
+    ):
+      with st.expander("🔍 【デバッグ】ライジングスター判定ログ一覧", expanded=True):
+        debug_df = pd.DataFrame(st.session_state["rising_star_debug_logs"])
+        st.dataframe(debug_df, use_container_width=True, hide_index=True)
 
     df_simulated = st.session_state["df_simulated"]
     display_columns = [
