@@ -144,7 +144,7 @@ if uploaded_image is not None:
           )
 
           response = client.models.generate_content(
-              model="gemini-3.6-flash",
+              model="gemini-2.5-flash",
               contents=[
                   image_part,
                   (
@@ -533,17 +533,19 @@ if df_race is not None and not df_race.empty:
       }
 
       def calc_theories_score(group):
-        h_name = group["馬名_clean"].iloc[0]
+        # ▼▼▼ キーエラーを防ぐ安全な馬名取得 ▼▼▼
+        if "馬名_clean" in group.columns and not group["馬名_clean"].empty:
+          h_name = str(group["馬名_clean"].iloc[0])
+        elif "馬名" in group.columns and not group["馬名"].empty:
+          h_name = normalize_horse_name(str(group["馬名"].iloc[0]))
+        else:
+          h_name = str(group.name) if group.name else "不明"
+
         derived_times = []
         derived_f3s = []
         is_rising_star = False
 
-        # ▼▼▼ デバッグ用ログ出力 ▼▼▼
-        st.write(
-            f"【デバッグ】馬名: {h_name} | 過去データ取得数: {len(group)}"
-        )
-
-        if len(group) >= 2:
+        if len(group) >= 2 and "着順" in group.columns:
           cleaned_finishes = []
           for val in group["着順"].head(2):
             val_str = str(val).strip()
@@ -701,13 +703,6 @@ if df_race is not None and not df_race.empty:
           combined_score = (soha_score * 0.7) + (f3_score * 0.3)
         else:
           combined_score = (soha_score * 0.6) + (f3_score * 0.4)
-
-        # ▼▼▼ デバッグ用ログ出力（計算後スコア） ▼▼▼
-        st.write(
-            f"   -> スコア結果 [{h_name}]: soha={soha_score:.2f},"
-            f" f3={f3_score:.2f}, combined={combined_score:.2f} (derived_times:"
-            f" {len(derived_times)})"
-        )
 
         return pd.Series({
             "soha_score": soha_score,
