@@ -513,7 +513,7 @@ if df_race is not None and not df_race.empty:
             str(group.iloc[0].get("馬名", "")) if not group.empty else ""
         )
     
-          derived_times = []
+        derived_times = []
         derived_f3s = []
         is_rising_star = False
 
