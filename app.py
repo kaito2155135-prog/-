@@ -535,7 +535,6 @@ if df_race is not None and not df_race.empty:
           ):
             is_rising_star = True
 
-
         for _, row in group.iterrows():
           r_course = str(
               row.get("場所", row.get("競馬場", place_name))
