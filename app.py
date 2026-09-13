@@ -680,12 +680,13 @@ if df_race is not None and not df_race.empty:
         else:
           combined_score = (soha_score * 0.6) + (f3_score * 0.4)
 
-        if "モンローウォーク" in h_name_check:
-          st.write(
-              f"【DEBUG】馬名: {h_name_check} | 抽出された着順:"
-              f" {cleaned_finishes if 'cleaned_finishes' in locals() else 'なし'}"
-              f" | ライジングスター判定: {is_rising_star}"
-          )
+            # すべての馬の判定結果を画面に出力して確認する
+        st.write(
+            f"【判定一覧】馬名: {h_name_check} | 抽出着順:"
+            f" {cleaned_finishes if 'cleaned_finishes' in locals() else 'なし'}"
+            f" | ライジングスター: {is_rising_star}"
+        )
+
 
         return pd.Series({
             "soha_score": soha_score,
