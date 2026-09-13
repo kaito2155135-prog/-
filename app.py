@@ -500,9 +500,6 @@ if df_race is not None and not df_race.empty:
     horse_course_fit_map = {}
     horse_soha_theory_map = {}
 
-    # デバッグ表示用の一覧リストを保持
-    rising_star_debug_logs = []
-
     if master_data is not None and "馬名_clean" in master_data.columns:
       sort_cols = [c for c in ["年", "月", "日"] if c in master_data.columns]
       if sort_cols:
@@ -549,35 +546,6 @@ if df_race is not None and not df_race.empty:
 
         derived_times = []
         derived_f3s = []
-        is_rising_star = False
-
-        if len(group) >= 2 and "着順" in group.columns:
-          cleaned_finishes = []
-          for val in group["着順"].head(2):
-            val_str = str(val).strip()
-            import re
-
-            match = re.search(r"(\d+)", val_str)
-            if match:
-              cleaned_finishes.append(int(match.group(1)))
-            else:
-              cleaned_finishes.append(999)
-
-          if (
-              len(cleaned_finishes) >= 2
-              and cleaned_finishes[0] == 1
-              and cleaned_finishes[1] == 1
-          ):
-            is_rising_star = True
-
-        # 🌟 ライジングスター発動状況を記録
-        rising_star_debug_logs.append({
-            "馬名": h_name,
-            "ライジングスター発動": is_rising_star,
-            "直近着順": (
-                cleaned_finishes if "cleaned_finishes" in locals() else []
-            ),
-        })
 
         for _, row in group.iterrows():
           r_course = str(
@@ -588,9 +556,13 @@ if df_race is not None and not df_race.empty:
           r_f3_time = pd.to_numeric(
               row.get("上がり3Fタイム", 0), errors="coerce"
           )
-          r_baba = str(row.get("馬場状態", row.get("馬場", "良"))).strip()
+          r_baba = str(
+              row.get("馬場状態", row.get("馬場", "良"))
+          ).strip()
           r_surface = str(row.get("芝・ダ", surface)).strip()
-          r_class = str(row.get("略レース名", row.get("クラス", "OP"))).strip()
+          r_class = str(
+              row.get("略レース名", row.get("クラス", "OP"))
+          ).strip()
           r_surface_keyword = "ダート" if "ダ" in r_surface else "芝"
           r_surface_short = "ダ" if "ダ" in r_surface else "芝"
 
@@ -647,10 +619,6 @@ if df_race is not None and not df_race.empty:
             class_level_penalty = (
                 (class_diff * 0.20) if class_diff > 0 else (class_diff * 0.15)
             )
-
-            if is_rising_star:
-              class_level_penalty = 0.0
-              time_diff += 0.2
 
             converted_time = (
                 target_base_seconds
@@ -749,9 +717,6 @@ if df_race is not None and not df_race.empty:
           if not pd.isna(af):
             horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
 
-    # 🌟 UI上で確認できるようにセッションステートへ保存
-    st.session_state["rising_star_debug_logs"] = rising_star_debug_logs
-
     n_horses = len(res_df)
     win_counts = np.zeros(n_horses)
     place_counts = np.zeros(n_horses)
@@ -766,6 +731,8 @@ if df_race is not None and not df_race.empty:
         wakuban = int(r.get("枠番", 1)) if pd.notnull(r.get("枠番", 1)) else 1
 
         ability_bonus = horse_ability_map.get(hname_clean, 2.5)
+        
+        # 走破タイム理論・上がり3F理論のボーナスを確実に組み込む（ライジングスターの+6.0は除外）
         soha_theory_bonus = horse_soha_theory_map.get(hname_clean, 0.0)
         f3_theory_bonus = horse_f3_theory_bonus_map.get(hname_clean, 0.0)
         combined_theory_bonus = horse_course_fit_map.get(hname_clean, 0.0)
@@ -775,6 +742,8 @@ if df_race is not None and not df_race.empty:
             70.0
             + ability_bonus
             + combined_theory_bonus
+            + (soha_theory_bonus * 1.5)
+            + (f3_theory_bonus * 1.0)
             + np.random.normal(0, 3.0)
         )
 
@@ -790,9 +759,7 @@ if df_race is not None and not df_race.empty:
         if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
           base_score += 3.0
         elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
-          base_score += 4.5 + (f3_theory_bonus * 0.9)
-        else:
-          base_score += f3_theory_bonus * 0.6
+          base_score += 4.5 + (f3_theory_bonus * 0.5)
 
         if bias == "内有利" and wakuban <= 3:
           base_score += 3.0
@@ -825,6 +792,8 @@ if df_race is not None and not df_race.empty:
           70.0
           + horse_ability_map.get(hname_clean, 2.5)
           + horse_course_fit_map.get(hname_clean, 0.0)
+          + (horse_soha_theory_map.get(hname_clean, 0.0) * 1.5)
+          + (horse_f3_theory_bonus_map.get(hname_clean, 0.0) * 1.0)
       )
       sim_scores_mean.append(b_score)
 
@@ -880,15 +849,6 @@ if df_race is not None and not df_race.empty:
         unsafe_allow_html=True,
     )
 
-    # 🌟 ライジングスター発動状況のデバッグ表示エリア
-    if (
-        "rising_star_debug_logs" in st.session_state
-        and st.session_state["rising_star_debug_logs"]
-    ):
-      with st.expander("🔍 【デバッグ】ライジングスター判定ログ一覧", expanded=True):
-        debug_df = pd.DataFrame(st.session_state["rising_star_debug_logs"])
-        st.dataframe(debug_df, use_container_width=True, hide_index=True)
-
     df_simulated = st.session_state["df_simulated"]
     display_columns = [
         c
@@ -922,3 +882,4 @@ else:
   st.info(
       "👈 サイドバーから出馬表のスクショをアップロードするか、過去データを選択してください。"
   )
+
