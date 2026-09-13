@@ -745,18 +745,11 @@ if df_race is not None and not df_race.empty:
         f3_theory_bonus = horse_f3_theory_bonus_map.get(hname_clean, 0.0)
         combined_theory_bonus = horse_course_fit_map.get(hname_clean, 0.0)
 
-        try:
-          odds_val = float(r.get("オッズ", 10.0))
-        except:
-          odds_val = 10.0
-        odds_bonus = max(0.0, 15.0 / np.sqrt(max(1.0, odds_val)))
-
         toughness_effect = (toughness_val - 1.0) * 4.0
         base_score = (
             70.0
             + ability_bonus
             + combined_theory_bonus
-            + odds_bonus
             + np.random.normal(0, 3.0)
         )
 
