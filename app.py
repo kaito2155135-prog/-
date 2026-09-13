@@ -46,7 +46,7 @@ def load_base_times_excel():
         try:
             df_baba = pd.read_excel(excel_filename, sheet_name="馬場別基準タイム")
             return df_baba
-        except Exception as e:
+        except Exception:
             return None
     return None
 
@@ -94,22 +94,21 @@ if uploaded_image is not None:
                        image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
                        response = client.models.generate_content(
-                           model='gemini-3.6-flash',
+                           model='gemini-2.5-flash',
                            contents=[
                                image_part,
                                "この画像は競馬の出馬表です。上部に記載されている以下のレース全体情報を必ず読み取ってください。\n"
-                               "1. 場所（競馬場名 例:東京、阪神、京都、中山、福島、新潟、中京、札幌、函館、小倉など。例:「阪神」）\n"
+                               "1. 場所（競馬場名 例:東京、阪神、京都、中山、福島、新潟、中京、札幌、函館、小倉など）\n"
                                "2. 距離（数値のみ 例: 1200）\n"
                                "3. 芝・ダ（「芝」または「ダート」）\n"
-                               "4. クラス（例:「新馬」「未勝利」「1勝クラス」「2勝クラス」「3勝クラス」「OP」「G3」「G2」「G1」など。画像に「G2」や「3歳オープン」とあればクラスは「G2」としてください）\n"
+                               "4. クラス（例:「新馬」「未勝利」「1勝クラス」「2勝クラス」「3勝クラス」「OP」「G3」「G2」「G1」など）\n"
                                "5. 当日の馬場状態（例:「良」「稍重」「重」「不良」）\n\n"
                                "また、各馬の「枠番」「馬番」「馬名」「オッズ（人気・倍率）」、そして右端にある「脚質」の傾向から「逃げ」「先行」「中団」「差し」「追込」のいずれかに分類してください。\n\n"
                                "出力は必ず以下のJSON形式のみで出力してください。他のテキストやバッククォートは含めないでください。\n"
                                '{\n'
                                '  "race_info": {"場所": "阪神", "距離": 1200, "芝・ダ": "ダート", "クラス": "1勝", "馬場状態": "良"},\n'
                                '  "horses": [\n'
-                               '    {"枠番": 1, "馬番": 1, "馬名": "タイセイブロウ", "オッズ": 55.7, "脚質": "差し"},\n'
-                               '    ...\n'
+                               '    {"枠番": 1, "馬番": 1, "馬名": "タイセイブロウ", "オッズ": 55.7, "脚質": "差し"}\n'
                                '  ]\n'
                                '}'
                            ]
@@ -298,7 +297,6 @@ if df_race is not None and not df_race.empty:
        surface_keyword = "ダ" if "ダ" in surface else "芝"
        class_keyword = str(target_cls).strip().replace("クラス", "")
 
-       # 画像から読み込んだ「場所・芝ダ・距離・クラス」に完全一致する公式基準タイムをExcelから取得
        target_base_seconds = 0.0
        if base_master_df is not None:
            match_target = base_master_df[
@@ -345,26 +343,22 @@ if df_race is not None and not df_race.empty:
                    filtered_master = master_data[master_data['芝・ダ'].str.contains("ダ", na=False)].copy()
                else:
                    filtered_master = master_data[~master_data['芝・ダ'].str.contains("ダ", na=False)].copy()
+           else:
+               filtered_master = master_data.copy()
 
            recent_master_data = filtered_master.groupby('馬名').head(6).copy()
 
-           # クラスの階層マップ（レベル差・昇級ペナルティ計算用）
            class_rank_map = {
-               "新馬": 1,
-               "未勝利": 1,
+               "新馬": 1, "未勝利": 1,
                "1勝": 2, "1勝クラス": 2,
                "2勝": 3, "2勝クラス": 3,
                "3勝": 4, "3勝クラス": 4,
-               "OP": 5, "オープン": 5,
-               "リステッド": 5,
+               "OP": 5, "オープン": 5, "リステッド": 5,
                "G3": 6, "G2": 7, "G1": 8
            }
 
-           # 走破タイム理論＋距離増減補正 ＋ クラスレベル差補正 ＋ パターンA（直近2走連勝補正）
            def calc_soha_theory_score(group):
                derived_times = []
-               
-               # ★パターンAの判定：直近2走がどちらも1着（連勝中）かチェック
                is_rising_star = False
                if len(group) >= 2:
                    recent_finishes = pd.to_numeric(group.head(2)['着順'], errors='coerce').tolist()
@@ -410,30 +404,23 @@ if df_race is not None and not df_race.empty:
                            past_base_time = (r_dist / 1000.0) * 59.0
 
                    time_diff = r_time - past_base_time
-                   
-                   # 距離増減補正の適用 (1F = 200m, 1F延長毎に+1.0秒、短縮毎に-1.0秒)
                    furlong_diff = (target_distance - r_dist) / 200.0
                    distance_penalty_or_bonus = furlong_diff * 1.0
 
-                   # クラス間レベル差補正（昇級戦などのクラスの壁を考慮）
                    past_c_rank = class_rank_map.get(r_class.replace("クラス", ""), 3)
                    target_c_rank = class_rank_map.get(target_cls.replace("クラス", ""), 3)
                    class_diff = target_c_rank - past_c_rank
                    
                    class_level_penalty = 0.0
                    if class_diff > 0:
-                       # 下級条件から上のクラスに挑む場合、ペースや相手強化の壁としてタイム価値を少し割り引き（ペナルティ）
                        class_level_penalty = class_diff * 0.25 
                    elif class_diff < 0:
-                       # 上位クラス経験馬が下位クラスに出る場合は少し有利に補正
                        class_level_penalty = class_diff * 0.20 
 
-                   # ★パターンAの適用：直近連勝馬はクラス昇級の壁（ペナルティ）を無効化し、さらに勢いボーナス(-0.2秒分)を付与
                    if is_rising_star:
                        class_level_penalty = 0.0
-                       time_diff -= 0.2  # 勢いがある馬のパフォーマンスを高く評価
+                       time_diff -= 0.2
 
-                   # 変換タイムにクラスレベル補正も含めて反映
                    converted_time = target_base_seconds + time_diff + distance_penalty_or_bonus + class_level_penalty
                    derived_times.append(converted_time)
                
@@ -590,7 +577,7 @@ if df_race is not None and not df_race.empty:
 
        display_df['勝率(%)'] = display_df['勝率(%)'].apply(lambda x: f"{x:.1f}%")
        display_df['連対率(%)'] = display_df['連対率(%)'].apply(lambda x: f"{x:.1f}%")
-       display_df['複勝率(%)'] = display_df['複勝率(%)'].apply(lambda x: f"{x: .1f}%")
+       display_df['複勝率(%)'] = display_df['複勝率(%)'].apply(lambda x: f"{x:.1f}%")
 
        st.dataframe(display_df, use_container_width=True, hide_index=True)
    else:
