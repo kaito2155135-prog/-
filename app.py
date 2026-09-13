@@ -100,7 +100,7 @@ if uploaded_image is not None:
                        image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
                        response = client.models.generate_content(
-                           model='gemini-2.5-flash',
+                           model='gemini-3.6-flash',
                            contents=[
                                image_part,
                                "この画像は競馬の出馬表です。上部に記載されている以下のレース全体情報を必ず読み取ってください。\n"
@@ -387,7 +387,7 @@ if df_race is not None and not df_race.empty:
                "G3": 6, "G2": 7, "G1": 8
            }
 
-           # 走破タイム理論 ＆ 基準上がり3F理論の統合計算関数（直線距離別比率適用）
+           # 走破タイム理論 ＆ 基準上がり3F理論の統合計算関数（ダート上がり3F：昇級+0.15秒、降級-0.1秒対応）
            def calc_theories_score(group):
                derived_times = []
                derived_f3s = []
@@ -412,6 +412,11 @@ if df_race is not None and not df_race.empty:
                    if pd.isna(r_dist) or r_dist <= 0:
                        continue
 
+                   # クラスランク差の計算（ターゲット - 過去）
+                   past_c_rank = class_rank_map.get(r_class.replace("クラス", ""), 3)
+                   target_c_rank = class_rank_map.get(target_cls.replace("クラス", ""), 3)
+                   class_diff = target_c_rank - past_c_rank
+
                    # 1. 全体基準タイム比較
                    if not pd.isna(r_time) and r_time > 0:
                        past_base_time = 0.0
@@ -420,7 +425,7 @@ if df_race is not None and not df_race.empty:
                                (base_master_df['競馬場'].str.contains(r_course, na=False)) &
                                (base_master_df['芝/ダート'] == r_surface_short) &
                                (base_master_df['距離_num'] == r_dist) &
-                               (base_master_df['クラス'].str.contains(r_class_keyword, na=False))
+                               (base_master_df['クラス'].str.contains(class_keyword, na=False))
                            ]
                            if m_match.empty:
                                m_match = base_master_df[
@@ -439,9 +444,6 @@ if df_race is not None and not df_race.empty:
                        furlong_diff = (target_distance - r_dist) / 200.0
                        distance_penalty_or_bonus = furlong_diff * 1.0
 
-                       past_c_rank = class_rank_map.get(r_class.replace("クラス", ""), 3)
-                       target_c_rank = class_rank_map.get(target_cls.replace("クラス", ""), 3)
-                       class_diff = target_c_rank - past_c_rank
                        class_level_penalty = (class_diff * 0.25) if class_diff > 0 else (class_diff * 0.20)
 
                        if is_rising_star:
@@ -459,7 +461,7 @@ if df_race is not None and not df_race.empty:
                                (f3_master_df['競馬場'].str.contains(r_course, na=False)) &
                                (f3_master_df['芝/ダート'] == r_surface_keyword) &
                                (f3_master_df['距離_num'] == r_dist) &
-                               (f3_master_df['クラス'].str.contains(r_class_keyword, na=False))
+                               (f3_master_df['クラス'].str.contains(class_keyword, na=False))
                            ]
                            if f3_match.empty:
                                f3_match = f3_master_df[
@@ -476,7 +478,16 @@ if df_race is not None and not df_race.empty:
                            past_base_f3 = 34.5 if r_surface_keyword == "芝" else 37.0
 
                        f3_diff = r_f3_time - past_base_f3
-                       converted_f3 = target_base_f3 + f3_diff
+                       
+                       # ダート限定の上がり3Fクラス補正（昇級時は+0.15秒/クラス、降級時は-0.1秒/クラス）
+                       f3_class_adjustment = 0.0
+                       if r_surface_keyword == "ダート":
+                           if class_diff > 0:
+                               f3_class_adjustment = class_diff * 0.15  # 昇級時ペナルティ
+                           elif class_diff < 0:
+                               f3_class_adjustment = class_diff * 0.1   # 降級時ボーナス（class_diffが負のため自動でマイナス補正）
+
+                       converted_f3 = target_base_f3 + f3_diff + f3_class_adjustment
                        derived_f3s.append(converted_f3)
 
                # 集計スコア算出
@@ -492,15 +503,12 @@ if df_race is not None and not df_race.empty:
                    f3_advantage = target_base_f3 - median_f3
                    f3_score = max(-3.0, min(10.0, f3_advantage * 2.5 * f3_weight_factor))
 
-               # 直線距離別の比率適用（走破タイム比率 ＆ 上がり3F比率）
+               # 直線距離別の比率適用（短い80:20、中距離70:30、長い40:60）
                if straight_length < 320:
-                   # 短いコース: 走破タイム 80% / 上がり3F 20%
                    combined_score = (soha_score * 0.8) + (f3_score * 0.2)
                elif 320 <= straight_length < 400:
-                   # 中距離コース: 走破タイム 70% / 上がり3F 30%
                    combined_score = (soha_score * 0.7) + (f3_score * 0.3)
                else:
-                   # 長いコース: 走破タイム 40% / 上がり3F 60%
                    combined_score = (soha_score * 0.4) + (f3_score * 0.6)
 
                return pd.Series({'soha_score': soha_score, 'f3_score': f3_score, 'combined_score': combined_score})
@@ -512,7 +520,7 @@ if df_race is not None and not df_race.empty:
                if 'f3_score' in theories_df.columns:
                    horse_f3_theory_bonus_map = theories_df['f3_score'].to_dict()
                if 'combined_score' in theories_df.columns:
-                   horse_course_fit_map = theories_df['combined_score'].to_dict() # 統合スコアを活用
+                   horse_course_fit_map = theories_df['combined_score'].to_dict()
 
            if '着順' in recent_master_data.columns:
                recent_master_data['着順_num'] = pd.to_numeric(recent_master_data['着順'], errors='coerce')
