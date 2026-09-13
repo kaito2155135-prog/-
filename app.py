@@ -532,13 +532,51 @@ if df_race is not None and not df_race.empty:
           ):
             is_rising_star = True
 
-        if "モンローウォーク" in str(h_name_check):
+)      def calc_theories_score(group):
+        # ▼【修正】関数の最初に馬名を変数に格納しておく
+        h_name_check = (
+            str(group.iloc[0].get("馬名", "")) if not group.empty else ""
+        )
+
+        derived_times = []
+        derived_f3s = []
+        is_rising_star = False
+
+        if len(group) >= 2:
+          cleaned_finishes = []
+          for val in group["着順"].head(2):
+            val_str = str(val).strip()
+            import re
+
+            match = re.search(r"(\d+)", val_str)
+            if match:
+              cleaned_finishes.append(int(match.group(1)))
+            else:
+              cleaned_finishes.append(999)
+
+          if (
+              len(cleaned_finishes) >= 2
+              and cleaned_finishes[0] == 1
+              and cleaned_finishes[1] == 1
+          ):
+            is_rising_star = True
+
+        # （中略：タイム計算などの処理はそのまま）
+
+        # ▼【修正】関数の最後にデバッグ出力を置く
+        if "モンローウォーク" in h_name_check:
           st.write(
-              f"【DEBUG】馬名: {h_name_check} | 直近の着順データ:"
-              f" {group['着順'].head(2).tolist()} | 抽出・数値化された着順:"
-              f" {cleaned_finishes} | ライジングスター判定:"
-              f" {is_rising_star}"
+              f"【DEBUG】馬名: {h_name_check} | 抽出された着順:"
+              f" {cleaned_finishes if 'cleaned_finishes' in locals() else 'なし'}"
+              f" | ライジングスター判定: {is_rising_star}"
           )
+
+        return pd.Series({
+            "soha_score": soha_score,
+            "f3_score": f3_score,
+            "combined_score": combined_score,
+        })
+
           
         for _, row in group.iterrows():
           r_course = str(
