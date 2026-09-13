@@ -532,6 +532,14 @@ if df_race is not None and not df_race.empty:
           ):
             is_rising_star = True
 
+        if "モンローウォーク" in str(h_name_check):
+          st.write(
+              f"【DEBUG】馬名: {h_name_check} | 直近の着順データ:"
+              f" {group['着順'].head(2).tolist()} | 抽出・数値化された着順:"
+              f" {cleaned_finishes} | ライジングスター判定:"
+              f" {is_rising_star}"
+          )
+          
         for _, row in group.iterrows():
           r_course = str(
               row.get("場所", row.get("競馬場", place_name))
