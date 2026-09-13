@@ -103,7 +103,6 @@ if os.path.exists(csv_filename):
 if master_df is not None and "馬名" in master_df.columns:
   master_df["馬名_clean"] = master_df["馬名"].apply(normalize_horse_name)
 
-# 変数名をmaster_dataに統一（未存在時のエラーを防ぐ）
 master_data = master_df
 
 st.sidebar.markdown("### 📥 出馬表スクショから読み込む")
@@ -726,6 +725,43 @@ if df_race is not None and not df_race.empty:
         for hname, af in avg_finishes.items():
           if not pd.isna(af):
             horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
+
+    # ──【デバッグ用】モンローウォークのデータ格納状況を確認するコード ──
+    debug_hname = "モンローウォーク"
+    debug_clean = normalize_horse_name(debug_hname)
+
+    st.markdown("---")
+    st.info("🔍 【デバッグ出力】モンローウォークの内部データ確認")
+    st.write("・Clean馬名:", debug_clean)
+    st.write(
+        "・horse_ability_map の値:",
+        horse_ability_map.get(debug_clean, "（値なし / デフォルト）"),
+    )
+    st.write(
+        "・horse_soha_theory_map の値:",
+        horse_soha_theory_map.get(debug_clean, "（値なし / デフォルト）"),
+    )
+    st.write(
+        "・horse_f3_theory_bonus_map の値:",
+        horse_f3_theory_bonus_map.get(debug_clean, "（値なし / デフォルト）"),
+    )
+    st.write(
+        "・horse_course_fit_map の値:",
+        horse_course_fit_map.get(debug_clean, "（値なし / デフォルト）"),
+    )
+
+    if master_data is not None and "馬名_clean" in master_data.columns:
+      matched_rows = master_data[master_data["馬名_clean"] == debug_clean]
+      st.write(
+          f"・master_data内での該当行数: {len(matched_rows)}行",
+          matched_rows[
+              ["年", "月", "日", "場所", "距離", "着順", "走破タイム"]
+          ]
+          if not matched_rows.empty
+          else "該当データなし",
+      )
+    st.markdown("---")
+    # ──────────────────────────────────────────────────────────────
 
     n_horses = len(res_df)
     win_counts = np.zeros(n_horses)
