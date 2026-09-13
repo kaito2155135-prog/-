@@ -533,10 +533,6 @@ if df_race is not None and not df_race.empty:
             is_rising_star = True
 
         for _, row in group.iterrows():
-          # (以降の処理続く)
-
-
-        for _, row in group.iterrows():
           r_course = str(
               row.get("場所", row.get("競馬場", place_name))
           ).strip()
@@ -545,6 +541,7 @@ if df_race is not None and not df_race.empty:
           r_f3_time = pd.to_numeric(
               row.get("上がり3Fタイム", 0), errors="coerce"
           )
+
           r_baba = str(row.get("馬場", row.get("馬場状態", "良"))).strip()
           r_surface = str(row.get("芝・ダ", surface)).strip()
           r_class = str(row.get("クラス", "OP")).strip()
