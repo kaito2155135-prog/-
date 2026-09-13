@@ -94,7 +94,7 @@ if uploaded_image is not None:
                        image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
                        response = client.models.generate_content(
-                           model='gemini-2.5-flash',
+                           model='gemini-3.6-flash',
                            contents=[
                                image_part,
                                "この画像は競馬の出馬表です。上部に記載されている以下のレース全体情報を必ず読み取ってください。\n"
