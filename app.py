@@ -13,7 +13,7 @@ def normalize_horse_name(name):
 
 
 st.set_page_config(
-    page_title="本格競馬展開シミュレーター（基準上がり3F・走破タイム完全連動版）",
+    page_title="本格競馬展開シミュレーター（走破タイム×上がり3F完全統合版）",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -52,7 +52,7 @@ st.markdown(
 )
 
 st.markdown(
-    "<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（基準上がり3F・走破タイム完全連動版）</h2>",
+    "<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（走破タイム×上がり3F完全統合版）</h2>",
     unsafe_allow_html=True,
 )
 
@@ -308,7 +308,7 @@ if df_race is not None and not df_race.empty:
   st.markdown(
       f"""
        <div class="race-info-box">
-           <h3 style="margin: 0; color: #f1c40f;">📌 読み込み済みレース条件（修正版）</h3>
+           <h3 style="margin: 0; color: #f1c40f;">📌 読み込み済みレース条件（統合インデックス版）</h3>
            <p style="font-size: 18px; margin: 5px 0 0 0;">
                <b>競馬場:</b> {race_place} (直線: {straight_len}m) &nbsp;|&nbsp;
                <b>馬場種別:</b> {race_surface} &nbsp;|&nbsp;
@@ -410,7 +410,7 @@ if df_race is not None and not df_race.empty:
       return f"{s:.1f}秒"
 
 
-  def run_monte_carlo_simulation(
+  def run_integrated_simulation(
       df_r,
       pace,
       bias,
@@ -424,7 +424,6 @@ if df_race is not None and not df_race.empty:
       target_cls,
       base_master_df,
       f3_master_df,
-      num_simulations=10000,
   ):
     res_df = df_r.copy()
     try:
@@ -717,114 +716,76 @@ if df_race is not None and not df_race.empty:
           if not pd.isna(af):
             horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
 
-    n_horses = len(res_df)
-    win_counts = np.zeros(n_horses)
-    place_counts = np.zeros(n_horses)
-    show_counts = np.zeros(n_horses)
-
-    for _ in range(num_simulations):
-      sim_scores = []
-      for idx, r in res_df.iterrows():
-        hname_clean = str(r.get("馬名_clean", ""))
-        kyakushitsu = str(r.get("脚質", "差し"))
-        tokui_baba = str(r.get("得意馬場", "指定なし"))
-        wakuban = int(r.get("枠番", 1)) if pd.notnull(r.get("枠番", 1)) else 1
-
-        ability_bonus = horse_ability_map.get(hname_clean, 2.5)
-        
-        # 走破タイム理論・上がり3F理論のボーナスを確実に組み込む（ライジングスターの+6.0は除外）
-        soha_theory_bonus = horse_soha_theory_map.get(hname_clean, 0.0)
-        f3_theory_bonus = horse_f3_theory_bonus_map.get(hname_clean, 0.0)
-        combined_theory_bonus = horse_course_fit_map.get(hname_clean, 0.0)
-
-        toughness_effect = (toughness_val - 1.0) * 4.0
-        base_score = (
-            70.0
-            + ability_bonus
-            + combined_theory_bonus
-            + (soha_theory_bonus * 1.5)
-            + (f3_theory_bonus * 1.0)
-            + np.random.normal(0, 3.0)
-        )
-
-        if toughness_val >= 1.2 and kyakushitsu in ["逃げ", "先行"]:
-          base_score += toughness_effect * 1.5
-
-        if straight_length < 320:
-          if kyakushitsu in ["逃げ", "先行"]:
-            base_score += 5.0
-          elif kyakushitsu in ["差し", "追込"]:
-            base_score -= 2.0
-
-        if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
-          base_score += 3.0
-        elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
-          base_score += 4.5 + (f3_theory_bonus * 0.5)
-
-        if bias == "内有利" and wakuban <= 3:
-          base_score += 3.0
-        elif bias == "外有利" and wakuban >= 6:
-          base_score += 3.0
-
-        if tokui_baba == condition:
-          base_score += 5.0
-
-        sim_scores.append(base_score)
-
-      sorted_indices = np.argsort(sim_scores)[::-1]
-      win_counts[sorted_indices[0]] += 1
-      if n_horses > 1:
-        place_counts[sorted_indices[0]] += 1
-        place_counts[sorted_indices[1]] += 1
-      if n_horses > 2:
-        show_counts[sorted_indices[0]] += 1
-        show_counts[sorted_indices[1]] += 1
-        show_counts[sorted_indices[2]] += 1
-
-    res_df["勝率(%)"] = (win_counts / num_simulations) * 100
-    res_df["連対率(%)"] = (place_counts / num_simulations) * 100
-    res_df["複勝率(%)"] = (show_counts / num_simulations) * 100
-
-    sim_scores_mean = []
+    # 決定論的スコア算出（モンテカルロ法を完全に排除）
+    scored_horses = []
     for idx, r in res_df.iterrows():
       hname_clean = str(r.get("馬名_clean", ""))
-      b_score = (
-          70.0
-          + horse_ability_map.get(hname_clean, 2.5)
-          + horse_course_fit_map.get(hname_clean, 0.0)
-          + (horse_soha_theory_map.get(hname_clean, 0.0) * 1.5)
-          + (horse_f3_theory_bonus_map.get(hname_clean, 0.0) * 1.0)
-      )
-      sim_scores_mean.append(b_score)
+      kyakushitsu = str(r.get("脚質", "差し"))
+      tokui_baba = str(r.get("得意馬場", "指定なし"))
+      wakuban = int(r.get("枠番", 1)) if pd.notnull(r.get("枠番", 1)) else 1
 
-    res_df["temp_score"] = sim_scores_mean
-    res_df = (
-        res_df.sort_values(by=["勝率(%)", "temp_score"], ascending=False)
-        .reset_index(drop=True)
-    )
+      ability_bonus = horse_ability_map.get(hname_clean, 2.5)
+      soha_theory_bonus = horse_soha_theory_map.get(hname_clean, 0.0)
+      f3_theory_bonus = horse_f3_theory_bonus_map.get(hname_clean, 0.0)
+      combined_theory_bonus = horse_course_fit_map.get(hname_clean, 0.0)
+
+      toughness_effect = (toughness_val - 1.0) * 4.0
+      
+      # 統合指数（走破タイム理論 × 上がり3F理論の合体スコア）
+      total_score = (
+          70.0
+          + ability_bonus
+          + combined_theory_bonus
+          + (soha_theory_bonus * 1.5)
+          + (f3_theory_bonus * 1.0)
+      )
+
+      if toughness_val >= 1.2 and kyakushitsu in ["逃げ", "先行"]:
+        total_score += toughness_effect * 1.5
+
+      if straight_length < 320:
+        if kyakushitsu in ["逃げ", "先行"]:
+          total_score += 5.0
+        elif kyakushitsu in ["差し", "追込"]:
+          total_score -= 2.0
+
+      if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
+        total_score += 3.0
+      elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
+        total_score += 4.5 + (f3_theory_bonus * 0.5)
+
+      if bias == "内有利" and wakuban <= 3:
+        total_score += 3.0
+      elif bias == "外有利" and wakuban >= 6:
+        total_score += 3.0
+
+      if tokui_baba == condition:
+        total_score += 5.0
+
+      scored_horses.append(total_score)
+
+    res_df["統合指数"] = scored_horses
+    res_df = res_df.sort_values(by="統合指数", ascending=False).reset_index(drop=True)
     res_df["着順予測"] = range(1, len(res_df) + 1)
 
+    # 予測走破タイムの算出（走破タイム理論直結）
     times = []
     for i in range(len(res_df)):
       hname_clean = str(res_df.iloc[i].get("馬名_clean", ""))
       time_mod = -horse_soha_theory_map.get(hname_clean, 0.0) * 0.1
-      t = (
-          target_base_seconds
-          + (i * 0.25)
-          + time_mod
-          + np.random.uniform(0.0, 0.2)
-      )
-      times.append(round(max(target_base_seconds - 2.0, t), 1))
+      # 順位に応じて綺麗にタイム差を反映（上位ほど基準タイムに肉薄・短縮）
+      t = target_base_seconds - 1.5 + (i * 0.3) + time_mod
+      times.append(round(max(target_base_seconds - 3.0, t), 1))
 
     res_df["予測走破タイム"] = [format_time(t) for t in times]
     return res_df
 
   st.markdown("<br>", unsafe_allow_html=True)
-  if st.button("🚀 基準タイム＆基準上がり3F完全連動シミュレーションを実行"):
+  if st.button("🚀 走破タイム×上がり3F完全統合シミュレーションを実行"):
     with st.spinner(
-        f"{race_place} {race_class}（{race_surface}{race_distance}m）の基準タイム・基準上がり3Fデータを反映してシミュレーションを実行中..."
+        f"{race_place} {race_class}（{race_surface}{race_distance}m）の基準タイム・基準上がり3Fデータを統合して計算中..."
     ):
-      st.session_state["df_simulated"] = run_monte_carlo_simulation(
+      st.session_state["df_simulated"] = run_integrated_simulation(
           df_race,
           selected_pace,
           selected_bias,
@@ -838,14 +799,13 @@ if df_race is not None and not df_race.empty:
           race_class,
           df_base_master,
           df_f3_master,
-          num_simulations=10000,
       )
       st.session_state["sim_executed"] = True
 
   if st.session_state.get("sim_executed", False) and "df_simulated" in st.session_state:
     st.markdown(
-        f"<br><h3>🏆 10,000回シミュレーション結果（{race_place} {race_class} /"
-        " 基準上がり3F理論連動）</h3>",
+        f"<br><h3>🏆 総合指数ランキング（{race_place} {race_class} /"
+        " 走破タイム・上がり3F完全統合版）</h3>",
         unsafe_allow_html=True,
     )
 
@@ -859,27 +819,22 @@ if df_race is not None and not df_race.empty:
             "オッズ",
             "脚質",
             "得意馬場",
-            "勝率(%)",
-            "連対率(%)",
-            "複勝率(%)",
+            "統合指数",
             "予測走破タイム",
         ]
         if c in df_simulated.columns
     ]
     display_df = df_simulated[display_columns].copy()
 
-    display_df["勝率(%)"] = display_df["勝率(%)"].apply(lambda x: f"{x:.1f}%")
-    display_df["連対率(%)"] = display_df["連対率(%)"].apply(lambda x: f"{x:.1f}%")
-    display_df["複勝率(%)"] = display_df["複勝率(%)"].apply(lambda x: f"{x:.1f}%")
+    display_df["統合指数"] = display_df["統合指数"].apply(lambda x: f"{x:.1f}pt")
 
     st.dataframe(display_df, use_container_width=True, hide_index=True)
   else:
     st.info(
-        "👆 設定を確認し、上のボタンを押してシミュレーションを実行してください。"
+        "👆 設定を確認し、上のボタンを押して統合シミュレーションを実行してください。"
     )
 
 else:
   st.info(
       "👈 サイドバーから出馬表のスクショをアップロードするか、過去データを選択してください。"
   )
-
