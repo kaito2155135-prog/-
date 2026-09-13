@@ -49,7 +49,6 @@ st.markdown(
 )
 
 
-# Excel基準タイムおよび基準上がり3Fデータの読み込み
 @st.cache_data
 def load_base_data_excel():
   excel_filename = "JRA_基準上がり3F_実データ集計_修正版.xlsx"
@@ -131,8 +130,9 @@ if uploaded_image is not None:
               data=image_bytes, mime_type=mime_type
           )
 
+          # 💡 モデル名を最新の "gemini-3.6-flash" に修正
           response = client.models.generate_content(
-              model="gemini-2.5-flash",
+              model="gemini-3.6-flash",
               contents=[
                   image_part,
                   (
@@ -287,7 +287,7 @@ if df_race is not None and not df_race.empty:
   st.markdown(
       f"""
        <div class="race-info-box">
-           <h3 style="margin: 0; color: #f1c40f;">📌 読み込み済みレース条件（グループキー修正反映版）</h3>
+           <h3 style="margin: 0; color: #f1c40f;">📌 読み込み済みレース条件（モデル名更新版）</h3>
            <p style="font-size: 18px; margin: 5px 0 0 0;">
                <b>競馬場:</b> {race_place} (直線: {straight_len}m) &nbsp;|&nbsp;
                <b>馬場種別:</b> {race_surface} &nbsp;|&nbsp;
@@ -512,7 +512,6 @@ if df_race is not None and not df_race.empty:
       }
 
       def calc_theories_score(group):
-        # 💡 画像の指摘対応：groupby("馬名")のキー（インデックス）から正確に馬名を取得
         h_name_check = group.name
 
         derived_times = []
