@@ -4,7 +4,7 @@ import numpy as np
 import os
 import json
 
-st.set_page_config(page_title="本格競馬展開シミュレーター（公式基準タイム・距離補正完全版）", layout="wide")
+st.set_page_config(page_title="本格競馬展開シミュレーター（基準上がり3F・走破タイム完全連動版）", layout="wide")
 
 st.markdown("""
    <style>
@@ -36,23 +36,29 @@ st.markdown("""
    </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（公式基準タイム・距離補正完全版）</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（基準上がり3F・走破タイム完全連動版）</h2>", unsafe_allow_html=True)
 
-# Excel基準タイムデータの読み込み
+# Excel基準タイムおよび基準上がり3Fデータの読み込み
 @st.cache_data
-def load_base_times_excel():
-    excel_filename = "JRA全競馬場_芝ダート_クラス別_馬場別基準タイム.xlsx"
+def load_base_data_excel():
+    excel_filename = "JRA_基準上がり3F_実データ集計_修正版.xlsx"
     if os.path.exists(excel_filename):
         try:
-            df_baba = pd.read_excel(excel_filename, sheet_name="馬場別基準タイム")
-            return df_baba
+            xls = pd.ExcelFile(excel_filename)
+            df_baba = pd.read_excel(excel_filename, sheet_name="馬場別基準タイム") if "馬場別基準タイム" in xls.sheet_names else None
+            df_f3 = pd.read_excel(excel_filename, sheet_name="基準上がり3F") if "基準上がり3F" in xls.sheet_names else None
+            return df_baba, df_f3
         except Exception:
-            return None
-    return None
+            return None, None
+    return None, None
 
-df_base_master = load_base_times_excel()
-if df_base_master is not None:
+df_base_master, df_f3_master = load_base_data_excel()
+
+if df_base_master is not None and '距離' in df_base_master.columns:
     df_base_master['距離_num'] = pd.to_numeric(df_base_master['距離'].astype(str).str.extract(r'(\d+)')[0], errors='coerce')
+
+if df_f3_master is not None and '距離' in df_f3_master.columns:
+    df_f3_master['距離_num'] = pd.to_numeric(df_f3_master['距離'].astype(str).str.extract(r'(\d+)')[0], errors='coerce')
 
 # マスターデータの読み込み準備
 master_df = None
@@ -94,7 +100,7 @@ if uploaded_image is not None:
                        image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
                        response = client.models.generate_content(
-                           model='gemini-3.6-flash',
+                           model='gemini-2.5-flash',
                            contents=[
                                image_part,
                                "この画像は競馬の出馬表です。上部に記載されている以下のレース全体情報を必ず読み取ってください。\n"
@@ -200,7 +206,7 @@ if df_race is not None and not df_race.empty:
 
    st.markdown(f"""
        <div class="race-info-box">
-           <h3 style="margin: 0; color: #f1c40f;">📌 読み込み済みレース条件（公式基準タイム連動）</h3>
+           <h3 style="margin: 0; color: #f1c40f;">📌 読み込み済みレース条件（基準タイム・基準上がり3F完全連動）</h3>
            <p style="font-size: 18px; margin: 5px 0 0 0;">
                <b>競馬場:</b> {race_place} (直線: {straight_len}m) &nbsp;|&nbsp;
                <b>馬場種別:</b> {race_surface} &nbsp;|&nbsp;
@@ -286,7 +292,7 @@ if df_race is not None and not df_race.empty:
        else:
            return f"{s:.1f}秒"
 
-   def run_monte_carlo_simulation(df_r, pace, bias, condition, master_data, target_cat, strictness, straight_length, place_name, surface_type, toughness_val, target_cls, base_master_df, num_simulations=10000):
+   def run_monte_carlo_simulation(df_r, pace, bias, condition, master_data, target_cat, strictness, straight_length, place_name, surface_type, toughness_val, target_cls, base_master_df, f3_master_df, num_simulations=10000):
        res_df = df_r.copy()
        try:
            target_distance = float(res_df.iloc[0].get('距離', 1600.0))
@@ -294,21 +300,22 @@ if df_race is not None and not df_race.empty:
            target_distance = 1600.0
 
        surface = str(surface_type).strip()
-       surface_keyword = "ダ" if "ダ" in surface else "芝"
+       surface_keyword = "ダート" if "ダ" in surface else "芝"
        class_keyword = str(target_cls).strip().replace("クラス", "")
 
+       # 1. 全体基準タイムの取得
        target_base_seconds = 0.0
        if base_master_df is not None:
            match_target = base_master_df[
                (base_master_df['競馬場'].str.contains(place_name, na=False)) &
-               (base_master_df['芝/ダート'] == surface_keyword) &
+               (base_master_df['芝/ダート'] == ("ダ" if "ダ" in surface else "芝")) &
                (base_master_df['距離_num'] == target_distance) &
                (base_master_df['クラス'].str.contains(class_keyword, na=False))
            ]
            if match_target.empty:
                match_target = base_master_df[
                    (base_master_df['競馬場'].str.contains(place_name, na=False)) &
-                   (base_master_df['芝/ダート'] == surface_keyword) &
+                   (base_master_df['芝/ダート'] == ("ダ" if "ダ" in surface else "芝")) &
                    (base_master_df['距離_num'] == target_distance)
                ]
 
@@ -322,13 +329,36 @@ if df_race is not None and not df_race.empty:
            else:
                target_base_seconds = (target_distance / 1000.0) * 59.0
 
+       # 2. 基準上がり3Fタイムの取得（ターゲット条件）
+       target_base_f3 = 0.0
+       if f3_master_df is not None:
+           match_f3 = f3_master_df[
+               (f3_master_df['競馬場'].str.contains(place_name, na=False)) &
+               (f3_master_df['芝/ダート'] == surface_keyword) &
+               (f3_master_df['距離_num'] == target_distance) &
+               (f3_master_df['クラス'].str.contains(class_keyword, na=False))
+           ]
+           if match_f3.empty:
+               match_f3 = f3_master_df[
+                   (f3_master_df['競馬場'].str.contains(place_name, na=False)) &
+                   (f3_master_df['芝/ダート'] == surface_keyword) &
+                   (f3_master_df['距離_num'] == target_distance)
+               ]
+           if not match_f3.empty:
+               baba_col = condition if condition in ['良', '稍重', '重', '不良'] else '良'
+               if baba_col in match_f3.columns:
+                   target_base_f3 = pd.to_numeric(match_f3.iloc[0][baba_col], errors='coerce')
+
+       if pd.isna(target_base_f3) or target_base_f3 <= 0:
+           target_base_f3 = 34.5 if "芝" in surface else 37.0
+
        if 'ダ' in surface:
            f3_weight_factor = max(0.5, min(1.15, straight_length / 450.0))
        else:
            f3_weight_factor = max(0.4, min(1.6, straight_length / 350.0))
 
        horse_ability_map = {}
-       horse_f3_bonus_map = {}
+       horse_f3_theory_bonus_map = {} 
        horse_distance_fit_map = {}
        horse_course_fit_map = {}
        horse_soha_theory_map = {} 
@@ -357,8 +387,10 @@ if df_race is not None and not df_race.empty:
                "G3": 6, "G2": 7, "G1": 8
            }
 
-           def calc_soha_theory_score(group):
+           # 走破タイム理論 ＆ 基準上がり3F理論の統合計算関数（直線距離別比率適用）
+           def calc_theories_score(group):
                derived_times = []
+               derived_f3s = []
                is_rising_star = False
                if len(group) >= 2:
                    recent_finishes = pd.to_numeric(group.head(2)['着順'], errors='coerce').tolist()
@@ -369,71 +401,118 @@ if df_race is not None and not df_race.empty:
                    r_course = str(row.get('場所', row.get('競馬場', place_name))).strip()
                    r_dist = pd.to_numeric(row.get('距離', 0), errors='coerce')
                    r_time = pd.to_numeric(row.get('走破タイム', 0), errors='coerce')
+                   r_f3_time = pd.to_numeric(row.get('上がり3Fタイム', 0), errors='coerce')
                    r_baba = str(row.get('馬場', row.get('馬場状態', '良'))).strip()
                    r_surface = str(row.get('芝・ダ', surface)).strip()
                    r_class = str(row.get('クラス', 'OP')).strip()
-                   r_surface_keyword = "ダ" if "ダ" in r_surface else "芝"
+                   r_surface_keyword = "ダート" if "ダ" in r_surface else "芝"
+                   r_surface_short = "ダ" if "ダ" in r_surface else "芝"
                    r_class_keyword = r_class.replace("クラス", "")
 
-                   if pd.isna(r_dist) or pd.isna(r_time) or r_dist <= 0 or r_time <= 0:
+                   if pd.isna(r_dist) or r_dist <= 0:
                        continue
 
-                   past_base_time = 0.0
-                   if base_master_df is not None:
-                       m_match = base_master_df[
-                           (base_master_df['競馬場'].str.contains(r_course, na=False)) &
-                           (base_master_df['芝/ダート'] == r_surface_keyword) &
-                           (base_master_df['距離_num'] == r_dist) &
-                           (base_master_df['クラス'].str.contains(r_class_keyword, na=False))
-                       ]
-                       if m_match.empty:
+                   # 1. 全体基準タイム比較
+                   if not pd.isna(r_time) and r_time > 0:
+                       past_base_time = 0.0
+                       if base_master_df is not None:
                            m_match = base_master_df[
                                (base_master_df['競馬場'].str.contains(r_course, na=False)) &
-                               (base_master_df['芝/ダート'] == r_surface_keyword) &
-                               (base_master_df['距離_num'] == r_dist)
+                               (base_master_df['芝/ダート'] == r_surface_short) &
+                               (base_master_df['距離_num'] == r_dist) &
+                               (base_master_df['クラス'].str.contains(r_class_keyword, na=False))
                            ]
-                       
-                       if not m_match.empty:
-                           b_col = r_baba if r_baba in ['良', '稍重', '重', '不良'] else '良'
-                           past_base_time = pd.to_numeric(m_match.iloc[0][b_col], errors='coerce')
+                           if m_match.empty:
+                               m_match = base_master_df[
+                                   (base_master_df['競馬場'].str.contains(r_course, na=False)) &
+                                   (base_master_df['芝/ダート'] == r_surface_short) &
+                                   (base_master_df['距離_num'] == r_dist)
+                               ]
+                           if not m_match.empty:
+                               b_col = r_baba if r_baba in ['良', '稍重', '重', '不良'] else '良'
+                               past_base_time = pd.to_numeric(m_match.iloc[0][b_col], errors='coerce')
 
-                   if pd.isna(past_base_time) or past_base_time <= 0:
-                       if "ダ" in r_surface_keyword:
-                           past_base_time = (r_dist / 1000.0) * 62.5
-                       else:
-                           past_base_time = (r_dist / 1000.0) * 59.0
+                       if pd.isna(past_base_time) or past_base_time <= 0:
+                           past_base_time = (r_dist / 1000.0) * (62.5 if r_surface_short == "ダ" else 59.0)
 
-                   time_diff = r_time - past_base_time
-                   furlong_diff = (target_distance - r_dist) / 200.0
-                   distance_penalty_or_bonus = furlong_diff * 1.0
+                       time_diff = r_time - past_base_time
+                       furlong_diff = (target_distance - r_dist) / 200.0
+                       distance_penalty_or_bonus = furlong_diff * 1.0
 
-                   past_c_rank = class_rank_map.get(r_class.replace("クラス", ""), 3)
-                   target_c_rank = class_rank_map.get(target_cls.replace("クラス", ""), 3)
-                   class_diff = target_c_rank - past_c_rank
-                   
-                   class_level_penalty = 0.0
-                   if class_diff > 0:
-                       class_level_penalty = class_diff * 0.25 
-                   elif class_diff < 0:
-                       class_level_penalty = class_diff * 0.20 
+                       past_c_rank = class_rank_map.get(r_class.replace("クラス", ""), 3)
+                       target_c_rank = class_rank_map.get(target_cls.replace("クラス", ""), 3)
+                       class_diff = target_c_rank - past_c_rank
+                       class_level_penalty = (class_diff * 0.25) if class_diff > 0 else (class_diff * 0.20)
 
-                   if is_rising_star:
-                       class_level_penalty = 0.0
-                       time_diff -= 0.2
+                       if is_rising_star:
+                           class_level_penalty = 0.0
+                           time_diff -= 0.2
 
-                   converted_time = target_base_seconds + time_diff + distance_penalty_or_bonus + class_level_penalty
-                   derived_times.append(converted_time)
-               
-               if not derived_times:
-                   return 0.0
-               
-               median_derived = np.median(derived_times)
-               time_advantage = target_base_seconds - median_derived
-               return max(-5.0, min(12.0, time_advantage * 3.0))
+                       converted_time = target_base_seconds + time_diff + distance_penalty_or_bonus + class_level_penalty
+                       derived_times.append(converted_time)
 
-           soha_scores = recent_master_data.groupby('馬名').apply(calc_soha_theory_score).to_dict()
-           for hname, sscore in soha_scores.items():
-               horse_soha_theory_map[hname] = sscore
+                   # 2. 基準上がり3Fタイム比較
+                   if not pd.isna(r_f3_time) and r_f3_time > 0:
+                       past_base_f3 = 0.0
+                       if f3_master_df is not None:
+                           f3_match = f3_master_df[
+                               (f3_master_df['競馬場'].str.contains(r_course, na=False)) &
+                               (f3_master_df['芝/ダート'] == r_surface_keyword) &
+                               (f3_master_df['距離_num'] == r_dist) &
+                               (f3_master_df['クラス'].str.contains(r_class_keyword, na=False))
+                           ]
+                           if f3_match.empty:
+                               f3_match = f3_master_df[
+                                   (f3_master_df['競馬場'].str.contains(r_course, na=False)) &
+                                   (f3_master_df['芝/ダート'] == r_surface_keyword) &
+                                   (f3_master_df['距離_num'] == r_dist)
+                               ]
+                           if not f3_match.empty:
+                               b_col = r_baba if r_baba in ['良', '稍重', '重', '不良'] else '良'
+                               if b_col in f3_match.columns:
+                                   past_base_f3 = pd.to_numeric(f3_match.iloc[0][b_col], errors='coerce')
+
+                       if pd.isna(past_base_f3) or past_base_f3 <= 0:
+                           past_base_f3 = 34.5 if r_surface_keyword == "芝" else 37.0
+
+                       f3_diff = r_f3_time - past_base_f3
+                       converted_f3 = target_base_f3 + f3_diff
+                       derived_f3s.append(converted_f3)
+
+               # 集計スコア算出
+               soha_score = 0.0
+               if derived_times:
+                   median_derived = np.median(derived_times)
+                   time_advantage = target_base_seconds - median_derived
+                   soha_score = max(-5.0, min(12.0, time_advantage * 3.0))
+
+               f3_score = 0.0
+               if derived_f3s:
+                   median_f3 = np.median(derived_f3s)
+                   f3_advantage = target_base_f3 - median_f3
+                   f3_score = max(-3.0, min(10.0, f3_advantage * 2.5 * f3_weight_factor))
+
+               # 直線距離別の比率適用（走破タイム比率 ＆ 上がり3F比率）
+               if straight_length < 320:
+                   # 短いコース: 走破タイム 80% / 上がり3F 20%
+                   combined_score = (soha_score * 0.8) + (f3_score * 0.2)
+               elif 320 <= straight_length < 400:
+                   # 中距離コース: 走破タイム 70% / 上がり3F 30%
+                   combined_score = (soha_score * 0.7) + (f3_score * 0.3)
+               else:
+                   # 長いコース: 走破タイム 40% / 上がり3F 60%
+                   combined_score = (soha_score * 0.4) + (f3_score * 0.6)
+
+               return pd.Series({'soha_score': soha_score, 'f3_score': f3_score, 'combined_score': combined_score})
+
+           theories_df = recent_master_data.groupby('馬名').apply(calc_theories_score)
+           if not theories_df.empty:
+               if 'soha_score' in theories_df.columns:
+                   horse_soha_theory_map = theories_df['soha_score'].to_dict()
+               if 'f3_score' in theories_df.columns:
+                   horse_f3_theory_bonus_map = theories_df['f3_score'].to_dict()
+               if 'combined_score' in theories_df.columns:
+                   horse_course_fit_map = theories_df['combined_score'].to_dict() # 統合スコアを活用
 
            if '着順' in recent_master_data.columns:
                recent_master_data['着順_num'] = pd.to_numeric(recent_master_data['着順'], errors='coerce')
@@ -441,16 +520,6 @@ if df_race is not None and not df_race.empty:
                for hname, af in avg_finishes.items():
                    if not pd.isna(af):
                        horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
-
-           if '上がり3Fタイム' in recent_master_data.columns:
-               recent_master_data['上がり3F_num'] = pd.to_numeric(recent_master_data['上がり3Fタイム'], errors='coerce')
-               avg_f3 = recent_master_data.groupby('馬名')['上がり3F_num'].mean()
-               if not avg_f3.empty:
-                   mean_all_f3 = avg_f3.mean()
-                   f3_diffs = (mean_all_f3 - avg_f3).to_dict()
-                   for hname, fd in f3_diffs.items():
-                       if not pd.isna(fd):
-                           horse_f3_bonus_map[hname] = max(-3.0, min(10.0, fd * 2.5 * f3_weight_factor))
 
            if '距離' in recent_master_data.columns:
                recent_master_data['距離_num'] = pd.to_numeric(recent_master_data['距離'], errors='coerce')
@@ -466,22 +535,6 @@ if df_race is not None and not df_race.empty:
                for hname, fscore in fit_scores.items():
                    horse_distance_fit_map[hname] = fscore
 
-           if '場所' in recent_master_data.columns and '着順' in recent_master_data.columns and '芝・ダ' in recent_master_data.columns:
-               def calc_course_fit(group):
-                   fit_bonus = 0.0
-                   for _, row in group.iterrows():
-                       m_place = str(row.get('場所', ''))
-                       m_surface = str(row.get('芝・ダ', ''))
-                       m_fin = pd.to_numeric(row.get('着順', 99), errors='coerce')
-                       if place_name in m_place and surface in m_surface:
-                           if m_fin == 1: fit_bonus += 2.0  
-                           elif m_fin <= 3: fit_bonus += 1.0  
-                   return min(6.0, fit_bonus)
-
-               course_fits = recent_master_data.groupby('馬名').apply(calc_course_fit).to_dict()
-               for hname, cfit in course_fits.items():
-                   horse_course_fit_map[hname] = cfit
-
        n_horses = len(res_df)
        win_counts = np.zeros(n_horses)
        place_counts = np.zeros(n_horses)
@@ -496,27 +549,27 @@ if df_race is not None and not df_race.empty:
                wakuban = int(r.get('枠番', 1)) if pd.notnull(r.get('枠番', 1)) else 1
 
                ability_bonus = horse_ability_map.get(hname, 2.5)
-               f3_bonus = horse_f3_bonus_map.get(hname, 0.0)
-               dist_fit_bonus = horse_distance_fit_map.get(hname, 0.0)
-               course_fit_bonus = horse_course_fit_map.get(hname, 0.0)
                soha_theory_bonus = horse_soha_theory_map.get(hname, 0.0) 
+               f3_theory_bonus = horse_f3_theory_bonus_map.get(hname, 0.0) 
+               dist_fit_bonus = horse_distance_fit_map.get(hname, 0.0)
+               combined_theory_bonus = horse_course_fit_map.get(hname, 0.0)
 
                toughness_effect = (toughness_val - 1.0) * 4.0
-               base_score = 70.0 + ability_bonus + soha_theory_bonus + dist_fit_bonus + course_fit_bonus + np.random.normal(0, 3.0)
+               base_score = 70.0 + ability_bonus + combined_theory_bonus + dist_fit_bonus + np.random.normal(0, 3.0)
 
                if toughness_val >= 1.2 and kyakushitsu in ["逃げ", "先行"]:
                    base_score += toughness_effect * 1.5
 
-               if straight_length <= 320:
+               if straight_length < 320:
                    if kyakushitsu in ["逃げ", "先行"]: base_score += 5.0
                    elif kyakushitsu in ["差し", "追込"]: base_score -= 2.0
 
                if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
                    base_score += 3.0
                elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
-                   base_score += 4.5 + (f3_bonus * 0.9)
+                   base_score += 4.5 + (f3_theory_bonus * 0.9)
                else:
-                   base_score += (f3_bonus * 0.6)
+                   base_score += (f3_theory_bonus * 0.6)
 
                if bias == "内有利" and wakuban <= 3: base_score += 3.0
                elif bias == "外有利" and wakuban >= 6: base_score += 3.0
@@ -542,7 +595,7 @@ if df_race is not None and not df_race.empty:
        sim_scores_mean = []
        for idx, r in res_df.iterrows():
            hname = str(r.get('馬名', ''))
-           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_soha_theory_map.get(hname, 0.0) + horse_distance_fit_map.get(hname, 0.0) + horse_course_fit_map.get(hname, 0.0)
+           b_score = 70.0 + horse_ability_map.get(hname, 2.5) + horse_course_fit_map.get(hname, 0.0) + horse_distance_fit_map.get(hname, 0.0)
            sim_scores_mean.append(b_score)
 
        res_df['temp_score'] = sim_scores_mean
@@ -560,16 +613,17 @@ if df_race is not None and not df_race.empty:
        return res_df
 
    st.markdown("<br>", unsafe_allow_html=True)
-   if st.button("🚀 クラス完全連動・走破タイム理論シミュレーションを実行"):
-       with st.spinner(f"{race_place} {race_class}（{race_surface}{race_distance}m）の公式基準タイムと走破タイム理論を反映して10,000回シミュレーションを実行中..."):
+   if st.button("🚀 基準タイム＆基準上がり3F完全連動シミュレーションを実行"):
+       with st.spinner(f"{race_place} {race_class}（{race_surface}{race_distance}m）の基準タイム・基準上がり3Fデータを反映してシミュレーションを実行中..."):
            st.session_state['df_simulated'] = run_monte_carlo_simulation(
                df_race, selected_pace, selected_bias, selected_condition, master_df, race_category, 
-               distance_strictness, straight_len, race_place, race_surface, course_toughness, race_class, df_base_master, num_simulations=10000
+               distance_strictness, straight_len, race_place, race_surface, course_toughness, race_class, 
+               df_base_master, df_f3_master, num_simulations=10000
            )
            st.session_state['sim_executed'] = True
 
    if st.session_state.get('sim_executed', False) and 'df_simulated' in st.session_state:
-       st.markdown(f"<br><h3>🏆 10,000回シミュレーション結果（{race_place} {race_class} / 公式基準タイム連動）</h3>", unsafe_allow_html=True)
+       st.markdown(f"<br><h3>🏆 10,000回シミュレーション結果（{race_place} {race_class} / 基準上がり3F理論連動）</h3>", unsafe_allow_html=True)
 
        df_simulated = st.session_state['df_simulated']
        display_columns = [c for c in ['着順予測', '馬番', '馬名', 'オッズ', '脚質', '得意馬場', '勝率(%)', '連対率(%)', '複勝率(%)', '予測走破タイム'] if c in df_simulated.columns]
