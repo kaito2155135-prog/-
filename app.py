@@ -509,7 +509,7 @@ if df_race is not None and not df_race.empty:
                elif 320 <= straight_length < 400:
                    combined_score = (soha_score * 0.7) + (f3_score * 0.3)
                else:
-                   combined_score = (soha_score * 0.4) + (f3_score * 0.6)
+                   combined_score = (soha_score * 0.6) + (f3_score * 0.4)
 
                return pd.Series({'soha_score': soha_score, 'f3_score': f3_score, 'combined_score': combined_score})
 
