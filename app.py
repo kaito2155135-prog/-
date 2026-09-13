@@ -4,7 +4,11 @@ import numpy as np
 import os
 import json
 
-st.set_page_config(page_title="本格競馬展開シミュレーター（基準上がり3F・走破タイム完全連動版）", layout="wide")
+st.set_page_config(
+    page_title="本格競馬展開シミュレーター（基準上がり3F・走破タイム完全連動版）",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 st.markdown("""
    <style>
@@ -206,7 +210,7 @@ if df_race is not None and not df_race.empty:
 
    st.markdown(f"""
        <div class="race-info-box">
-           <h3 style="margin: 0; color: #f1c40f;">📌 読み込み済みレース条件（基準タイム・基準上がり3F完全連動）</h3>
+           <h3 style="margin: 0; color: #f1c40f;">📌 読み込み済みレース条件（距離別200m補正・完全連動版）</h3>
            <p style="font-size: 18px; margin: 5px 0 0 0;">
                <b>競馬場:</b> {race_place} (直線: {straight_len}m) &nbsp;|&nbsp;
                <b>馬場種別:</b> {race_surface} &nbsp;|&nbsp;
@@ -329,7 +333,7 @@ if df_race is not None and not df_race.empty:
            else:
                target_base_seconds = (target_distance / 1000.0) * 59.0
 
-       # 2. 基準上がり3Fタイムの取得（ターゲット条件）
+       # 2. 基準上がり3Fタイムの取得
        target_base_f3 = 0.0
        if f3_master_df is not None:
            match_f3 = f3_master_df[
@@ -387,7 +391,6 @@ if df_race is not None and not df_race.empty:
                "G3": 6, "G2": 7, "G1": 8
            }
 
-           # 走破タイム理論 ＆ 基準上がり3F理論の統合計算関数（ダート上がり3F：昇級+0.15秒、降級-0.1秒対応）
            def calc_theories_score(group):
                derived_times = []
                derived_f3s = []
@@ -412,12 +415,10 @@ if df_race is not None and not df_race.empty:
                    if pd.isna(r_dist) or r_dist <= 0:
                        continue
 
-                   # クラスランク差の計算（ターゲット - 過去）
                    past_c_rank = class_rank_map.get(r_class.replace("クラス", ""), 3)
                    target_c_rank = class_rank_map.get(target_cls.replace("クラス", ""), 3)
                    class_diff = target_c_rank - past_c_rank
 
-                   # 1. 全体基準タイム比較
                    if not pd.isna(r_time) and r_time > 0:
                        past_base_time = 0.0
                        if base_master_df is not None:
@@ -442,9 +443,20 @@ if df_race is not None and not df_race.empty:
 
                        time_diff = r_time - past_base_time
                        furlong_diff = (target_distance - r_dist) / 200.0
-                       distance_penalty_or_bonus = furlong_diff * 1.0
+                       
+                       # ★【ここを修正】距離カテゴリごとに200m（1F）あたりのタイム増減率（重み）を可変に変更
+                       if target_distance <= 1400:
+                           furlong_weight = 1.15  # 短距離はスピードの持続力が大きく影響
+                       elif target_distance <= 1800:
+                           furlong_weight = 1.00  # マイル基準
+                       elif target_distance <= 2200:
+                           furlong_weight = 0.85  # 中距離はスタッミナ配分を考慮してやや緩やか
+                       else:
+                           furlong_weight = 0.70  # 長距離は極端な変化を抑える
 
-                       class_level_penalty = (class_diff * 0.25) if class_diff > 0 else (class_diff * 0.20)
+                       distance_penalty_or_bonus = furlong_diff * furlong_weight
+
+                       class_level_penalty = (class_diff * 0.20) if class_diff > 0 else (class_diff * 0.15)
 
                        if is_rising_star:
                            class_level_penalty = 0.0
@@ -453,7 +465,6 @@ if df_race is not None and not df_race.empty:
                        converted_time = target_base_seconds + time_diff + distance_penalty_or_bonus + class_level_penalty
                        derived_times.append(converted_time)
 
-                   # 2. 基準上がり3Fタイム比較
                    if not pd.isna(r_f3_time) and r_f3_time > 0:
                        past_base_f3 = 0.0
                        if f3_master_df is not None:
@@ -479,18 +490,16 @@ if df_race is not None and not df_race.empty:
 
                        f3_diff = r_f3_time - past_base_f3
                        
-                       # ダート限定の上がり3Fクラス補正（昇級時は+0.15秒/クラス、降級時は-0.1秒/クラス）
                        f3_class_adjustment = 0.0
                        if r_surface_keyword == "ダート":
                            if class_diff > 0:
-                               f3_class_adjustment = class_diff * 0.15  # 昇級時ペナルティ
+                               f3_class_adjustment = class_diff * 0.15
                            elif class_diff < 0:
-                               f3_class_adjustment = class_diff * 0.1   # 降級時ボーナス（class_diffが負のため自動でマイナス補正）
+                               f3_class_adjustment = class_diff * 0.1
 
                        converted_f3 = target_base_f3 + f3_diff + f3_class_adjustment
                        derived_f3s.append(converted_f3)
 
-               # 集計スコア算出
                soha_score = 0.0
                if derived_times:
                    median_derived = np.median(derived_times)
@@ -503,7 +512,6 @@ if df_race is not None and not df_race.empty:
                    f3_advantage = target_base_f3 - median_f3
                    f3_score = max(-3.0, min(10.0, f3_advantage * 2.5 * f3_weight_factor))
 
-               # 直線距離別の比率適用（短い80:20、中距離70:30、長い40:60）
                if straight_length < 320:
                    combined_score = (soha_score * 0.8) + (f3_score * 0.2)
                elif 320 <= straight_length < 400:
