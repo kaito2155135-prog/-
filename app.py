@@ -100,8 +100,26 @@ if os.path.exists(csv_filename):
   except:
     master_df = pd.read_csv(csv_filename, encoding="cp932")
 
-if master_df is not None and "馬名" in master_df.columns:
-  master_df["馬名_clean"] = master_df["馬名"].apply(normalize_horse_name)
+# JRA中央の10場以外の地方レースデータを自動除外するフィルター
+if master_df is not None:
+  if "馬名" in master_df.columns:
+    master_df["馬名_clean"] = master_df["馬名"].apply(normalize_horse_name)
+  if "場所" in master_df.columns:
+    jra_places = [
+        "東京",
+        "中山",
+        "京都",
+        "阪神",
+        "中京",
+        "札幌",
+        "函館",
+        "福島",
+        "新潟",
+        "小倉",
+    ]
+    master_df = master_df[
+        master_df["場所"].astype(str).str.contains("|".join(jra_places), na=False)
+    ].copy()
 
 master_data = master_df
 
@@ -730,7 +748,7 @@ if df_race is not None and not df_race.empty:
       combined_theory_bonus = horse_course_fit_map.get(hname_clean, 0.0)
 
       toughness_effect = (toughness_val - 1.0) * 4.0
-      
+
       # 統合指数（走破タイム理論 × 上がり3F理論の合体スコア）
       total_score = (
           70.0
@@ -765,7 +783,9 @@ if df_race is not None and not df_race.empty:
       scored_horses.append(total_score)
 
     res_df["統合指数"] = scored_horses
-    res_df = res_df.sort_values(by="統合指数", ascending=False).reset_index(drop=True)
+    res_df = res_df.sort_values(by="統合指数", ascending=False).reset_index(
+        drop=True
+    )
     res_df["着順予測"] = range(1, len(res_df) + 1)
 
     # 予測走破タイムの算出（走破タイム理論直結）
@@ -773,7 +793,6 @@ if df_race is not None and not df_race.empty:
     for i in range(len(res_df)):
       hname_clean = str(res_df.iloc[i].get("馬名_clean", ""))
       time_mod = -horse_soha_theory_map.get(hname_clean, 0.0) * 0.1
-      # 順位に応じて綺麗にタイム差を反映（上位ほど基準タイムに肉薄・短縮）
       t = target_base_seconds - 1.5 + (i * 0.3) + time_mod
       times.append(round(max(target_base_seconds - 3.0, t), 1))
 
