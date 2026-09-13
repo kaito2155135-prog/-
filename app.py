@@ -13,7 +13,7 @@ def normalize_horse_name(name):
 
 
 st.set_page_config(
-    page_title="本格競馬展開シミュレーター（走破タイム×上がり3F完全統合版）",
+    page_title="本格競馬展開シミュレーター（ライジングスター対応版）",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -52,7 +52,7 @@ st.markdown(
 )
 
 st.markdown(
-    "<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（走破タイム×上がり3F完全統合版）</h2>",
+    "<h2 style='text-align: center; color: #f1c40f;'>本格競馬展開シミュレーター（ライジングスター対応版）</h2>",
     unsafe_allow_html=True,
 )
 
@@ -326,7 +326,7 @@ if df_race is not None and not df_race.empty:
   st.markdown(
       f"""
        <div class="race-info-box">
-           <h3 style="margin: 0; color: #f1c40f;">📌 読み込み済みレース条件（統合インデックス版）</h3>
+           <h3 style="margin: 0; color: #f1c40f;">📌 読み込み済みレース条件（ライジングスター対応版）</h3>
            <p style="font-size: 18px; margin: 5px 0 0 0;">
                <b>競馬場:</b> {race_place} (直線: {straight_len}m) &nbsp;|&nbsp;
                <b>馬場種別:</b> {race_surface} &nbsp;|&nbsp;
@@ -516,6 +516,7 @@ if df_race is not None and not df_race.empty:
     horse_f3_theory_bonus_map = {}
     horse_course_fit_map = {}
     horse_soha_theory_map = {}
+    rising_star_map = {}  # ライジングスター（2連勝中）判定用マップ
 
     if master_data is not None and "馬名_clean" in master_data.columns:
       sort_cols = [c for c in ["年", "月", "日"] if c in master_data.columns]
@@ -553,6 +554,19 @@ if df_race is not None and not df_race.empty:
           "G1": 8,
       }
 
+      # 各馬の直近レースにおけるライジングスター（2連勝中）判定
+      # master_data全体（日付降順ソート済み）から直近2走の着順をチェック
+      for hname, group in filtered_master.groupby("馬名_clean"):
+        if "着順" in group.columns and len(group) >= 2:
+          top2 = group.head(2)
+          finishes = pd.to_numeric(top2["着順"], errors="coerce").tolist()
+          if len(finishes) == 2 and finishes[0] == 1 and finishes[1] == 1:
+            rising_star_map[hname] = True
+          else:
+            rising_star_map[hname] = False
+        else:
+          rising_star_map[hname] = False
+
       def calc_theories_score(group):
         if "馬名_clean" in group.columns and not group["馬名_clean"].empty:
           h_name = str(group["馬名_clean"].iloc[0])
@@ -560,6 +574,8 @@ if df_race is not None and not df_race.empty:
           h_name = normalize_horse_name(str(group["馬名"].iloc[0]))
         else:
           h_name = str(group.name) if group.name else "不明"
+
+        is_rising = rising_star_map.get(h_name, False)
 
         derived_times = []
         derived_f3s = []
@@ -633,9 +649,14 @@ if df_race is not None and not df_race.empty:
               furlong_weight = 0.70
 
             distance_penalty_or_bonus = furlong_diff * furlong_weight
-            class_level_penalty = (
-                (class_diff * 0.20) if class_diff > 0 else (class_diff * 0.15)
-            )
+
+            # ライジングスター（2連勝中）の場合はクラス補正を適用外（0に）にする
+            if is_rising:
+              class_level_penalty = 0.0
+            else:
+              class_level_penalty = (
+                  (class_diff * 0.20) if class_diff > 0 else (class_diff * 0.15)
+              )
 
             converted_time = (
                 target_base_seconds
@@ -643,6 +664,11 @@ if df_race is not None and not df_race.empty:
                 + distance_penalty_or_bonus
                 + class_level_penalty
             )
+
+            # ライジングスターの場合はさらに今回レースの基準タイムから-0.2秒のボーナス
+            if is_rising:
+              converted_time -= 0.2
+
             derived_times.append(converted_time)
 
           if not pd.isna(r_f3_time) and r_f3_time > 0:
@@ -656,9 +682,9 @@ if df_race is not None and not df_race.empty:
               ]
               if f3_match.empty:
                 f3_match = f3_master_df[
-                    (f3_master_df["競馬場"].str.contains(r_course, na=False))
-                    & (f3_master_df["芝/ダート"] == r_surface_keyword)
-                    & (f3_master_df["距離_num"] == r_dist)
+                    (f3_match["競馬場"].str.contains(r_course, na=False))
+                    & (f3_match["芝/ダート"] == r_surface_keyword)
+                    & (f3_match["距離_num"] == r_dist)
                 ]
               if not f3_match.empty:
                 b_col = (
@@ -674,11 +700,12 @@ if df_race is not None and not df_race.empty:
 
             f3_diff = r_f3_time - past_base_f3
             f3_class_adjustment = 0.0
-            if r_surface_keyword == "ダート":
-              if class_diff > 0:
-                f3_class_adjustment = class_diff * 0.15
-              elif class_diff < 0:
-                f3_class_adjustment = class_diff * 0.1
+            if not is_rising:
+              if r_surface_keyword == "ダート":
+                if class_diff > 0:
+                  f3_class_adjustment = class_diff * 0.15
+                elif class_diff < 0:
+                  f3_class_adjustment = class_diff * 0.1
 
             converted_f3 = target_base_f3 + f3_diff + f3_class_adjustment
             derived_f3s.append(converted_f3)
@@ -708,6 +735,7 @@ if df_race is not None and not df_race.empty:
             "soha_score": soha_score,
             "f3_score": f3_score,
             "combined_score": combined_score,
+            "is_rising_star": is_rising,
         })
 
       theories_df = recent_master_data.groupby("馬名_clean").apply(
@@ -734,8 +762,9 @@ if df_race is not None and not df_race.empty:
           if not pd.isna(af):
             horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
 
-    # 決定論的スコア算出（モンテカルロ法を完全に排除）
+    # 決定論的スコア算出
     scored_horses = []
+    rising_star_flags = []
     for idx, r in res_df.iterrows():
       hname_clean = str(r.get("馬名_clean", ""))
       kyakushitsu = str(r.get("脚質", "差し"))
@@ -746,10 +775,12 @@ if df_race is not None and not df_race.empty:
       soha_theory_bonus = horse_soha_theory_map.get(hname_clean, 0.0)
       f3_theory_bonus = horse_f3_theory_bonus_map.get(hname_clean, 0.0)
       combined_theory_bonus = horse_course_fit_map.get(hname_clean, 0.0)
+      is_rising = rising_star_map.get(hname_clean, False)
+      rising_star_flags.append("🌟 2連勝中" if is_rising else "-")
 
       toughness_effect = (toughness_val - 1.0) * 4.0
 
-      # 統合指数（走破タイム理論 × 上がり3F理論の合体スコア）
+      # 統合指数算出
       total_score = (
           70.0
           + ability_bonus
@@ -757,6 +788,10 @@ if df_race is not None and not df_race.empty:
           + (soha_theory_bonus * 1.5)
           + (f3_theory_bonus * 1.0)
       )
+
+      # ライジングスターの勢いボーナス追加加点
+      if is_rising:
+        total_score += 4.0
 
       if toughness_val >= 1.2 and kyakushitsu in ["逃げ", "先行"]:
         total_score += toughness_effect * 1.5
@@ -783,12 +818,13 @@ if df_race is not None and not df_race.empty:
       scored_horses.append(total_score)
 
     res_df["統合指数"] = scored_horses
+    res_df["ライジングスター"] = rising_star_flags
     res_df = res_df.sort_values(by="統合指数", ascending=False).reset_index(
         drop=True
     )
     res_df["着順予測"] = range(1, len(res_df) + 1)
 
-    # 予測走破タイムの算出（走破タイム理論直結）
+    # 予測走破タイムの算出
     times = []
     for i in range(len(res_df)):
       hname_clean = str(res_df.iloc[i].get("馬名_clean", ""))
@@ -824,7 +860,7 @@ if df_race is not None and not df_race.empty:
   if st.session_state.get("sim_executed", False) and "df_simulated" in st.session_state:
     st.markdown(
         f"<br><h3>🏆 総合指数ランキング（{race_place} {race_class} /"
-        " 走破タイム・上がり3F完全統合版）</h3>",
+        " ライジングスター対応版）</h3>",
         unsafe_allow_html=True,
     )
 
@@ -835,6 +871,7 @@ if df_race is not None and not df_race.empty:
             "着順予測",
             "馬番",
             "馬名",
+            "ライジングスター",
             "オッズ",
             "脚質",
             "得意馬場",
