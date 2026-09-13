@@ -508,32 +508,33 @@ if df_race is not None and not df_race.empty:
           "G1": 8,
       }
 
-            def calc_theories_score(group):
+      def calc_theories_score(group):
         derived_times = []
         derived_f3s = []
         is_rising_star = False
 
         if len(group) >= 2:
-          # 着順のデータを文字列化してから数字以外（「着」やスペースなど）を強力に除去し、数値に変換
           cleaned_finishes = []
           for val in group["着順"].head(2):
             val_str = str(val).strip()
-            # 数字のみを抽出（例: "1着" -> "1", " 1 " -> "1"）
             import re
 
             match = re.search(r"(\d+)", val_str)
             if match:
               cleaned_finishes.append(int(match.group(1)))
             else:
-              cleaned_finishes.append(999)  # 取得できない場合は除外用ダミー
+              cleaned_finishes.append(999)
 
-          # 直近2走が連続して1着（1）であるかを判定
           if (
               len(cleaned_finishes) >= 2
               and cleaned_finishes[0] == 1
               and cleaned_finishes[1] == 1
           ):
             is_rising_star = True
+
+        for _, row in group.iterrows():
+          # (以降の処理続く)
+
 
         for _, row in group.iterrows():
           r_course = str(
