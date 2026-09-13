@@ -1,8 +1,16 @@
 import json
 import os
+import unicodedata
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+
+def normalize_horse_name(name):
+  if not isinstance(name, str):
+    return ""
+  return unicodedata.normalize("NFKC", name).strip()
+
 
 st.set_page_config(
     page_title="本格競馬展開シミュレーター（基準上がり3F・走破タイム完全連動版）",
@@ -92,6 +100,9 @@ if os.path.exists(csv_filename):
   except:
     master_df = pd.read_csv(csv_filename, encoding="cp932")
 
+if master_df is not None and "馬名" in master_df.columns:
+  master_df["馬名_clean"] = master_df["馬名"].apply(normalize_horse_name)
+
 st.sidebar.markdown("### 📥 出馬表スクショから読み込む")
 uploaded_image = st.sidebar.file_uploader(
     "出馬表の画像をアップロード", type=["png", "jpg", "jpeg"]
@@ -130,7 +141,6 @@ if uploaded_image is not None:
               data=image_bytes, mime_type=mime_type
           )
 
-          # 💡 モデル名を最新の "gemini-3.6-flash" に修正
           response = client.models.generate_content(
               model="gemini-3.6-flash",
               contents=[
@@ -171,10 +181,11 @@ if uploaded_image is not None:
               h_name = str(h["馬名"])
               h_name = re.sub(r"[牡牝せんセ]\s*\d+", "", h_name)
               h_name = re.sub(r"[\(\[（［].*?[\)\]））]", "", h_name)
-              h_name = h_name.strip()
+              h_name = normalize_horse_name(h_name)
               h["馬名"] = h_name
 
           df_race = pd.DataFrame(horses)
+          df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
           df_race["場所"] = meta.get("場所", "阪神")
           df_race["距離"] = float(meta.get("距離", 1200))
           df_race["芝・ダ"] = meta.get("芝・ダ", "ダート")
@@ -190,6 +201,8 @@ if uploaded_image is not None:
 
 if "custom_df_race" in st.session_state:
   df_race = st.session_state["custom_df_race"]
+  if "馬名_clean" not in df_race.columns and "馬名" in df_race.columns:
+    df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
   selected_race = "アップロードされた出馬表レース"
   meta_info = st.session_state.get("custom_race_meta", {})
 else:
@@ -210,6 +223,8 @@ else:
     race_list = master_df["レースID"].unique()
     selected_race = st.sidebar.selectbox("🎯 過去のレースを選択", race_list)
     df_race = master_df[master_df["レースID"] == selected_race].copy()
+    if "馬名_clean" not in df_race.columns and "馬名" in df_race.columns:
+      df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
     if "得意馬場" not in df_race.columns:
       df_race["得意馬場"] = "指定なし"
     meta_info = {}
@@ -287,7 +302,7 @@ if df_race is not None and not df_race.empty:
   st.markdown(
       f"""
        <div class="race-info-box">
-           <h3 style="margin: 0; color: #f1c40f;">📌 読み込み済みレース条件（モデル名更新版）</h3>
+           <h3 style="margin: 0; color: #f1c40f;">📌 読み込み済みレース条件（馬名正規化対応版）</h3>
            <p style="font-size: 18px; margin: 5px 0 0 0;">
                <b>競馬場:</b> {race_place} (直線: {straight_len}m) &nbsp;|&nbsp;
                <b>馬場種別:</b> {race_surface} &nbsp;|&nbsp;
@@ -316,6 +331,9 @@ if df_race is not None and not df_race.empty:
       else:
         df_race[c] = 1
 
+  if "馬名_clean" not in df_race.columns:
+    df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
+
   edited_df = st.data_editor(
       df_race[edit_columns],
       column_config={
@@ -341,6 +359,7 @@ if df_race is not None and not df_race.empty:
 
   for col in edit_columns:
     df_race[col] = edited_df[col]
+  df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
 
   st.markdown("---")
   col_p1, col_p2, col_p3 = st.columns(3)
@@ -475,7 +494,7 @@ if df_race is not None and not df_race.empty:
     horse_course_fit_map = {}
     horse_soha_theory_map = {}
 
-    if master_data is not None and "馬名" in master_data.columns:
+    if master_data is not None and "馬名_clean" in master_data.columns:
       sort_cols = [c for c in ["年", "月", "日"] if c in master_data.columns]
       if sort_cols:
         master_data = master_data.sort_values(by=sort_cols, ascending=False)
@@ -492,7 +511,7 @@ if df_race is not None and not df_race.empty:
       else:
         filtered_master = master_data.copy()
 
-      recent_master_data = filtered_master.groupby("馬名").head(6).copy()
+      recent_master_data = filtered_master.groupby("馬名_clean").head(6).copy()
 
       class_rank_map = {
           "新馬": 1,
@@ -512,8 +531,6 @@ if df_race is not None and not df_race.empty:
       }
 
       def calc_theories_score(group):
-        h_name_check = group.name
-
         derived_times = []
         derived_f3s = []
         is_rising_star = False
@@ -683,7 +700,7 @@ if df_race is not None and not df_race.empty:
             "combined_score": combined_score,
         })
 
-      theories_df = recent_master_data.groupby("馬名").apply(
+      theories_df = recent_master_data.groupby("馬名_clean").apply(
           calc_theories_score
       )
       if not theories_df.empty:
@@ -699,7 +716,9 @@ if df_race is not None and not df_race.empty:
             recent_master_data["着順"], errors="coerce"
         )
         avg_finishes = (
-            recent_master_data.groupby("馬名")["着順_num"].mean().to_dict()
+            recent_master_data.groupby("馬名_clean")["着順_num"]
+            .mean()
+            .to_dict()
         )
         for hname, af in avg_finishes.items():
           if not pd.isna(af):
@@ -713,21 +732,28 @@ if df_race is not None and not df_race.empty:
     for _ in range(num_simulations):
       sim_scores = []
       for idx, r in res_df.iterrows():
-        hname = str(r.get("馬名", ""))
+        hname_clean = str(r.get("馬名_clean", ""))
         kyakushitsu = str(r.get("脚質", "差し"))
         tokui_baba = str(r.get("得意馬場", "指定なし"))
         wakuban = int(r.get("枠番", 1)) if pd.notnull(r.get("枠番", 1)) else 1
 
-        ability_bonus = horse_ability_map.get(hname, 2.5)
-        soha_theory_bonus = horse_soha_theory_map.get(hname, 0.0)
-        f3_theory_bonus = horse_f3_theory_bonus_map.get(hname, 0.0)
-        combined_theory_bonus = horse_course_fit_map.get(hname, 0.0)
+        ability_bonus = horse_ability_map.get(hname_clean, 2.5)
+        soha_theory_bonus = horse_soha_theory_map.get(hname_clean, 0.0)
+        f3_theory_bonus = horse_f3_theory_bonus_map.get(hname_clean, 0.0)
+        combined_theory_bonus = horse_course_fit_map.get(hname_clean, 0.0)
+
+        try:
+          odds_val = float(r.get("オッズ", 10.0))
+        except:
+          odds_val = 10.0
+        odds_bonus = max(0.0, 15.0 / np.sqrt(max(1.0, odds_val)))
 
         toughness_effect = (toughness_val - 1.0) * 4.0
         base_score = (
             70.0
             + ability_bonus
             + combined_theory_bonus
+            + odds_bonus
             + np.random.normal(0, 3.0)
         )
 
@@ -773,11 +799,11 @@ if df_race is not None and not df_race.empty:
 
     sim_scores_mean = []
     for idx, r in res_df.iterrows():
-      hname = str(r.get("馬名", ""))
+      hname_clean = str(r.get("馬名_clean", ""))
       b_score = (
           70.0
-          + horse_ability_map.get(hname, 2.5)
-          + horse_course_fit_map.get(hname, 0.0)
+          + horse_ability_map.get(hname_clean, 2.5)
+          + horse_course_fit_map.get(hname_clean, 0.0)
       )
       sim_scores_mean.append(b_score)
 
@@ -790,8 +816,8 @@ if df_race is not None and not df_race.empty:
 
     times = []
     for i in range(len(res_df)):
-      hname = str(res_df.iloc[i].get("馬名", ""))
-      time_mod = -horse_soha_theory_map.get(hname, 0.0) * 0.1
+      hname_clean = str(res_df.iloc[i].get("馬名_clean", ""))
+      time_mod = -horse_soha_theory_map.get(hname_clean, 0.0) * 0.1
       t = (
           target_base_seconds
           + (i * 0.25)
@@ -813,7 +839,7 @@ if df_race is not None and not df_race.empty:
           selected_pace,
           selected_bias,
           selected_condition,
-          master_df,
+          master_data,
           race_category,
           straight_len,
           race_place,
