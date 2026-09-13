@@ -144,7 +144,7 @@ if uploaded_image is not None:
           )
 
           response = client.models.generate_content(
-              model="gemini-3.6-flash",
+              model="gemini-2.5-flash",
               contents=[
                   image_part,
                   (
@@ -215,7 +215,7 @@ else:
         + master_data["月"].astype(str)
         + "月"
         + master_data["日"].astype(str)
-        + " "
+        + "日 "
         + master_data["場所"]
         + " "
         + master_data["レース番号"].astype(str)
@@ -241,8 +241,12 @@ if df_race is not None and not df_race.empty:
   sample_row = df_race.iloc[0]
   race_place = str(sample_row.get("場所", "東京")).strip()
   race_surface = str(sample_row.get("芝・ダ", "芝")).strip()
-  race_class = str(sample_row.get("クラス", "1勝")).strip()
-  default_baba = str(sample_row.get("当日の馬場", "良")).strip()
+  race_class = str(
+      sample_row.get(
+          "クラス", sample_row.get("略レース名", "1勝クラス")
+      )
+  ).strip()
+  default_baba = str(sample_row.get("馬場状態", "良")).strip()
   try:
     race_distance = int(float(sample_row.get("距離", 1600)))
   except:
@@ -304,7 +308,7 @@ if df_race is not None and not df_race.empty:
   st.markdown(
       f"""
        <div class="race-info-box">
-           <h3 style="margin: 0; color: #f1c40f;">📌 読み込み済みレース条件（馬名正規化対応版）</h3>
+           <h3 style="margin: 0; color: #f1c40f;">📌 読み込み済みレース条件（修正版）</h3>
            <p style="font-size: 18px; margin: 5px 0 0 0;">
                <b>競馬場:</b> {race_place} (直線: {straight_len}m) &nbsp;|&nbsp;
                <b>馬場種別:</b> {race_surface} &nbsp;|&nbsp;
@@ -533,7 +537,6 @@ if df_race is not None and not df_race.empty:
       }
 
       def calc_theories_score(group):
-        # ▼▼▼ キーエラーを防ぐ安全な馬名取得 ▼▼▼
         if "馬名_clean" in group.columns and not group["馬名_clean"].empty:
           h_name = str(group["馬名_clean"].iloc[0])
         elif "馬名" in group.columns and not group["馬名"].empty:
@@ -573,18 +576,22 @@ if df_race is not None and not df_race.empty:
           r_f3_time = pd.to_numeric(
               row.get("上がり3Fタイム", 0), errors="coerce"
           )
-          r_baba = str(row.get("馬場", row.get("馬場状態", "良"))).strip()
+          r_baba = str(
+              row.get("馬場状態", row.get("馬場", "良"))
+          ).strip()  # 画像対応
           r_surface = str(row.get("芝・ダ", surface)).strip()
-          r_class = str(row.get("クラス", "OP")).strip()
+          r_class = str(
+              row.get("略レース名", row.get("クラス", "OP"))
+          ).strip()  # 画像対応 (略レース名を使用)
           r_surface_keyword = "ダート" if "ダ" in r_surface else "芝"
           r_surface_short = "ダ" if "ダ" in r_surface else "芝"
 
           if pd.isna(r_dist) or r_dist <= 0:
             continue
 
-          past_c_rank = class_rank_map.get(r_class.replace("クラス", ""), 3)
+          past_c_rank = class_rank_map.get(r_class.replace("クラス", ""), 1)
           target_c_rank = class_rank_map.get(
-              target_cls.replace("クラス", ""), 3
+              target_cls.replace("クラス", ""), 2
           )
           class_diff = target_c_rank - past_c_rank
 
