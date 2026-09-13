@@ -609,9 +609,7 @@ if df_race is not None and not df_race.empty:
                   62.5 if r_surface_short == "ダ" else 59.0
               )
 
-            # ▼▼▼ 修正箇所：基準タイム － 実際のタイムに変更（速いほどプラス） ▼▼▼
             time_diff = past_base_time - r_time
-            # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
             furlong_diff = (target_distance - r_dist) / 200.0
 
@@ -631,16 +629,16 @@ if df_race is not None and not df_race.empty:
 
             if is_rising_star:
               class_level_penalty = 0.0
-              time_diff += (
-                  0.2  # 修正に合わせて加点方向に調整（速い側を評価）
-              )
+              time_diff += 0.2
 
+            # ▼▼▼ 修正箇所：converted_timeの計算でtime_diffを正しくマイナスする ▼▼▼
             converted_time = (
                 target_base_seconds
                 - time_diff
                 + distance_penalty_or_bonus
                 + class_level_penalty
             )
+            # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
             derived_times.append(converted_time)
 
           if not pd.isna(r_f3_time) and r_f3_time > 0:
