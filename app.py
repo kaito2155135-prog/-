@@ -100,7 +100,6 @@ if os.path.exists(csv_filename):
   except:
     master_df = pd.read_csv(csv_filename, encoding="cp932")
 
-# JRA中央の10場以外の地方レースデータを自動除外するフィルター
 if master_df is not None:
   if "馬名" in master_df.columns:
     master_df["馬名_clean"] = master_df["馬名"].apply(normalize_horse_name)
@@ -600,7 +599,7 @@ if df_race is not None and not df_race.empty:
           if pd.isna(r_dist) or r_dist <= 0:
             continue
 
-          # 【修正】過去レースの開催場に応じたタイム補正係数（小倉の高速馬場は-10%割引、函館・札幌の時計かかる馬場は+5%補正）
+          # 【正しい補正係数】小倉は1.10（遅くして割引）、函館・札幌は0.95（速くして救済）
           past_course_multiplier = 1.0
           if "小倉" in r_course:
             past_course_multiplier = 1.10
@@ -614,7 +613,6 @@ if df_race is not None and not df_race.empty:
           class_diff = target_c_rank - past_c_rank
 
           if not pd.isna(r_time) and r_time > 0:
-            # 過去レースの走破タイム自体に、開催場に応じた補正を適用
             adjusted_r_time = r_time * past_course_multiplier
 
             past_base_time = 0.0
@@ -719,18 +717,28 @@ if df_race is not None and not df_race.empty:
         soha_score = 0.0
         if derived_times:
           sorted_times = sorted(derived_times)
-          val_to_use = (
-              sorted_times[1] if len(sorted_times) >= 2 else sorted_times[0]
-          )
+          # 【変更】2番目と3番目の平均を採用（3走未満なら存在する中で対応）
+          if len(sorted_times) >= 3:
+            val_to_use = (sorted_times[1] + sorted_times[2]) / 2.0
+          elif len(sorted_times) >= 2:
+            val_to_use = sorted_times[1]
+          else:
+            val_to_use = sorted_times[0]
+
           time_advantage = target_base_seconds - val_to_use
           soha_score = max(-5.0, min(12.0, time_advantage * 3.0))
 
         f3_score = 0.0
         if derived_f3s:
           sorted_f3s = sorted(derived_f3s)
-          f3_val_to_use = (
-              sorted_f3s[1] if len(sorted_f3s) >= 2 else sorted_f3s[0]
-          )
+          # 【変更】上がり3Fも2番目と3番目の平均を採用
+          if len(sorted_f3s) >= 3:
+            f3_val_to_use = (sorted_f3s[1] + sorted_f3s[2]) / 2.0
+          elif len(sorted_f3s) >= 2:
+            f3_val_to_use = sorted_f3s[1]
+          else:
+            f3_val_to_use = sorted_f3s[0]
+
           f3_advantage = target_base_f3 - f3_val_to_use
           f3_score = max(
               -3.0, min(10.0, f3_advantage * 2.5 * f3_weight_factor)
@@ -774,7 +782,6 @@ if df_race is not None and not df_race.empty:
           if not pd.isna(af):
             horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
 
-    # 決定論的スコア算出（今回の開催場に対する誤った補正は削除済み）
     scored_horses = []
     rising_star_flags = []
     for idx, r in res_df.iterrows():
@@ -792,7 +799,6 @@ if df_race is not None and not df_race.empty:
 
       toughness_effect = (toughness_val - 1.0) * 4.0
 
-      # 統合指数算出（ベース指数）
       raw_index = (
           70.0
           + ability_bonus
@@ -801,7 +807,6 @@ if df_race is not None and not df_race.empty:
           + (f3_theory_bonus * 1.0)
       )
 
-      # ライジングスターの勢いボーナス追加加点
       if is_rising:
         raw_index += 4.0
 
