@@ -717,13 +717,8 @@ if df_race is not None and not df_race.empty:
         soha_score = 0.0
         if derived_times:
           sorted_times = sorted(derived_times)
-          # 【変更】2番目と3番目の平均を採用（3走未満なら存在する中で対応）
-          if len(sorted_times) >= 3:
-            val_to_use = (sorted_times[1] + sorted_times[2]) / 2.0
-          elif len(sorted_times) >= 2:
-            val_to_use = sorted_times[1]
-          else:
-            val_to_use = sorted_times[0]
+          # 【変更】安定感重視のため「中央値（メディアン）」を採用
+          val_to_use = float(np.median(sorted_times))
 
           time_advantage = target_base_seconds - val_to_use
           soha_score = max(-5.0, min(12.0, time_advantage * 3.0))
@@ -731,13 +726,8 @@ if df_race is not None and not df_race.empty:
         f3_score = 0.0
         if derived_f3s:
           sorted_f3s = sorted(derived_f3s)
-          # 【変更】上がり3Fも2番目と3番目の平均を採用
-          if len(sorted_f3s) >= 3:
-            f3_val_to_use = (sorted_f3s[1] + sorted_f3s[2]) / 2.0
-          elif len(sorted_f3s) >= 2:
-            f3_val_to_use = sorted_f3s[1]
-          else:
-            f3_val_to_use = sorted_f3s[0]
+          # 【変更】上がり3Fも安定感重視で「中央値（メディアン）」を採用
+          f3_val_to_use = float(np.median(sorted_f3s))
 
           f3_advantage = target_base_f3 - f3_val_to_use
           f3_score = max(
