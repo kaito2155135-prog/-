@@ -602,7 +602,7 @@ if df_race is not None and not df_race.empty:
           # 【正しい補正係数】小倉は1.10（遅くして割引）、函館・札幌は1.0（速くして救済）
           past_course_multiplier = 1.0
           if "小倉" in r_course:
-            past_course_multiplier = 1.13
+            past_course_multiplier = 1.11
           elif "函館" in r_course or "札幌" in r_course:
             past_course_multiplier = 0.99
 
