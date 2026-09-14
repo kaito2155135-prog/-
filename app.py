@@ -735,7 +735,7 @@ if df_race is not None and not df_race.empty:
           )
 
         if straight_length < 320:
-          combined_score = (soha_score * 0.8) + (f3_score * 0.2)
+          combined_score = (soha_score * 0.75) + (f3_score * 0.25)
         elif 320 <= straight_length < 400:
           combined_score = (soha_score * 0.7) + (f3_score * 0.3)
         else:
