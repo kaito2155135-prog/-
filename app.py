@@ -554,8 +554,6 @@ if df_race is not None and not df_race.empty:
           "G1": 8,
       }
 
-      # 各馬の直近レースにおけるライジングスター（2連勝中）判定
-      # master_data全体（日付降順ソート済み）から直近2走の着順をチェック
       for hname, group in filtered_master.groupby("馬名_clean"):
         if "着順" in group.columns and len(group) >= 2:
           top2 = group.head(2)
@@ -650,7 +648,6 @@ if df_race is not None and not df_race.empty:
 
             distance_penalty_or_bonus = furlong_diff * furlong_weight
 
-            # ライジングスター（2連勝中）の場合はクラス補正を適用外（0に）にする
             if is_rising:
               class_level_penalty = 0.0
             else:
@@ -665,7 +662,6 @@ if df_race is not None and not df_race.empty:
                 + class_level_penalty
             )
 
-            # ライジングスターの場合はさらに今回レースの基準タイムから-0.2秒のボーナス
             if is_rising:
               converted_time -= 0.2
 
@@ -712,7 +708,6 @@ if df_race is not None and not df_race.empty:
 
         soha_score = 0.0
         if derived_times:
-          # タイムは小さい（速い）方が良いので、昇順ソートして上から2番目（インデックス1）を採用する
           sorted_times = sorted(derived_times)
           val_to_use = (
               sorted_times[1] if len(sorted_times) >= 2 else sorted_times[0]
@@ -722,7 +717,6 @@ if df_race is not None and not df_race.empty:
 
         f3_score = 0.0
         if derived_f3s:
-          # 上がり3Fも小さい（速い）方が良いので、昇順ソートして上から2番目（インデックス1）を採用する
           sorted_f3s = sorted(derived_f3s)
           f3_val_to_use = (
               sorted_f3s[1] if len(sorted_f3s) >= 2 else sorted_f3s[0]
@@ -770,6 +764,13 @@ if df_race is not None and not df_race.empty:
           if not pd.isna(af):
             horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
 
+    # 競馬場ごとの指数補正係数定義
+    course_coefficients = {
+        "小倉": 0.90,  # 高速馬場のため10%削る
+        "函館": 1.05,  # 洋芝でタフなため5%強める
+        "札幌": 1.05,  # 洋芝でタフなため5%強める
+    }
+
     # 決定論的スコア算出
     scored_horses = []
     rising_star_flags = []
@@ -788,8 +789,8 @@ if df_race is not None and not df_race.empty:
 
       toughness_effect = (toughness_val - 1.0) * 4.0
 
-      # 統合指数算出
-      total_score = (
+      # 統合指数算出（ベース指数）
+      raw_index = (
           70.0
           + ability_bonus
           + combined_theory_bonus
@@ -799,31 +800,35 @@ if df_race is not None and not df_race.empty:
 
       # ライジングスターの勢いボーナス追加加点
       if is_rising:
-        total_score += 4.0
+        raw_index += 4.0
 
       if toughness_val >= 1.2 and kyakushitsu in ["逃げ", "先行"]:
-        total_score += toughness_effect * 1.5
+        raw_index += toughness_effect * 1.5
 
       if straight_length < 320:
         if kyakushitsu in ["逃げ", "先行"]:
-          total_score += 5.0
+          raw_index += 5.0
         elif kyakushitsu in ["差し", "追込"]:
-          total_score -= 2.0
+          raw_index -= 2.0
 
       if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
-        total_score += 3.0
+        raw_index += 3.0
       elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
-        total_score += 4.5 + (f3_theory_bonus * 0.5)
+        raw_index += 4.5 + (f3_theory_bonus * 0.5)
 
       if bias == "内有利" and wakuban <= 3:
-        total_score += 3.0
+        raw_index += 3.0
       elif bias == "外有利" and wakuban >= 6:
-        total_score += 3.0
+        raw_index += 3.0
 
       if tokui_baba == condition:
-        total_score += 5.0
+        raw_index += 5.0
 
-      scored_horses.append(total_score)
+      # 競馬場ごとの係数を掛けて最終的な指数に調整
+      coef = course_coefficients.get(place_name, 1.0)
+      adjusted_index = raw_index * coef
+
+      scored_horses.append(adjusted_index)
 
     res_df["統合指数"] = scored_horses
     res_df["ライジングスター"] = rising_star_flags
@@ -902,4 +907,3 @@ else:
   st.info(
       "👈 サイドバーから出馬表のスクショをアップロードするか、過去データを選択してください。"
   )
-
