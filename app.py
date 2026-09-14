@@ -676,14 +676,14 @@ if df_race is not None and not df_race.empty:
             if f3_master_df is not None:
               f3_match = f3_master_df[
                   (f3_master_df["競馬場"].str.contains(r_course, na=False))
-                  & (f3_master_df["芝/ダート"] == r_surface_keyword)
+                  & (f3_master_df["芝/ダート"] == surface_keyword)
                   & (f3_master_df["距離_num"] == r_dist)
                   & (f3_master_df["クラス"].str.contains(class_keyword, na=False))
               ]
               if f3_match.empty:
                 f3_match = f3_master_df[
                     (f3_match["競馬場"].str.contains(r_course, na=False))
-                    & (f3_match["芝/ダート"] == r_surface_keyword)
+                    & (f3_match["芝/ダート"] == surface_keyword)
                     & (f3_match["距離_num"] == r_dist)
                 ]
               if not f3_match.empty:
@@ -712,14 +712,22 @@ if df_race is not None and not df_race.empty:
 
         soha_score = 0.0
         if derived_times:
-          median_derived = np.median(derived_times)
-          time_advantage = target_base_seconds - median_derived
+          # タイムは小さい（速い）方が良いので、昇順ソートして上から2番目（インデックス1）を採用する
+          sorted_times = sorted(derived_times)
+          val_to_use = (
+              sorted_times[1] if len(sorted_times) >= 2 else sorted_times[0]
+          )
+          time_advantage = target_base_seconds - val_to_use
           soha_score = max(-5.0, min(12.0, time_advantage * 3.0))
 
         f3_score = 0.0
         if derived_f3s:
-          median_f3 = np.median(derived_f3s)
-          f3_advantage = target_base_f3 - median_f3
+          # 上がり3Fも小さい（速い）方が良いので、昇順ソートして上から2番目（インデックス1）を採用する
+          sorted_f3s = sorted(derived_f3s)
+          f3_val_to_use = (
+              sorted_f3s[1] if len(sorted_f3s) >= 2 else sorted_f3s[0]
+          )
+          f3_advantage = target_base_f3 - f3_val_to_use
           f3_score = max(
               -3.0, min(10.0, f3_advantage * 2.5 * f3_weight_factor)
           )
