@@ -516,7 +516,7 @@ if df_race is not None and not df_race.empty:
     horse_f3_theory_bonus_map = {}
     horse_course_fit_map = {}
     horse_soha_theory_map = {}
-    rising_star_map = {}  # ライジングスター（2連勝中）判定用マップ
+    rising_star_map = {}
 
     if master_data is not None and "馬名_clean" in master_data.columns:
       sort_cols = [c for c in ["年", "月", "日"] if c in master_data.columns]
@@ -600,6 +600,13 @@ if df_race is not None and not df_race.empty:
           if pd.isna(r_dist) or r_dist <= 0:
             continue
 
+          # 【修正】過去レースの開催場に応じたタイム補正係数（小倉の高速馬場は-10%割引、函館・札幌の時計かかる馬場は+5%補正）
+          past_course_multiplier = 1.0
+          if "小倉" in r_course:
+            past_course_multiplier = 0.90
+          elif "函館" in r_course or "札幌" in r_course:
+            past_course_multiplier = 1.05
+
           past_c_rank = class_rank_map.get(r_class.replace("クラス", ""), 1)
           target_c_rank = class_rank_map.get(
               target_cls.replace("クラス", ""), 2
@@ -607,6 +614,9 @@ if df_race is not None and not df_race.empty:
           class_diff = target_c_rank - past_c_rank
 
           if not pd.isna(r_time) and r_time > 0:
+            # 過去レースの走破タイム自体に、開催場に応じた補正を適用
+            adjusted_r_time = r_time * past_course_multiplier
+
             past_base_time = 0.0
             if base_master_df is not None:
               m_match = base_master_df[
@@ -634,7 +644,7 @@ if df_race is not None and not df_race.empty:
                   62.5 if r_surface_short == "ダ" else 59.0
               )
 
-            time_diff = past_base_time - r_time
+            time_diff = past_base_time - adjusted_r_time
             furlong_diff = (target_distance - r_dist) / 200.0
 
             if target_distance <= 1400:
@@ -764,14 +774,7 @@ if df_race is not None and not df_race.empty:
           if not pd.isna(af):
             horse_ability_map[hname] = max(0.0, (15.0 - (af - 1) * 1.2) * 0.5)
 
-    # 競馬場ごとの指数補正係数定義
-    course_coefficients = {
-        "小倉": 0.90,  # 高速馬場のため10%削る
-        "函館": 1.05,  # 洋芝でタフなため5%強める
-        "札幌": 1.05,  # 洋芝でタフなため5%強める
-    }
-
-    # 決定論的スコア算出
+    # 決定論的スコア算出（今回の開催場に対する誤った補正は削除済み）
     scored_horses = []
     rising_star_flags = []
     for idx, r in res_df.iterrows():
@@ -824,11 +827,7 @@ if df_race is not None and not df_race.empty:
       if tokui_baba == condition:
         raw_index += 5.0
 
-      # 競馬場ごとの係数を掛けて最終的な指数に調整
-      coef = course_coefficients.get(place_name, 1.0)
-      adjusted_index = raw_index * coef
-
-      scored_horses.append(adjusted_index)
+      scored_horses.append(raw_index)
 
     res_df["統合指数"] = scored_horses
     res_df["ライジングスター"] = rising_star_flags
@@ -837,7 +836,6 @@ if df_race is not None and not df_race.empty:
     )
     res_df["着順予測"] = range(1, len(res_df) + 1)
 
-    # 予測走破タイムの算出
     times = []
     for i in range(len(res_df)):
       hname_clean = str(res_df.iloc[i].get("馬名_clean", ""))
