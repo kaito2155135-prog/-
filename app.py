@@ -602,9 +602,9 @@ if df_race is not None and not df_race.empty:
           # 【正しい補正係数】小倉は1.10（遅くして割引）、函館・札幌は1.0（速くして救済）
           past_course_multiplier = 1.0
           if "小倉" in r_course:
-            past_course_multiplier = 1.12
+            past_course_multiplier = 1.13
           elif "函館" in r_course or "札幌" in r_course:
-            past_course_multiplier = 0.98
+            past_course_multiplier = 0.99
 
           past_c_rank = class_rank_map.get(r_class.replace("クラス", ""), 1)
           target_c_rank = class_rank_map.get(
