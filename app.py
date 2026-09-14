@@ -603,9 +603,9 @@ if df_race is not None and not df_race.empty:
           # 【修正】過去レースの開催場に応じたタイム補正係数（小倉の高速馬場は-10%割引、函館・札幌の時計かかる馬場は+5%補正）
           past_course_multiplier = 1.0
           if "小倉" in r_course:
-            past_course_multiplier = 0.90
+            past_course_multiplier = 1.10
           elif "函館" in r_course or "札幌" in r_course:
-            past_course_multiplier = 1.05
+            past_course_multiplier = 0.95
 
           past_c_rank = class_rank_map.get(r_class.replace("クラス", ""), 1)
           target_c_rank = class_rank_map.get(
