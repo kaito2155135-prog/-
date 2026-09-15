@@ -22,6 +22,7 @@ st.title("🏇 JRA-VAN 自動取得テスト")
 # =========================================================
 
 try:
+
     health = requests.get(
         f"{API_BASE}/health",
         timeout=15
@@ -32,14 +33,23 @@ try:
     health_data = health.json()
 
 except Exception as e:
+
     st.error("❌ JRA-VAN APIに接続できません")
+
     st.code(str(e))
+
     st.stop()
 
 
 if health_data.get("ok") is not True:
-    st.error("❌ APIは応答しましたが、SQLiteに接続できていません")
+
+    st.error(
+        "❌ APIは応答しましたが、"
+        "SQLiteに接続できていません"
+    )
+
     st.json(health_data)
+
     st.stop()
 
 
@@ -59,18 +69,41 @@ try:
 
     response.raise_for_status()
 
-    races = response.json()
+    races_response = response.json()
 
 except Exception as e:
 
-    st.error("❌ レース一覧の取得に失敗しました")
+    st.error(
+        "❌ レース一覧の取得に失敗しました"
+    )
+
     st.code(str(e))
+
     st.stop()
 
 
-if not races:
+# =========================================================
+# APIの返り値から「races」だけ取り出す
+# =========================================================
 
-    st.warning("レースデータがありません")
+if isinstance(races_response, dict):
+
+    race_list = races_response.get(
+        "races",
+        []
+    )
+
+else:
+
+    race_list = races_response
+
+
+if not race_list:
+
+    st.warning(
+        "レースデータがありません"
+    )
+
     st.stop()
 
 
@@ -78,18 +111,27 @@ if not races:
 # レース一覧をDataFrame化
 # =========================================================
 
-df_races = pd.DataFrame(races)
+df_races = pd.DataFrame(
+    race_list
+)
 
 
 # =========================================================
 # APIから何が来ているか確認
 # =========================================================
 
-with st.expander("🔧 APIから取得したレースデータを確認"):
+with st.expander(
+    "🔧 APIから取得したレースデータを確認"
+):
 
-    st.write("取得件数：", len(df_races))
+    st.write(
+        "取得件数：",
+        len(df_races)
+    )
 
-    st.write("取得した項目：")
+    st.write(
+        "取得した項目："
+    )
 
     st.write(
         list(df_races.columns)
@@ -108,9 +150,13 @@ with st.expander("🔧 APIから取得したレースデータを確認"):
 
 if "race_id" not in df_races.columns:
 
-    st.error("❌ APIから race_id が取得できていません")
+    st.error(
+        "❌ APIから race_id が取得できていません"
+    )
 
-    st.write("現在取得している項目：")
+    st.write(
+        "現在取得している項目："
+    )
 
     st.write(
         list(df_races.columns)
@@ -125,24 +171,60 @@ if "race_id" not in df_races.columns:
 
 def make_race_label(row):
 
-    date = str(row.get("date", ""))
+    date = str(
+        row.get(
+            "date",
+            ""
+        )
+    )
 
-    venue = str(row.get("venue", ""))
+    venue = str(
+        row.get(
+            "venue",
+            ""
+        )
+    )
 
-    race_no = str(row.get("race_no", ""))
+    race_no = str(
+        row.get(
+            "race_no",
+            ""
+        )
+    )
 
-    post_time = str(row.get("post_time", ""))
+    post_time = str(
+        row.get(
+            "post_time",
+            ""
+        )
+    )
 
-    surface = str(row.get("surface", ""))
+    surface = str(
+        row.get(
+            "surface",
+            ""
+        )
+    )
 
-    distance = str(row.get("distance", ""))
+    distance = str(
+        row.get(
+            "distance",
+            ""
+        )
+    )
 
     horse_count = str(
-        row.get("horse_count", "")
+        row.get(
+            "horse_count",
+            ""
+        )
     )
 
     name = str(
-        row.get("name", "")
+        row.get(
+            "name",
+            ""
+        )
     ).strip()
 
     label = (
@@ -155,7 +237,10 @@ def make_race_label(row):
     )
 
     if name:
-        label += f"  {name}"
+
+        label += (
+            f"  {name}"
+        )
 
     return label
 
@@ -172,13 +257,22 @@ df_races["label"] = df_races.apply(
 
 st.divider()
 
-st.subheader("📅 レースを選択")
+st.subheader(
+    "📅 レースを選択"
+)
 
 
 selected_index = st.selectbox(
+
     "レース",
-    range(len(df_races)),
-    format_func=lambda i: df_races.iloc[i]["label"]
+
+    range(
+        len(df_races)
+    ),
+
+    format_func=lambda i:
+        df_races.iloc[i]["label"]
+
 )
 
 
@@ -191,7 +285,10 @@ selected_race = df_races.iloc[
 ]
 
 
-# race_id取得
+# =========================================================
+# Race ID取得
+# =========================================================
+
 race_id = str(
     selected_race["race_id"]
 )
@@ -203,7 +300,9 @@ race_id = str(
 
 st.divider()
 
-st.subheader("🏇 選択中のレース")
+st.subheader(
+    "🏇 選択中のレース"
+)
 
 
 col1, col2, col3, col4 = st.columns(4)
@@ -212,51 +311,65 @@ col1, col2, col3, col4 = st.columns(4)
 with col1:
 
     st.metric(
+
         "開催日",
+
         str(
             selected_race.get(
                 "date",
                 ""
             )
         )
+
     )
 
 
 with col2:
 
     st.metric(
+
         "競馬場",
+
         str(
             selected_race.get(
                 "venue",
                 ""
             )
         )
+
     )
 
 
 with col3:
 
     st.metric(
+
         "レース",
+
         f'{selected_race.get("race_no", "")}R'
+
     )
 
 
 with col4:
 
     st.metric(
+
         "距離",
+
         f'{selected_race.get("surface", "")}'
         f'{selected_race.get("distance", "")}m'
+
     )
 
 
 race_name = str(
+
     selected_race.get(
         "name",
         ""
     )
+
 ).strip()
 
 
@@ -278,25 +391,35 @@ st.write(
 
 st.divider()
 
-st.subheader("📋 出馬表")
+st.subheader(
+    "📋 出馬表"
+)
 
 
 try:
 
     race_response = requests.get(
+
         f"{API_BASE}/race/{race_id}",
+
         timeout=15
+
     )
 
     race_response.raise_for_status()
 
     race_data = race_response.json()
 
+
 except Exception as e:
 
-    st.error("❌ 出馬表の取得に失敗しました")
+    st.error(
+        "❌ 出馬表の取得に失敗しました"
+    )
 
-    st.code(str(e))
+    st.code(
+        str(e)
+    )
 
     st.stop()
 
@@ -347,7 +470,9 @@ display_columns = [
 available_columns = [
 
     col
+
     for col in display_columns
+
     if col in df_horses.columns
 
 ]
@@ -367,12 +492,15 @@ if "馬名" in df_display.columns:
     df_display["馬名"] = (
 
         df_display["馬名"]
+
         .astype(str)
+
         .str.replace(
             "\u3000",
             "",
             regex=False
         )
+
         .str.strip()
 
     )
