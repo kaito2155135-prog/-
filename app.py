@@ -6,7 +6,7 @@ import pandas as pd
 # 設定
 # =========================================================
 
-API_BASE = "http://127.0.0.1:5000"
+API_BASE = "https://symantec-clark-albany-ski.trycloudflare.com"
 
 st.set_page_config(
     page_title="競馬予想システム",
