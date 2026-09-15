@@ -446,6 +446,7 @@ else:
 
 st.write("DEBUG grade_code:", race_meta.get("grade_code"))
 st.write("DEBUG race_name:", race_meta.get("name"))
+st.write("DEBUG race_meta:", race_meta)
 
 horses = race_detail.get("horses", [])
 
