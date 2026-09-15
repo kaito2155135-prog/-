@@ -297,65 +297,52 @@ def surface_from_race(race):
 
 def detect_class(race_name="", grade_code=""):
     """
-    JRA-VANのレース名から既存ロジック用のクラスを作る。
-    G1/G2/G3を優先。
+    JRA-VANのgrade_codeとレース名からクラスを判定
     """
 
-    name = str(race_name)
+    race_name = str(race_name or "")
+    grade_code = str(grade_code or "").strip().upper()
 
-    # グレード
-    if "G1" in name or "Ｇ１" in name:
+    # JRA-VAN grade_code
+    grade_map = {
+        "A": "G1",
+        "B": "G2",
+        "C": "G3",
+    }
+
+    if grade_code in grade_map:
+        return grade_map[grade_code]
+
+    # レース名から判定
+    if "G1" in race_name:
         return "G1"
 
-    if "G2" in name or "Ｇ２" in name:
+    if "G2" in race_name:
         return "G2"
 
-    if "G3" in name or "Ｇ３" in name:
+    if "G3" in race_name:
         return "G3"
 
-    # リステッド
-    if "リステッド" in name or "L" in name:
-        return "リステッド"
+    if "L" in race_name:
+        return "L"
 
-    # オープン
-    if "オープン" in name or "OP" in name:
-        return "OP"
-
-    # 新馬
-    if "新馬" in name:
+    if "新馬" in race_name:
         return "新馬"
 
-    # 未勝利
-    if "未勝利" in name:
+    if "未勝利" in race_name:
         return "未勝利"
 
-    # 1勝
-    if "1勝" in name or "１勝" in name:
+    if "1勝" in race_name:
         return "1勝"
 
-    # 2勝
-    if "2勝" in name or "２勝" in name:
+    if "2勝" in race_name:
         return "2勝"
 
-    # 3勝
-    if "3勝" in name or "３勝" in name:
+    if "3勝" in race_name:
         return "3勝"
 
-    # grade_codeからの保険
-    try:
-        g = int(grade_code)
-
-        grade_map = {
-            1: "G1",
-            2: "G2",
-            3: "G3",
-        }
-
-        if g in grade_map:
-            return grade_map[g]
-
-    except Exception:
-        pass
+    if "OP" in race_name:
+        return "OP"
 
     return "OP"
 
