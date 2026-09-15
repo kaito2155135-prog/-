@@ -519,7 +519,8 @@ race_surface = surface_from_race(race_meta)
 
 race_class = detect_class(
     race_name,
-    race_meta.get("grade_code", "")
+    grade_code,
+    condition_code=race_meta.get("condition_code", "")
 )
 
 
