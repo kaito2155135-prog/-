@@ -252,13 +252,19 @@ def condition_from_code(value):
 
 def surface_from_race(race):
     """
-    API側からsurface_nameが来れば優先。
-    なければtrack_codeから判定。
+    API側のsurfaceを最優先。
+    なければ従来の項目やtrack_codeから判定。
     """
 
     surface_name = str(
-        race.get("surface_name", race.get("芝・ダ", ""))
-    )
+        race.get(
+            "surface",
+            race.get(
+                "surface_name",
+                race.get("芝・ダ", "")
+            )
+        )
+    ).strip()
 
     if "ダ" in surface_name:
         return "ダート"
@@ -266,7 +272,12 @@ def surface_from_race(race):
     if "芝" in surface_name:
         return "芝"
 
-    track_code = str(race.get("track_code", ""))
+    if "障" in surface_name:
+        return "障害"
+
+    track_code = str(
+        race.get("track_code", "")
+    )
 
     if track_code.startswith("2"):
         return "ダート"
