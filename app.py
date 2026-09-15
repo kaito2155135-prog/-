@@ -306,10 +306,13 @@ def detect_class(race_name="", grade_code="", condition_code=""):
     condition_code = str(condition_code or "").strip()
 
     condition_map = {
-        "005": "1勝",
-        "010": "2勝",
-        "016": "3勝",
-    }
+    "701": "新馬",
+    "703": "未勝利",
+    "005": "1勝",
+    "010": "2勝",
+    "016": "3勝",
+    "999": "OP",
+}
 
     if condition_code in condition_map:
         return condition_map[condition_code]
