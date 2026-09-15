@@ -1656,20 +1656,26 @@ def run_integrated_simulation(
                 ).strip()
 
                 r_class = str(
-                    row.get(
-                        "略レース名",
-                        row.get(
-                            "クラス",
-                            "OP"
-                        )
-                    )
-                ).strip()
+    row.get(
+        "略レース名",
+        row.get(
+            "クラス",
+            "OP"
+        )
+    )
+).strip()
 
-                r_surface_keyword = (
-                    "ダート"
-                    if "ダ" in r_surface
-                    else "芝"
-                )
+r_class_keyword = (
+    str(r_class)
+    .strip()
+    .replace("クラス", "")
+)
+
+r_surface_keyword = (
+    "ダート"
+    if "ダ" in r_surface
+    else "芝"
+)
 
                 r_surface_short = (
                     "ダ"
@@ -1738,36 +1744,36 @@ def run_integrated_simulation(
                     if base_master_df is not None:
 
                         m_match = base_master_df[
-                            (
-                                base_master_df["競馬場"]
-                                .astype(str)
-                                .str.contains(
-                                    r_course,
-                                    na=False
-                                )
-                            )
-                            &
-                            (
-                                base_master_df["芝/ダート"]
-                                ==
-                                r_surface_short
-                            )
-                            &
-                            (
-                                base_master_df["距離_num"]
-                                ==
-                                r_dist
-                            )
-                            &
-                            (
-                                base_master_df["クラス"]
-                                .astype(str)
-                                .str.contains(
-                                    class_keyword,
-                                    na=False
-                                )
-                            )
-                        ]
+    (
+        base_master_df["競馬場"]
+        .astype(str)
+        .str.contains(
+            r_course,
+            na=False
+        )
+    )
+    &
+    (
+        base_master_df["芝/ダート"]
+        ==
+        r_surface_short
+    )
+    &
+    (
+        base_master_df["距離_num"]
+        ==
+        r_dist
+    )
+    &
+    (
+        base_master_df["クラス"]
+        .astype(str)
+        .str.contains(
+            r_class_keyword,
+            na=False
+        )
+    )
+]
 
                         if m_match.empty:
 
