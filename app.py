@@ -1654,35 +1654,33 @@ def run_integrated_simulation(
                         surface
                     )
                 ).strip()
+                                r_class = str(
+                    row.get(
+                        "略レース名",
+                        row.get(
+                            "クラス",
+                            "OP"
+                        )
+                    )
+                ).strip()
 
-r_class = str(
-    row.get(
-        "略レース名",
-        row.get(
-            "クラス",
-            "OP"
-        )
-    )
-).strip()
+                r_class_keyword = (
+                    str(r_class)
+                    .strip()
+                    .replace("クラス", "")
+                )
 
-r_class_keyword = (
-    str(r_class)
-    .strip()
-    .replace("クラス", "")
-)
+                r_surface_keyword = (
+                    "ダート"
+                    if "ダ" in r_surface
+                    else "芝"
+                )
 
-r_surface_keyword = (
-    "ダート"
-    if "ダ" in r_surface
-    else "芝"
-)
-
-r_surface_short = (
-    "ダ"
-    if "ダ" in r_surface
-    else "芝"
-)
-
+                r_surface_short = (
+                    "ダ"
+                    if "ダ" in r_surface
+                    else "芝"
+                )
                 r_surface_short = (
                     "ダ"
                     if "ダ" in r_surface
