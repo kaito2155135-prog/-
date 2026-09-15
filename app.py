@@ -1655,7 +1655,7 @@ def run_integrated_simulation(
                     )
                 ).strip()
 
-                r_class = str(
+r_class = str(
     row.get(
         "略レース名",
         row.get(
@@ -1673,6 +1673,12 @@ r_class_keyword = (
 
 r_surface_keyword = (
     "ダート"
+    if "ダ" in r_surface
+    else "芝"
+)
+
+r_surface_short = (
+    "ダ"
     if "ダ" in r_surface
     else "芝"
 )
