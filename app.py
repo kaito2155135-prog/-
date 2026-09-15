@@ -972,9 +972,10 @@ def build_master_data_from_jv(df_current):
 
         # クラス
         historical_class = detect_class(
-            race_name,
-            h.get("grade_code", "")
-        )
+    race_name,
+    h.get("grade_code", ""),
+    condition_code=h.get("condition_code", "")
+)
 
         # 馬場状態
         baba = h.get(
