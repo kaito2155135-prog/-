@@ -120,7 +120,14 @@ selected_index = st.selectbox(
 )
 
 
-selected_race = df_races.iloc[selected_index]
+selecselected_race = df_races.iloc[selected_index]
+
+st.write("取得した項目：", list(selected_race.index))
+st.write("取得したデータ：", selected_race.to_dict())
+
+if "race_id" not in selected_race.index:
+    st.error("race_id がAPIから取得できていません")
+    st.stop()
 
 race_id = selected_race["race_id"]
 
