@@ -295,13 +295,24 @@ def surface_from_race(race):
 # クラス判定
 # =========================================================
 
-def detect_class(race_name="", grade_code=""):
+def detect_class(race_name="", grade_code="", condition_code=""):
     """
-    JRA-VANのgrade_codeとレース名からクラスを判定
+    JRA-VANのgrade_code・競走条件コード・レース名からクラスを判定
     """
 
     race_name = str(race_name or "")
     grade_code = str(grade_code or "").strip().upper()
+
+    condition_code = str(condition_code or "").strip()
+
+    condition_map = {
+        "005": "1勝",
+        "010": "2勝",
+        "016": "3勝",
+    }
+
+    if condition_code in condition_map:
+        return condition_map[condition_code]
 
     # JRA-VAN grade_code
     grade_map = {
