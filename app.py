@@ -2421,7 +2421,7 @@ if st.button(
         # ---------------------------------------------
 
         master_data = build_master_data_from_jv(
-            df_r
+            df_race
         )
 
         if master_data.empty:
@@ -2439,7 +2439,7 @@ if st.button(
         st.session_state[
             "df_simulated"
         ] = run_integrated_simulation(
-            df_r,
+            df_race,
             selected_pace,
             selected_bias,
             selected_condition,
