@@ -517,6 +517,8 @@ except Exception:
 race_surface = surface_from_race(race_meta)
 
 
+grade_code = str(race_meta.get("grade_code", "")).strip()
+
 race_class = detect_class(
     race_name,
     grade_code,
