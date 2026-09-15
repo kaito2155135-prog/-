@@ -1654,7 +1654,7 @@ def run_integrated_simulation(
                         surface
                     )
                 ).strip()
-                                r_class = str(
+                r_class = str(
                     row.get(
                         "略レース名",
                         row.get(
