@@ -457,6 +457,8 @@ if isinstance(race_detail, dict) and isinstance(
 else:
     race_meta = race_detail
 
+st.write("DEBUG grade_code:", race_meta.get("grade_code"))
+st.write("DEBUG race_name:", race_meta.get("name"))
 
 horses = race_detail.get("horses", [])
 
