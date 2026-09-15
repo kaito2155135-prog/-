@@ -481,10 +481,19 @@ race_name = race_meta.get(
 
 race_place = str(
     race_meta.get(
-        "place",
+        "venue",
         race_meta.get(
-            "場所",
-            selected_race_summary.get("place", "東京")
+            "place",
+            race_meta.get(
+                "場所",
+                selected_race_summary.get(
+                    "venue",
+                    selected_race_summary.get(
+                        "place",
+                        "不明"
+                    )
+                )
+            )
         )
     )
 ).strip()
