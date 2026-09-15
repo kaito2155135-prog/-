@@ -1929,14 +1929,14 @@ r_surface_keyword = (
                                 r_dist
                             )
                             &
-                            (
-                                f3_master_df["クラス"]
-                                .astype(str)
-                                .str.contains(
-                                    class_keyword,
-                                    na=False
-                                )
-                            )
+(
+    f3_master_df["クラス"]
+    .astype(str)
+    .str.contains(
+        r_class_keyword,
+        na=False
+    )
+)
                         ]
 
                         # ★ここが元コードのバグ修正箇所
