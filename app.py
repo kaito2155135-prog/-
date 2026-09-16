@@ -1305,19 +1305,6 @@ def run_integrated_simulation(
                                     errors="coerce"
                                 )
 
-                                base_time_debug_rows.append(
-                                    {
-                                        "馬名": h_name,
-                                        "過去走クラス": r_class,
-                                        "検索クラス": r_class_keyword,
-                                        "競馬場": r_course,
-                                        "芝/ダート": r_surface_short,
-                                        "距離": r_dist,
-                                        "馬場": b_col,
-                                        "使用基準タイム": past_base_time,
-                                    }
-                                )
-
     if (
         pd.isna(target_base_seconds)
         or target_base_seconds <= 0
