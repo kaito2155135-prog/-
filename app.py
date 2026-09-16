@@ -315,16 +315,16 @@ def detect_class(race_name="", grade_code="", condition_code=""):
 }
 
     # JRA-VAN grade_code
-grade_map = {
+　　　grade_map = {
     "A": "G1",
     "B": "G2",
     "C": "G3",
 }
 
-if grade_code in grade_map:
+　　　if grade_code in grade_map:
     return grade_map[grade_code]
 
-if condition_code in condition_map:
+　　　if condition_code in condition_map:
     return condition_map[condition_code]
     # レース名から判定
     if "G1" in race_name:
