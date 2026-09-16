@@ -2462,6 +2462,26 @@ def run_integrated_simulation(
         for t in times
     ]
 
+    # =================================================
+    # 過去走の基準タイム照合確認
+    # =================================================
+
+    if base_time_debug_rows:
+
+        with st.expander(
+            "🔍 過去走の基準タイム照合を確認"
+        ):
+
+            debug_df = pd.DataFrame(
+                base_time_debug_rows
+            )
+
+            st.dataframe(
+                debug_df,
+                use_container_width=True,
+                hide_index=True,
+            )
+
     return res_df
 
 
