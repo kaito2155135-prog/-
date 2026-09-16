@@ -1209,11 +1209,6 @@ def run_integrated_simulation(
         if "ダ" in surface
         else "芝"
     )
-    r_class_keyword = (
-        str(r_class)
-        .strip()
-        .replace("クラス", "")
-)
 
 
 
