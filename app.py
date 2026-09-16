@@ -1231,42 +1231,23 @@ def run_integrated_simulation(
     # 現在レースの基準走破タイム
     # =====================================================
 
-    target_base_seconds = 0.0
+target_base_seconds = 0.0
 
-    if base_master_df is not None:
+target_base_class = (
+    "OP" if target_cls in ["G1", "G2", "G3", "L", "OP"]
+    else class_keyword
+)
 
-        match_target = base_master_df[
-            (
-                base_master_df["競馬場"]
-                .astype(str)
-                .str.contains(
-                    place_name,
-                    na=False
-                )
-            )
-            &
-            (
-                base_master_df["芝/ダート"]
-                ==
-                (
-                    "ダ"
-                    if "ダ" in surface
-                    else "芝"
-                )
-            )
-            &
-            (
-                base_master_df["距離_num"]
-                ==
-                target_distance
-            )
-            &
-            (
- (base_master_df["クラス"].astype(str).str.contains(
-    "OP" if target_cls in ["G1", "G2", "G3", "L", "OP"] else class_keyword,
-    na=False
-))
-        ]
+if base_master_df is not None:
+    match_target = base_master_df[
+        (base_master_df["競馬場"].astype(str).str.contains(place_name, na=False))
+        &
+        (base_master_df["芝/ダート"] == ("ダ" if "ダ" in surface else "芝"))
+        &
+        (base_master_df["距離_num"] == target_distance)
+        &
+        (base_master_df["クラス"].astype(str).str.contains(target_base_class, na=False))
+    ]
 
         if match_target.empty:
 
