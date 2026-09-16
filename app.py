@@ -1445,6 +1445,17 @@ def run_integrated_simulation(
     horse_soha_theory_map = {}
     rising_star_map = {}
 
+    horse_ability_map = {}
+    horse_f3_theory_bonus_map = {}
+    horse_course_fit_map = {}
+    horse_soha_theory_map = {}
+    rising_star_map = {}
+
+    # =================================================
+    # 基準タイム照合確認用
+    # =================================================
+    base_time_debug_rows = []
+    
     # =====================================================
     # 過去走データ
     # =====================================================
