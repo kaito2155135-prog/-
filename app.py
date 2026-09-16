@@ -2068,14 +2068,25 @@ def run_integrated_simulation(
                     derived_times
                 )
 
-                val_to_use = float(
-                    np.median(
-                        sorted_times
-                    )
-                )
+val_to_use = float(
+    np.median(
+        sorted_times
+    )
+)
 
-                # 過去6走を今回条件へ換算した中央値を保存
-                horse_predicted_time_map[h_name] = val_to_use
+st.write(
+    "予測タイム確認:",
+    h_name,
+    "換算値=",
+    [round(x, 1) for x in sorted_times],
+    "中央値=",
+    round(val_to_use, 1),
+    "今回基準=",
+    round(target_base_seconds, 1)
+)
+
+# 過去6走を今回条件へ換算した中央値を保存
+horse_predicted_time_map[h_name] = val_to_use
 
                 time_advantage = (
                     target_base_seconds
