@@ -1285,30 +1285,40 @@ def run_integrated_simulation(
                 )
             ]
 
-                        if not m_match.empty:
+        if match_target.empty:
 
-                            b_col = (
-                                r_baba
-                                if r_baba in [
-                                    "良",
-                                    "稍重",
-                                    "重",
-                                    "不良"
-                                ]
-                                else "良"
-                            )
-
-                            if b_col in m_match.columns:
-
-                                past_base_time = pd.to_numeric(
-                                    m_match.iloc[0][b_col],
-                                    errors="coerce"
-                                )
+            match_target = base_master_df[
+                (
+                    base_master_df["競馬場"]
+                    .astype(str)
+                    .str.contains(
+                        place_name,
+                        na=False
+                    )
+                )
+                &
+                (
+                    base_master_df["芝/ダート"]
+                    ==
+                    (
+                        "ダ"
+                        if "ダ" in surface
+                        else "芝"
+                    )
+                )
+                &
+                (
+                    base_master_df["距離_num"]
+                    ==
+                    target_distance
+                )
+            ]
 
     if (
         pd.isna(target_base_seconds)
         or target_base_seconds <= 0
     ):
+        
         if "ダ" in surface:
             target_base_seconds = (
                 target_distance
