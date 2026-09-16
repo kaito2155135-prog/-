@@ -1209,11 +1209,18 @@ def run_integrated_simulation(
         if "ダ" in surface
         else "芝"
     )
+    r_class_keyword = (
+        str(r_class)
+        .strip()
+        .replace("クラス", "")
+)
 
-r_class_keyword = (
-    str(r_class)
-    .strip()
-    .replace("クラス", "")
+    st.write(
+        "過去走基準タイム検索:",
+        r_course,
+        r_surface_short,
+        r_dist,
+        r_class_keyword,
 )
 
 
