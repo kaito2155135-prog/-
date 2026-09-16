@@ -2396,37 +2396,37 @@ def run_integrated_simulation(
     # =====================================================
     # 予測走破タイム
     # =====================================================
-times = []
+    times = []
 
-for i in range(len(res_df)):
+    for i in range(len(res_df)):
 
-    hname_clean = str(
-        res_df.iloc[i].get(
-            "馬名_clean",
-            ""
+        hname_clean = str(
+            res_df.iloc[i].get(
+                "馬名_clean",
+                ""
+            )
         )
-    )
 
-    predicted_time = horse_predicted_time_map.get(
-        hname_clean,
-        np.nan
-    )
-
-    if pd.isna(predicted_time):
-
-        predicted_time = target_base_seconds
-
-    times.append(
-        round(
-            float(predicted_time),
-            1
+        predicted_time = horse_predicted_time_map.get(
+            hname_clean,
+            np.nan
         )
-    )
 
-res_df["予測走破タイム"] = [
-    format_time(t)
-    for t in times
-]
+        if pd.isna(predicted_time):
+
+            predicted_time = target_base_seconds
+
+        times.append(
+            round(
+                float(predicted_time),
+                1
+            )
+        )
+
+    res_df["予測走破タイム"] = [
+        format_time(t)
+        for t in times
+    ]
 
     return res_df
 
