@@ -2396,47 +2396,37 @@ if derived_times:
     # =====================================================
     # 予測走破タイム
     # =====================================================
+times = []
 
-    times = []
+for i in range(len(res_df)):
 
-    for i in range(len(res_df)):
-
-        hname_clean = str(
-            res_df.iloc[i].get(
-                "馬名_clean",
-                ""
-            )
+    hname_clean = str(
+        res_df.iloc[i].get(
+            "馬名_clean",
+            ""
         )
+    )
 
-        time_mod = (
-            -horse_soha_theory_map.get(
-                hname_clean,
-                0.0
-            )
-            * 0.1
+    predicted_time = horse_predicted_time_map.get(
+        hname_clean,
+        np.nan
+    )
+
+    if pd.isna(predicted_time):
+
+        predicted_time = target_base_seconds
+
+    times.append(
+        round(
+            float(predicted_time),
+            1
         )
+    )
 
-        t = (
-            target_base_seconds
-            - 1.5
-            + (i * 0.3)
-            + time_mod
-        )
-
-        times.append(
-            round(
-                max(
-                    target_base_seconds - 3.0,
-                    t
-                ),
-                1
-            )
-        )
-
-    res_df["予測走破タイム"] = [
-        format_time(t)
-        for t in times
-    ]
+res_df["予測走破タイム"] = [
+    format_time(t)
+    for t in times
+]
 
     return res_df
 
