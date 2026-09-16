@@ -1437,12 +1437,12 @@ def run_integrated_simulation(
             )
         )
 
-horse_ability_map = {}
-horse_f3_theory_bonus_map = {}
-horse_course_fit_map = {}
-horse_soha_theory_map = {}
-horse_predicted_time_map = {}
-rising_star_map = {}
+    horse_ability_map = {}
+    horse_f3_theory_bonus_map = {}
+    horse_course_fit_map = {}
+    horse_soha_theory_map = {}
+    horse_predicted_time_map = {}
+    rising_star_map = {}
 
     # =====================================================
     # 過去走データ
