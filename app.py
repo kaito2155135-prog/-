@@ -1228,14 +1228,14 @@ def run_integrated_simulation(
     # =====================================================
     # 現在レースの基準走破タイム
     # =====================================================
-
     target_base_seconds = 0.0
 
-    target_base_class = (
-        "OP"
-        if target_cls in ["G1", "G2", "G3", "L", "OP"]
-        else str(target_cls).strip().replace("クラス", "")
-    )
+        target_base_class = (
+            "OP"
+            if target_cls in ["G1", "G2", "G3", "L", "OP"]
+            else str(target_cls).strip().replace("クラス", "")
+        )
+    
 
     if base_master_df is not None:
 
