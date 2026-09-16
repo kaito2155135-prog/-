@@ -1,3 +1,4 @@
+
 import os
 import unicodedata
 import numpy as np
@@ -1285,40 +1286,29 @@ def run_integrated_simulation(
                 )
             ]
 
-        if match_target.empty:
+        if not match_target.empty:
 
-            match_target = base_master_df[
-                (
-                    base_master_df["競馬場"]
-                    .astype(str)
-                    .str.contains(
-                        place_name,
-                        na=False
-                    )
-                )
-                &
-                (
-                    base_master_df["芝/ダート"]
-                    ==
-                    (
-                        "ダ"
-                        if "ダ" in surface
-                        else "芝"
-                    )
-                )
-                &
-                (
-                    base_master_df["距離_num"]
-                    ==
-                    target_distance
-                )
-            ]
+            baba_col = (
+                condition
+                if condition in [
+                    "良",
+                    "稍重",
+                    "重",
+                    "不良"
+                ]
+                else "良"
+            )
+
+            target_base_seconds = pd.to_numeric(
+                match_target.iloc[0][baba_col],
+                errors="coerce"
+            )
 
     if (
         pd.isna(target_base_seconds)
         or target_base_seconds <= 0
     ):
-        
+
         if "ダ" in surface:
             target_base_seconds = (
                 target_distance
@@ -1456,17 +1446,6 @@ def run_integrated_simulation(
     horse_soha_theory_map = {}
     rising_star_map = {}
 
-    horse_ability_map = {}
-    horse_f3_theory_bonus_map = {}
-    horse_course_fit_map = {}
-    horse_soha_theory_map = {}
-    rising_star_map = {}
-
-    # =================================================
-    # 基準タイム照合確認用
-    # =================================================
-    base_time_debug_rows = []
-    
     # =====================================================
     # 過去走データ
     # =====================================================
@@ -2458,6 +2437,8 @@ def run_integrated_simulation(
         format_time(t)
         for t in times
     ]
+
+    return res_df
 
 
 # =========================================================
