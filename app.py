@@ -528,6 +528,14 @@ race_class = detect_class(
     condition_code=race_meta.get("condition_code", "")
 )
 
+st.write(
+    "クラス判定確認:",
+    race_name,
+    "grade_code=",
+    repr(grade_code),
+    "condition_code=",
+    repr(race_meta.get("condition_code", ""))
+)
 
 # 馬場状態
 surface_condition_code = (
