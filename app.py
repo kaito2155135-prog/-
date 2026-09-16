@@ -2466,6 +2466,11 @@ def run_integrated_simulation(
     # 過去走の基準タイム照合確認
     # =================================================
 
+    st.write(
+        "🔍 基準タイム照合デバッグ件数:",
+        len(base_time_debug_rows)
+    )
+
     if base_time_debug_rows:
 
         with st.expander(
