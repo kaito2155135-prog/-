@@ -1262,13 +1262,10 @@ def run_integrated_simulation(
             )
             &
             (
-                base_master_df["クラス"]
-                .astype(str)
-                .str.contains(
-                    class_keyword,
-                    na=False
-                )
-            )
+ (base_master_df["クラス"].astype(str).str.contains(
+    "OP" if target_cls in ["G1", "G2", "G3", "L", "OP"] else class_keyword,
+    na=False
+))
         ]
 
         if match_target.empty:
