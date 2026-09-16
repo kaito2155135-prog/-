@@ -459,8 +459,6 @@ if isinstance(race_detail, dict) and isinstance(
 else:
     race_meta = race_detail
 
-st.write("DEBUG race_detail:", race_detail)
-
 horses = race_detail.get("horses", [])
 
 
