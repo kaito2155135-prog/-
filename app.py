@@ -1285,44 +1285,43 @@ def run_integrated_simulation(
                 )
             ]
 
-                        if not m_match.empty:
+            if not m_match.empty:
 
-                            b_col = (
-                                r_baba
-                                if r_baba in [
-                                    "良",
-                                    "稍重",
-                                    "重",
-                                    "不良"
-                                ]
-                                else "良"
-                            )
+                b_col = (
+                    r_baba
+                    if r_baba in [
+                        "良",
+                        "稍重",
+                        "重",
+                        "不良"
+                    ]
+                    else "良"
+                )
 
-                            if b_col in m_match.columns:
+                if b_col in m_match.columns:
 
-                                past_base_time = pd.to_numeric(
-                                    m_match.iloc[0][b_col],
-                                    errors="coerce"
-                                )
+                    past_base_time = pd.to_numeric(
+                        m_match.iloc[0][b_col],
+                        errors="coerce"
+                    )
 
-                                base_time_debug_rows.append(
-                                    {
-                                        "馬名": h_name,
-                                        "過去走クラス": r_class,
-                                        "検索クラス": r_class_keyword,
-                                        "競馬場": r_course,
-                                        "芝/ダート": r_surface_short,
-                                        "距離": r_dist,
-                                        "馬場": b_col,
-                                        "使用基準タイム": past_base_time,
-                                    }
-                                )
+                    base_time_debug_rows.append(
+                        {
+                            "馬名": h_name,
+                            "過去走クラス": r_class,
+                            "検索クラス": r_class_keyword,
+                            "競馬場": r_course,
+                            "芝/ダート": r_surface_short,
+                            "距離": r_dist,
+                            "馬場": b_col,
+                            "使用基準タイム": past_base_time,
+                        }
+                    )
 
     if (
         pd.isna(target_base_seconds)
         or target_base_seconds <= 0
     ):
-
         if "ダ" in surface:
             target_base_seconds = (
                 target_distance
