@@ -314,7 +314,7 @@ def detect_class(race_name="", grade_code="", condition_code=""):
     "999": "OP",
 }
 
-　　　    # JRA-VAN grade_code
+    # JRA-VAN grade_code
     grade_map = {
         "A": "G1",
         "B": "G2",
