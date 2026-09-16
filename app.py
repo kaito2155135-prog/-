@@ -1231,23 +1231,51 @@ def run_integrated_simulation(
     # 現在レースの基準走破タイム
     # =====================================================
 
-target_base_seconds = 0.0
+    target_base_seconds = 0.0
 
-target_base_class = (
-    "OP" if target_cls in ["G1", "G2", "G3", "L", "OP"]
-    else class_keyword
-)
+    target_base_class = (
+        "OP"
+        if target_cls in ["G1", "G2", "G3", "L", "OP"]
+        else str(target_cls).strip().replace("クラス", "")
+    )
 
-if base_master_df is not None:
-    match_target = base_master_df[
-        (base_master_df["競馬場"].astype(str).str.contains(place_name, na=False))
-        &
-        (base_master_df["芝/ダート"] == ("ダ" if "ダ" in surface else "芝"))
-        &
-        (base_master_df["距離_num"] == target_distance)
-        &
-        (base_master_df["クラス"].astype(str).str.contains(target_base_class, na=False))
-    ]
+    if base_master_df is not None:
+
+        match_target = base_master_df[
+            (
+                base_master_df["競馬場"]
+                .astype(str)
+                .str.contains(
+                    place_name,
+                    na=False
+                )
+            )
+            &
+            (
+                base_master_df["芝/ダート"]
+                ==
+                (
+                    "ダ"
+                    if "ダ" in surface
+                    else "芝"
+                )
+            )
+            &
+            (
+                base_master_df["距離_num"]
+                ==
+                target_distance
+            )
+            &
+            (
+                base_master_df["クラス"]
+                .astype(str)
+                .str.contains(
+                    target_base_class,
+                    na=False
+                )
+            )
+        ]
 
         if match_target.empty:
 
@@ -1291,10 +1319,12 @@ if base_master_df is not None:
                 else "良"
             )
 
-            target_base_seconds = pd.to_numeric(
-                match_target.iloc[0][baba_col],
-                errors="coerce"
-            )
+            if baba_col in match_target.columns:
+
+                target_base_seconds = pd.to_numeric(
+                    match_target.iloc[0][baba_col],
+                    errors="coerce"
+                )
 
     if (
         pd.isna(target_base_seconds)
@@ -1302,11 +1332,14 @@ if base_master_df is not None:
     ):
 
         if "ダ" in surface:
+
             target_base_seconds = (
                 target_distance
                 / 1000.0
             ) * 62.5
+
         else:
+
             target_base_seconds = (
                 target_distance
                 / 1000.0
