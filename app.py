@@ -459,8 +459,6 @@ if isinstance(race_detail, dict) and isinstance(
 else:
     race_meta = race_detail
 
-st.write("DEBUG race_detail:", race_detail)
-
 horses = race_detail.get("horses", [])
 
 
@@ -618,11 +616,11 @@ straight_lengths_dict = {
 
 
 toughness_dict = {
-    "中山": 1.10,
-    "札幌": 1.15,
-    "函館": 1.20,
+    "中山": 1.05,
+    "札幌": 1.10,
+    "函館": 1.15,
     "阪神": 1.00,
-    "福島": 1.10,
+    "福島": 1.05,
     "京都": 1.00,
     "中京": 1.05,
     "小倉": 1.05,
