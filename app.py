@@ -1210,11 +1210,19 @@ def run_integrated_simulation(
         else "芝"
     )
 
-    class_keyword = (
-        str(target_cls)
-        .strip()
-        .replace("クラス", "")
-    )
+r_class_keyword = (
+    str(r_class)
+    .strip()
+    .replace("クラス", "")
+)
+
+st.write(
+    "過去走基準タイム検索:",
+    r_course,
+    r_surface_short,
+    r_dist,
+    r_class_keyword,
+)
 
     # =====================================================
     # 現在レースの基準走破タイム
