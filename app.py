@@ -1216,13 +1216,7 @@ r_class_keyword = (
     .replace("クラス", "")
 )
 
-st.write(
-    "過去走基準タイム検索:",
-    r_course,
-    r_surface_short,
-    r_dist,
-    r_class_keyword,
-)
+
 
     # =====================================================
     # 現在レースの基準走破タイム
