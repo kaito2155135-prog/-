@@ -1,3 +1,4 @@
+
 import os
 import unicodedata
 import numpy as np
@@ -457,6 +458,8 @@ if isinstance(race_detail, dict) and isinstance(
     race_meta = race_detail["race"]
 else:
     race_meta = race_detail
+
+st.write("DEBUG race_detail:", race_detail)
 
 horses = race_detail.get("horses", [])
 
@@ -1283,29 +1286,43 @@ def run_integrated_simulation(
                 )
             ]
 
-        if not match_target.empty:
+            if not m_match.empty:
 
-            baba_col = (
-                condition
-                if condition in [
-                    "良",
-                    "稍重",
-                    "重",
-                    "不良"
-                ]
-                else "良"
-            )
+                b_col = (
+                    r_baba
+                    if r_baba in [
+                        "良",
+                        "稍重",
+                        "重",
+                        "不良"
+                    ]
+                    else "良"
+                )
 
-            target_base_seconds = pd.to_numeric(
-                match_target.iloc[0][baba_col],
-                errors="coerce"
-            )
+                if b_col in m_match.columns:
+
+                    past_base_time = pd.to_numeric(
+                        m_match.iloc[0][b_col],
+                        errors="coerce"
+                    )
+
+                    base_time_debug_rows.append(
+                        {
+                            "馬名": h_name,
+                            "過去走クラス": r_class,
+                            "検索クラス": r_class_keyword,
+                            "競馬場": r_course,
+                            "芝/ダート": r_surface_short,
+                            "距離": r_dist,
+                            "馬場": b_col,
+                            "使用基準タイム": past_base_time,
+                        }
+                    )
 
     if (
         pd.isna(target_base_seconds)
         or target_base_seconds <= 0
     ):
-
         if "ダ" in surface:
             target_base_seconds = (
                 target_distance
@@ -1441,9 +1458,19 @@ def run_integrated_simulation(
     horse_f3_theory_bonus_map = {}
     horse_course_fit_map = {}
     horse_soha_theory_map = {}
-    horse_predicted_time_map = {}
     rising_star_map = {}
 
+    horse_ability_map = {}
+    horse_f3_theory_bonus_map = {}
+    horse_course_fit_map = {}
+    horse_soha_theory_map = {}
+    rising_star_map = {}
+
+    # =================================================
+    # 基準タイム照合確認用
+    # =================================================
+    base_time_debug_rows = []
+    
     # =====================================================
     # 過去走データ
     # =====================================================
@@ -2057,9 +2084,6 @@ def run_integrated_simulation(
                     )
                 )
 
-                # 過去6走を今回条件へ換算した中央値を保存
-                horse_predicted_time_map[h_name] = val_to_use
-
                 time_advantage = (
                     target_base_seconds
                     - val_to_use
@@ -2068,10 +2092,11 @@ def run_integrated_simulation(
                 soha_score = max(
                     -5.0,
                     min(
-                    12.0,
-                    time_advantage * 3.0
+                        12.0,
+                        time_advantage * 3.0
                     )
                 )
+
             # =============================================
             # 上がり3F指数
             # =============================================
@@ -2396,6 +2421,7 @@ def run_integrated_simulation(
     # =====================================================
     # 予測走破タイム
     # =====================================================
+
     times = []
 
     for i in range(len(res_df)):
@@ -2407,18 +2433,27 @@ def run_integrated_simulation(
             )
         )
 
-        predicted_time = horse_predicted_time_map.get(
-            hname_clean,
-            np.nan
+        time_mod = (
+            -horse_soha_theory_map.get(
+                hname_clean,
+                0.0
+            )
+            * 0.1
         )
 
-        if pd.isna(predicted_time):
-
-            predicted_time = target_base_seconds
+        t = (
+            target_base_seconds
+            - 1.5
+            + (i * 0.3)
+            + time_mod
+        )
 
         times.append(
             round(
-                float(predicted_time),
+                max(
+                    target_base_seconds - 3.0,
+                    t
+                ),
                 1
             )
         )
@@ -2427,6 +2462,31 @@ def run_integrated_simulation(
         format_time(t)
         for t in times
     ]
+
+    # =================================================
+    # 過去走の基準タイム照合確認
+    # =================================================
+
+    st.write(
+        "🔍 基準タイム照合デバッグ件数:",
+        len(base_time_debug_rows)
+    )
+
+    if base_time_debug_rows:
+
+        with st.expander(
+            "🔍 過去走の基準タイム照合を確認"
+        ):
+
+            debug_df = pd.DataFrame(
+                base_time_debug_rows
+            )
+
+            st.dataframe(
+                debug_df,
+                use_container_width=True,
+                hide_index=True,
+            )
 
     return res_df
 
