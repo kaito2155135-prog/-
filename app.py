@@ -2043,35 +2043,35 @@ def run_integrated_simulation(
             # 走破タイム指数
             # =============================================
 
-soha_score = 0.0
+            soha_score = 0.0
 
-if derived_times:
+            if derived_times:
 
-    sorted_times = sorted(
-        derived_times
-    )
+                sorted_times = sorted(
+                    derived_times
+                )
 
-    val_to_use = float(
-        np.median(
-            sorted_times
-        )
-    )
+                val_to_use = float(
+                    np.median(
+                        sorted_times
+                    )
+                )
 
-    # 過去6走を今回条件へ換算した中央値を保存
-    horse_predicted_time_map[h_name] = val_to_use
+                # 過去6走を今回条件へ換算した中央値を保存
+                horse_predicted_time_map[h_name] = val_to_use
 
-    time_advantage = (
-        target_base_seconds
-        - val_to_use
-    )
+                time_advantage = (
+                    target_base_seconds
+                    - val_to_use
+                )
 
-    soha_score = max(
-        -5.0,
-        min(
-        12.0,
-        time_advantage * 3.0
-        )
-    )
+                soha_score = max(
+                    -5.0,
+                    min(
+                    12.0,
+                    time_advantage * 3.0
+                    )
+                )
             # =============================================
             # 上がり3F指数
             # =============================================
