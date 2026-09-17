@@ -92,7 +92,7 @@ st.markdown(
 
 @st.cache_data
 def load_base_data_excel():
-    excel_filename = "○○○.xlsx"
+    excel_filename = "JRA全競馬場_芝ダート_クラス別_馬場別基準タイム.xlsx"
 
     if not os.path.exists(excel_filename):
         st.error(f"Excelが見つかりません: {excel_filename}")
