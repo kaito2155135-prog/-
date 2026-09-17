@@ -1039,54 +1039,55 @@ def build_master_data_from_jv(df_current):
                 baba_code
             )
 
-# 走破タイム
-soha_time = h.get(
-    "走破タイム",
-    h.get(
-        "soha_time",
-        np.nan
-    )
-)
+        # 走破タイム
+        soha_time = h.get(
+            "走破タイム",
+            h.get(
+                "soha_time",
+                np.nan
+            )
+        )
 
-try:
-    if isinstance(soha_time, str):
-        soha_time = soha_time.strip()
+        try:
+            if isinstance(soha_time, str):
+                soha_time = soha_time.strip()
 
-        if ":" in soha_time:
-            parts = soha_time.split(":")
+                if ":" in soha_time:
+                    parts = soha_time.split(":")
 
-            if len(parts) == 2:
-                soha_time = (
-                    float(parts[0]) * 60.0
-                    + float(parts[1])
-                )
+                    if len(parts) == 2:
+                        soha_time = (
+                            float(parts[0]) * 60.0
+                            + float(parts[1])
+                        )
+                    else:
+                        soha_time = np.nan
+
+                else:
+                    num = float(soha_time)
+
+                    if 100 <= num < 300:
+                        minutes = int(num // 100)
+                        seconds = num - minutes * 100
+                        soha_time = minutes * 60.0 + seconds
+
+                    else:
+                        soha_time = format_time_seconds(num)
+
             else:
-                soha_time = np.nan
+                num = float(soha_time)
 
-        else:
-            num = float(soha_time)
+                if 100 <= num < 300:
+                    minutes = int(num // 100)
+                    seconds = num - minutes * 100
+                    soha_time = minutes * 60.0 + seconds
 
-            if 100 <= num < 300:
-                minutes = int(num // 100)
-                seconds = num - minutes * 100
-                soha_time = minutes * 60.0 + seconds
+                else:
+                    soha_time = format_time_seconds(num)
 
-            else:
-                soha_time = format_time_seconds(num)
-
-    else:
-        num = float(soha_time)
-
-        if 100 <= num < 300:
-            minutes = int(num // 100)
-            seconds = num - minutes * 100
-            soha_time = minutes * 60.0 + seconds
-
-        else:
-            soha_time = format_time_seconds(num)
-
-except Exception:
-    soha_time = np.nan
+        except Exception:
+            soha_time = np.nan        
+        
         # ★ここから追加
         if str(h.get("馬名", h.get("bamei", ""))).strip() == "アスクエジンバラ":
             st.write(
