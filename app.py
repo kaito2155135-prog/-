@@ -1833,6 +1833,8 @@ def run_integrated_simulation(
                 # =========================================
                 # 走破タイム
                 # =========================================
+  
+                converted_time = np.nan
 
                 if (
                     not pd.isna(r_time)
