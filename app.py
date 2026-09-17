@@ -158,57 +158,6 @@ if df_f3_master is not None and "距離" in df_f3_master.columns:
 # JRA-VAN用変換
 # =========================================================
 
-def format_time_seconds(value):
-    if value is None:
-        return np.nan
-
-    try:
-        if isinstance(value, str):
-            value = value.strip()
-
-            if not value:
-                return np.nan
-
-            if ":" in value:
-                parts = value.split(":")
-
-                if len(parts) == 2:
-                    return (
-                        float(parts[0]) * 60.0
-                        + float(parts[1])
-                    )
-
-            if value.isdigit() and len(value) == 4:
-                num = int(value)
-
-                minutes = num // 1000
-                seconds = (num % 1000) / 10.0
-
-                return minutes * 60.0 + seconds
-
-        num = float(value)
-
-        if 1000 <= num < 10000:
-            minutes = int(num // 1000)
-            seconds = (num % 1000) / 10.0
-
-            return minutes * 60.0 + seconds
-
-        if 100 <= num < 300:
-            minutes = int(num // 100)
-            seconds = num - minutes * 100
-
-            return minutes * 60.0 + seconds
-
-        if num < 100:
-            return num
-
-        return num / 10.0
-
-    except Exception:
-        return np.nan
-
-
 def format_weight(value):
     if value is None:
         return np.nan
@@ -1034,16 +983,21 @@ def build_master_data_from_jv(df_current):
         except Exception:
             f3 = np.nan
 
-        finish = h.get(
+        raw_finish = h.get(
             "着順",
             h.get(
                 "kakutei_chakujun",
                 np.nan
             )
         )
-
+        finish = np.nan
         try:
-            finish = float(finish)
+            if pd.notna(raw_finish):
+                import re
+                f_str = unicodedata.normalize("NFKC", str(raw_finish))
+                match_f = re.search(r'\d+', f_str)
+                if match_f:
+                    finish = float(match_f.group(0))
         except Exception:
             finish = np.nan
 
@@ -1466,7 +1420,7 @@ def run_integrated_simulation(
         }
 
         # =================================================
-        # ライジングスター判定の強化（確実に直近2走の着順=1を判定）
+        # ライジングスター判定の堅牢化
         # =================================================
         for hname, group in filtered_master.groupby("馬名_clean"):
             sort_cols = [c for c in ["年", "月", "日"] if c in group.columns]
@@ -1477,12 +1431,16 @@ def run_integrated_simulation(
 
             if "着順" in group_sorted.columns and len(group_sorted) >= 2:
                 top2 = group_sorted.head(2)
-                # 文字列や欠損値が混ざっても確実に数値化（例: "1着" や "1"）
                 finishes = []
                 for val in top2["着順"].tolist():
                     try:
-                        s_val = "".join(filter(str.isdigit, str(val)))
-                        finishes.append(int(s_val) if s_val else 99)
+                        f_str = unicodedata.normalize("NFKC", str(val))
+                        import re
+                        match_f = re.search(r'\d+', f_str)
+                        if match_f:
+                            finishes.append(int(match_f.group(0)))
+                        else:
+                            finishes.append(99)
                     except Exception:
                         finishes.append(99)
 
