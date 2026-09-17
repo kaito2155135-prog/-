@@ -2037,16 +2037,50 @@ def run_integrated_simulation(
                             current_distance -= segment
                             remaining -= segment
 
+                    # =========================================
+                    # クラス補正
+                    # =========================================
+
                     if is_rising:
 
                         class_level_penalty = 0.0
+
+                    else:
+
+                        class_level_penalty = (
+                            -0.15
+                            if class_diff > 0
+                            else 0.15
+                            if class_diff < 0
+                            else 0.0
+                        )
+
+                    # =========================================
+                    # 今回条件への換算タイム
+                    # =========================================
+
+                    time_diff = (
+                        past_base_time
+                        - adjusted_r_time
+                    )
+
+                    converted_time = (
+                        target_base_seconds
+                        - time_diff
+                        + distance_penalty_or_bonus
+                        + class_level_penalty
+                    )
+
+                    # ライジングスター補正
                     if is_rising:
+
                         converted_time -= 0.2
 
                     if (
                         not pd.isna(converted_time)
                         and converted_time > 0
                     ):
+
                         derived_times.append(
                             converted_time
                         )
