@@ -201,9 +201,9 @@ def format_time_seconds(value):
                 return minutes * 60.0 + seconds
 
         num = float(value)
-# ★★★ここを追加★★★
+        # ★★★ここを追加★★★
 
-        if 1000 <= num < 10000:
+            if 1000 <= num < 10000:
 
             minutes = int(num // 1000)
 
