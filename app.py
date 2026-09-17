@@ -1058,46 +1058,41 @@ def build_master_data_from_jv(df_current):
             )
 
         # 走破タイム
-        soha_time = h.get(
-            "走破タイム",
-            h.get(
-                "soha_time",
-                np.nan
-            )
-        )
-
-        # ----------------------------------------------------
-        # ▼ ここから丸ごと置き換え（デバッグログ付き）
-        # ----------------------------------------------------
-        raw_soha_time = soha_time
-        马名 = h.get('馬名', h.get('name', '不明')) # 馬名が取れなければ適宜調整してください
+        raw_soha_time = h.get("走破タイム", h.get("soha_time", np.nan))
+        soha_time = np.nan
 
         try:
-            if pd.isna(soha_time):
-                soha_time = np.nan
-            elif isinstance(soha_time, str):
-                soha_time = soha_time.strip()
-                # もし既存の文字列パース処理があればここに残せますが、
-                # まずは簡易的に数値化を試すか、既存の文字列処理コードを活かしてください
-                # （一旦そのままにする場合は元の文字列処理をここに置いてください）
-            else:
-                num = float(soha_time)
-
-                if 100 <= num < 300:
-                    minutes = int(num // 100)
-                    seconds = num - minutes * 100
-                    soha_time = minutes * 60.0 + seconds
-                    print(f"[DEBUG タイム変換] 馬名:{马名} | 元データ(100-300): {raw_soha_time} -> 変換後秒数: {soha_time}")
+            if pd.notna(raw_soha_time):
+                # 文字列化して、スペースや余計な文字を除去し、最初の数字の塊だけを抽出する
+                s_val = str(raw_soha_time).strip()
+                
+                # 「1:46.2」のようなコロン区切りの場合
+                if ":" in s_val:
+                    parts = s_val.split(":")
+                    if len(parts) == 2:
+                        soha_time = float(parts[0]) * 60.0 + float(parts[1])
                 else:
-                    soha_time = format_time_seconds(num)
-                    print(f"[DEBUG タイム変換] 馬名:{马名} | 元データ(その他): {raw_soha_time} -> 変換後秒数: {soha_time}")
-
-        except Exception as e:
-            print(f"[ERROR タイム変換失敗] 馬名:{马名} | 該当データ: {raw_soha_time} | エラー: {e}")
+                    # 数字以外の文字（スペースや単位など）の前にある数字だけを取り出す
+                    import re
+                    match = re.search(r'\d+', s_val)
+                    if match:
+                        num_str = match.group(0)
+                        num = int(num_str)
+                        
+                        # JRA-VANの4桁コード形式（例: 1470 → 1分47.0秒 = 107.0秒）
+                        if 1000 <= num < 10000:
+                            minutes = num // 1000
+                            seconds = (num % 1000) / 10.0
+                            soha_time = minutes * 60.0 + seconds
+                        # 3桁または100〜300未満の場合（例: 127.8 などの扱い）
+                        elif 100 <= num < 300:
+                            minutes = num // 100
+                            seconds = num - minutes * 100
+                            soha_time = minutes * 60.0 + seconds
+                        else:
+                            soha_time = float(num)
+        except Exception:
             soha_time = np.nan
-        # ----------------------------------------------------
-        # ▲ ここまで置き換え
-        # ----------------------------------------------------
        
         
         # 上がり3F
