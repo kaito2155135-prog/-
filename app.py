@@ -500,6 +500,7 @@ surface_condition_code = (
 
 default_baba = condition_from_code(surface_condition_code)
 
+st.write("脚質デバッグ:", h)
 
 race_rows = []
 
