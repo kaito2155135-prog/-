@@ -96,8 +96,17 @@ def load_base_data_excel():
 
     if not os.path.exists(excel_filename):
         st.error(f"Excelが見つかりません: {excel_filename}")
+        st.write("現在の場所:", os.getcwd())
+        st.write(
+            "現在のフォルダのxlsx:",
+            [
+                f
+                for f in os.listdir(".")
+                if f.lower().endswith(".xlsx")
+            ]
+        )
         return None, None
-
+        
     try:
         xls = pd.ExcelFile(excel_filename)
 
