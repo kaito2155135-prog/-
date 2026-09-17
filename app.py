@@ -1939,109 +1939,105 @@ def run_integrated_simulation(
                             else 59.0
                         )
 
-   # 距離変更によるペナルティ・ボーナス
-distance_diff = target_distance - r_dist
+                    # =========================================
+                    # 距離変更によるペナルティ・ボーナス
+                    # =========================================
 
-if distance_diff > 0:
+                    distance_diff = (
+                        target_distance - r_dist
+                    )
 
-    # 距離延長
-    remaining = distance_diff
-    current_distance = r_dist
-    distance_penalty_or_bonus = 0.0
+                    if distance_diff > 0:
 
-    while remaining > 0:
+                        # -------------------------------------
+                        # 距離延長
+                        # -------------------------------------
 
-        if current_distance < 1400:
-            furlong_weight = 1.15
-            next_boundary = 1400
+                        remaining = distance_diff
+                        current_distance = r_dist
+                        distance_penalty_or_bonus = 0.0
 
-        elif current_distance < 1800:
-            furlong_weight = 1.00
-            next_boundary = 1800
+                        while remaining > 0:
 
-        elif current_distance < 2200:
-            furlong_weight = 0.85
-            next_boundary = 2200
+                            if current_distance < 1400:
 
-        else:
-            furlong_weight = 0.70
-            next_boundary = float("inf")
+                                furlong_weight = 1.15
+                                next_boundary = 1400
 
-        segment = min(
-            remaining,
-            next_boundary - current_distance
-        )
+                            elif current_distance < 1800:
 
-        distance_penalty_or_bonus += (
-            segment / 200.0
-        ) * furlong_weight
+                                furlong_weight = 1.00
+                                next_boundary = 1800
 
-        current_distance += segment
-        remaining -= segment
+                            elif current_distance < 2200:
 
-else:
+                                furlong_weight = 0.85
+                                next_boundary = 2200
 
-    # 距離短縮
-    remaining = abs(distance_diff)
-    current_distance = r_dist
-    distance_penalty_or_bonus = 0.0
+                            else:
 
-    while remaining > 0:
+                                furlong_weight = 0.70
+                                next_boundary = float("inf")
 
-        if current_distance <= 1400:
-            furlong_weight = 1.15
-            previous_boundary = 0
+                            segment = min(
+                                remaining,
+                                next_boundary - current_distance
+                            )
 
-        elif current_distance <= 1800:
-            furlong_weight = 1.00
-            previous_boundary = 1400
+                            distance_penalty_or_bonus += (
+                                segment / 200.0
+                            ) * furlong_weight
 
-        elif current_distance <= 2200:
-            furlong_weight = 0.85
-            previous_boundary = 1800
+                            current_distance += segment
+                            remaining -= segment
 
-        else:
-            furlong_weight = 0.70
-            previous_boundary = 2200
+                    else:
 
-        segment = min(
-            remaining,
-            current_distance - previous_boundary
-        )
+                        # -------------------------------------
+                        # 距離短縮
+                        # -------------------------------------
 
-        distance_penalty_or_bonus -= (
-            segment / 200.0
-        ) * furlong_weight
+                        remaining = abs(distance_diff)
+                        current_distance = r_dist
+                        distance_penalty_or_bonus = 0.0
 
-        current_distance -= segment
-        remaining -= segment
+                        while remaining > 0:
+
+                            if current_distance <= 1400:
+
+                                furlong_weight = 1.15
+                                previous_boundary = 0
+
+                            elif current_distance <= 1800:
+
+                                furlong_weight = 1.00
+                                previous_boundary = 1400
+
+                            elif current_distance <= 2200:
+
+                                furlong_weight = 0.85
+                                previous_boundary = 1800
+
+                            else:
+
+                                furlong_weight = 0.70
+                                previous_boundary = 2200
+
+                            segment = min(
+                                remaining,
+                                current_distance - previous_boundary
+                            )
+
+                            distance_penalty_or_bonus -= (
+                                segment / 200.0
+                            ) * furlong_weight
+
+                            current_distance -= segment
+                            remaining -= segment
 
                     if is_rising:
 
                         class_level_penalty = 0.0
-
-                    else:
-
-                        class_level_penalty = (
-                            (
-                                class_diff
-                                * 0.20
-                            )
-                            if class_diff > 0
-                            else
-                            (
-                                class_diff
-                                * 0.15
-                            )
-                        )
-
-                    converted_time = (
-                        target_base_seconds
-                        - time_diff
-                        + distance_penalty_or_bonus
-                        + class_level_penalty
-                    )
-
                     if is_rising:
                         converted_time -= 0.2
 
