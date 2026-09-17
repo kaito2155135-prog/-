@@ -159,8 +159,15 @@ if df_f3_master is not None and "距離" in df_f3_master.columns:
 # =========================================================
 
 def format_time_seconds(value):
+    st.write(
+        "★★変換関数に入った値★★",
+        repr(value),
+        type(value).__name__
+    )
+
     if value is None:
         return np.nan
+
 
     try:
         if isinstance(value, str):
