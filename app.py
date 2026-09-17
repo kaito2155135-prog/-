@@ -2048,9 +2048,9 @@ def run_integrated_simulation(
                     else:
 
                         class_level_penalty = (
-                            -0.15
+                            0.20
                             if class_diff > 0
-                            else 0.15
+                            else -0.20
                             if class_diff < 0
                             else 0.0
                         )
