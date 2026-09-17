@@ -181,11 +181,6 @@ def format_time_seconds(value):
                     )
 
             # JRA-VANの4桁走破タイム
-            # 例：
-            # 2126 → 2分12.6秒 → 132.6秒
-            # 2317 → 2分31.7秒 → 151.7秒
-            # 1568 → 1分56.8秒 → 116.8秒
-            # 3084 → 3分08.4秒 → 188.4秒
             if value.isdigit() and len(value) == 4:
                 num = int(value)
 
@@ -196,19 +191,13 @@ def format_time_seconds(value):
 
         num = float(value)
 
-        # ★★★ここを追加★★★
-
         if 1000 <= num < 10000:
             minutes = int(num // 1000)
             seconds = (num % 1000) / 10.0
 
             return minutes * 60.0 + seconds
 
-        # ★★★ここまで★★★
-
         # 数値として「MMSS.s」で入っている場合
-        # 例：
-        # 223.2 → 2分23.2秒 → 143.2秒
         if 100 <= num < 300:
             minutes = int(num // 100)
             seconds = num - minutes * 100
@@ -223,6 +212,8 @@ def format_time_seconds(value):
 
     except Exception:
         return np.nan
+
+
 def format_weight(value):
     if value is None:
         return np.nan
@@ -348,19 +339,17 @@ def detect_class(race_name="", grade_code="", condition_code=""):
 
     race_name = str(race_name or "")
     grade_code = str(grade_code or "").strip().upper()
-
     condition_code = str(condition_code or "").strip()
 
     condition_map = {
-    "701": "新馬",
-    "703": "未勝利",
-    "005": "1勝",
-    "010": "2勝",
-    "016": "3勝",
-    "999": "OP",
-}
+        "701": "新馬",
+        "703": "未勝利",
+        "005": "1勝",
+        "010": "2勝",
+        "016": "3勝",
+        "999": "OP",
+    }
 
-    # JRA-VAN grade_code
     grade_map = {
         "A": "G1",
         "B": "G2",
@@ -373,7 +362,6 @@ def detect_class(race_name="", grade_code="", condition_code=""):
     if condition_code in condition_map:
         return condition_map[condition_code]
         
-    # レース名から判定
     if "G1" in race_name:
         return "G1"
 
@@ -496,7 +484,6 @@ if not race_detail:
     st.stop()
 
 
-# APIによっては race 情報がraceキーの中にある場合にも対応
 if isinstance(race_detail, dict) and isinstance(
     race_detail.get("race"), dict
 ):
@@ -562,8 +549,6 @@ except Exception:
 
 
 race_surface = surface_from_race(race_meta)
-
-
 grade_code = str(race_meta.get("grade_code", "")).strip()
 
 race_class = detect_class(
@@ -572,16 +557,6 @@ race_class = detect_class(
     condition_code=race_meta.get("condition_code", "")
 )
 
-st.write(
-    "クラス判定確認:",
-    race_name,
-    "grade_code=",
-    repr(grade_code),
-    "condition_code=",
-    repr(race_meta.get("condition_code", ""))
-)
-
-# 馬場状態
 surface_condition_code = (
     race_meta.get("shiba_babajotai_code")
     if race_surface == "芝"
@@ -594,7 +569,6 @@ default_baba = condition_from_code(surface_condition_code)
 race_rows = []
 
 for h in horses:
-
     row = {
         "枠番": h.get("枠番", h.get("wakuban", 1)),
         "馬番": h.get("馬番", h.get("umaban", 1)),
@@ -617,7 +591,6 @@ for h in horses:
         "馬場状態": default_baba,
         "当日の馬場": default_baba,
     }
-
     race_rows.append(row)
 
 
@@ -675,8 +648,6 @@ toughness_dict = {
 
 
 surface_key = "ダ" if "ダ" in race_surface else "芝"
-
-
 straight_len = 400.0
 
 for k, v in straight_lengths_dict[surface_key].items():
@@ -752,16 +723,12 @@ for c in [
     "得意馬場",
 ]:
     if c not in df_race.columns:
-
         if c == "脚質":
             df_race[c] = "差し"
-
         elif c == "得意馬場":
             df_race[c] = "指定なし"
-
         elif c == "オッズ":
             df_race[c] = 10.0
-
         else:
             df_race[c] = 1
 
@@ -778,14 +745,12 @@ edit_columns = [
 
 edited_df = st.data_editor(
     df_race[edit_columns],
-
     column_config={
         "脚質": st.column_config.SelectboxColumn(
             "脚質",
             options=["逃げ", "先行", "差し", "追込"],
             required=True,
         ),
-
         "得意馬場": st.column_config.SelectboxColumn(
             "得意馬場",
             options=[
@@ -797,13 +762,11 @@ edited_df = st.data_editor(
             ],
             required=True,
         ),
-
         "オッズ": st.column_config.NumberColumn(
             "オッズ",
             format="%.1f",
         ),
     },
-
     use_container_width=True,
     hide_index=True,
     key="race_data_editor",
@@ -823,7 +786,6 @@ df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
 # =========================================================
 
 st.markdown("---")
-
 
 col_p1, col_p2, col_p3 = st.columns(3)
 
@@ -845,7 +807,6 @@ with col_p2:
 
 
 with col_p3:
-
     baba_default_idx = 0
 
     if default_baba == "稍重":
@@ -868,13 +829,10 @@ with col_p3:
 
 if race_distance <= 1400:
     race_category = "短距離"
-
 elif race_distance <= 1800:
     race_category = "マイル"
-
 elif race_distance <= 2200:
     race_category = "中距離"
-
 else:
     race_category = "長距離"
 
@@ -898,7 +856,6 @@ def format_time(seconds):
 
 @st.cache_data(ttl=300)
 def load_horse_history(horse_name):
-
     encoded_name = requests.utils.quote(
         horse_name,
         safe=""
@@ -923,7 +880,6 @@ def load_horse_history(horse_name):
 
 
 def build_master_data_from_jv(df_current):
-
     all_history = []
 
     progress = st.progress(
@@ -936,7 +892,6 @@ def build_master_data_from_jv(df_current):
     for i, horse_name in enumerate(
         df_current["馬名"].tolist()
     ):
-
         history = load_horse_history(
             normalize_horse_name(horse_name)
         )
@@ -960,7 +915,6 @@ def build_master_data_from_jv(df_current):
     rows = []
 
     for h in all_history:
-
         horse_name = normalize_horse_name(
             h.get(
                 "馬名",
@@ -971,7 +925,6 @@ def build_master_data_from_jv(df_current):
         if not horse_name:
             continue
 
-        # 場所
         place = h.get(
             "場所",
             h.get(
@@ -980,7 +933,6 @@ def build_master_data_from_jv(df_current):
             )
         )
 
-        # 距離
         distance = h.get(
             "距離",
             h.get(
@@ -994,7 +946,6 @@ def build_master_data_from_jv(df_current):
         except Exception:
             distance = np.nan
 
-        # 芝ダート
         surface = h.get(
             "芝・ダ",
             h.get(
@@ -1010,7 +961,6 @@ def build_master_data_from_jv(df_current):
         elif "芝" in surface:
             surface = "芝"
 
-        # レース名
         race_name = h.get(
             "kyosomei_hondai",
             h.get(
@@ -1022,14 +972,12 @@ def build_master_data_from_jv(df_current):
             )
         )
 
-        # クラス
         historical_class = detect_class(
-    race_name,
-    h.get("grade_code", ""),
-    condition_code=h.get("condition_code", "")
-)
+            race_name,
+            h.get("grade_code", ""),
+            condition_code=h.get("condition_code", "")
+        )
 
-        # 馬場状態
         baba = h.get(
             "馬場状態",
             h.get(
@@ -1039,7 +987,6 @@ def build_master_data_from_jv(df_current):
         )
 
         if not baba:
-
             track_code = str(
                 h.get("track_code", "")
             )
@@ -1057,34 +1004,28 @@ def build_master_data_from_jv(df_current):
                 baba_code
             )
 
-        # 走破タイム
         raw_soha_time = h.get("走破タイム", h.get("soha_time", np.nan))
         soha_time = np.nan
 
         try:
             if pd.notna(raw_soha_time):
-                # 文字列化して、スペースや余計な文字を除去し、最初の数字の塊だけを抽出する
                 s_val = str(raw_soha_time).strip()
                 
-                # 「1:46.2」のようなコロン区切りの場合
                 if ":" in s_val:
                     parts = s_val.split(":")
                     if len(parts) == 2:
                         soha_time = float(parts[0]) * 60.0 + float(parts[1])
                 else:
-                    # 数字以外の文字（スペースや単位など）の前にある数字だけを取り出す
                     import re
                     match = re.search(r'\d+', s_val)
                     if match:
                         num_str = match.group(0)
                         num = int(num_str)
                         
-                        # JRA-VANの4桁コード形式（例: 1470 → 1分47.0秒 = 107.0秒）
                         if 1000 <= num < 10000:
                             minutes = num // 1000
                             seconds = (num % 1000) / 10.0
                             soha_time = minutes * 60.0 + seconds
-                        # 3桁または100〜300未満の場合（例: 127.8 などの扱い）
                         elif 100 <= num < 300:
                             minutes = num // 100
                             seconds = num - minutes * 100
@@ -1094,8 +1035,6 @@ def build_master_data_from_jv(df_current):
         except Exception:
             soha_time = np.nan
        
-        
-        # 上がり3F
         f3 = h.get(
             "上がり3Fタイム",
             h.get(
@@ -1109,7 +1048,6 @@ def build_master_data_from_jv(df_current):
         except Exception:
             f3 = np.nan
 
-        # 着順
         finish = h.get(
             "着順",
             h.get(
@@ -1123,7 +1061,6 @@ def build_master_data_from_jv(df_current):
         except Exception:
             finish = np.nan
 
-        # 日付
         date_value = h.get(
             "date",
             h.get(
@@ -1141,11 +1078,9 @@ def build_master_data_from_jv(df_current):
             or pd.isna(month)
             or pd.isna(day)
         ):
-
             date_str = str(date_value)
 
             if len(date_str) >= 10:
-
                 try:
                     dt = pd.to_datetime(
                         date_str,
@@ -1156,7 +1091,6 @@ def build_master_data_from_jv(df_current):
                         year = dt.year
                         month = dt.month
                         day = dt.day
-
                 except Exception:
                     pass
 
@@ -1164,29 +1098,18 @@ def build_master_data_from_jv(df_current):
             {
                 "馬名": horse_name,
                 "馬名_clean": horse_name,
-
                 "場所": str(place),
-
                 "距離": distance,
-
                 "走破タイム": soha_time,
-
                 "上がり3Fタイム": f3,
-
                 "馬場状態": str(baba),
-
                 "芝・ダ": surface,
-
                 "略レース名": historical_class,
-
                 "クラス": historical_class,
-
                 "着順": finish,
-
                 "年": year,
                 "月": month,
                 "日": day,
-
                 "斤量": format_weight(
                     h.get("斤量", h.get("futan_juryo"))
                 ),
@@ -1198,7 +1121,6 @@ def build_master_data_from_jv(df_current):
     if master_df.empty:
         return master_df
 
-    # JRA競馬場だけ
     jra_places = [
         "東京",
         "中山",
@@ -1213,7 +1135,6 @@ def build_master_data_from_jv(df_current):
     ]
 
     if "場所" in master_df.columns:
-
         master_df = master_df[
             master_df["場所"]
             .astype(str)
@@ -1223,7 +1144,6 @@ def build_master_data_from_jv(df_current):
             )
         ].copy()
 
-    # 日付で新しい順
     sort_cols = [
         c
         for c in ["年", "月", "日"]
@@ -1258,7 +1178,6 @@ def run_integrated_simulation(
     base_master_df,
     f3_master_df,
 ):
-
     res_df = df_r.copy()
 
     try:
@@ -1279,15 +1198,7 @@ def run_integrated_simulation(
         else "芝"
     )
 
-    # =====================================================
-    # 現在レースの基準走破タイム
-    # =====================================================
     target_base_seconds = 0.0
-
-    st.write("基準Excel:", base_master_df is not None)
-
-    if base_master_df is not None:
-        st.write("基準Excel列:", base_master_df.columns.tolist())
 
     target_base_class = (
         "OP"
@@ -1297,7 +1208,6 @@ def run_integrated_simulation(
     
 
     if base_master_df is not None:
-
         match_target = base_master_df[
             (
                 base_master_df["競馬場"]
@@ -1335,7 +1245,6 @@ def run_integrated_simulation(
         ]
 
         if match_target.empty:
-
             match_target = base_master_df[
                 (
                     base_master_df["競馬場"]
@@ -1364,7 +1273,6 @@ def run_integrated_simulation(
             ]
 
         if not match_target.empty:
-
             baba_col = (
                 condition
                 if condition in [
@@ -1377,7 +1285,6 @@ def run_integrated_simulation(
             )
 
             if baba_col in match_target.columns:
-
                 target_base_seconds = pd.to_numeric(
                     match_target.iloc[0][baba_col],
                     errors="coerce"
@@ -1387,31 +1294,20 @@ def run_integrated_simulation(
         pd.isna(target_base_seconds)
         or target_base_seconds <= 0
     ):
-
         if "ダ" in surface:
-
             target_base_seconds = (
                 target_distance
                 / 1000.0
             ) * 62.5
-
         else:
-
             target_base_seconds = (
                 target_distance
                 / 1000.0
             ) * 59.0
 
-    
-
-    # =====================================================
-    # 現在レースの基準上がり3F
-    # =====================================================
-
     target_base_f3 = 0.0
 
     if f3_master_df is not None:
-
         match_f3 = f3_master_df[
             (
                 f3_master_df["競馬場"]
@@ -1445,7 +1341,6 @@ def run_integrated_simulation(
         ]
 
         if match_f3.empty:
-
             match_f3 = f3_master_df[
                 (
                     f3_master_df["競馬場"]
@@ -1470,7 +1365,6 @@ def run_integrated_simulation(
             ]
 
         if not match_f3.empty:
-
             baba_col = (
                 condition
                 if condition in [
@@ -1483,7 +1377,6 @@ def run_integrated_simulation(
             )
 
             if baba_col in match_f3.columns:
-
                 target_base_f3 = pd.to_numeric(
                     match_f3.iloc[0][baba_col],
                     errors="coerce"
@@ -1493,19 +1386,13 @@ def run_integrated_simulation(
         pd.isna(target_base_f3)
         or target_base_f3 <= 0
     ):
-
         target_base_f3 = (
             34.5
             if "芝" in surface
             else 37.0
         )
 
-    # =====================================================
-    # 上がり3F重み
-    # =====================================================
-
     if "ダ" in surface:
-
         f3_weight_factor = max(
             0.5,
             min(
@@ -1513,9 +1400,7 @@ def run_integrated_simulation(
                 straight_length / 450.0
             )
         )
-
     else:
-
         f3_weight_factor = max(
             0.4,
             min(
@@ -1531,16 +1416,11 @@ def run_integrated_simulation(
     horse_predicted_time_map = {}
     rising_star_map = {}
 
-    # =====================================================
-    # 過去走データ
-    # =====================================================
-
     if (
         master_data is not None
         and not master_data.empty
         and "馬名_clean" in master_data.columns
     ):
-
         sort_cols = [
             c
             for c in ["年", "月", "日"]
@@ -1548,17 +1428,13 @@ def run_integrated_simulation(
         ]
 
         if sort_cols:
-
             master_data = master_data.sort_values(
                 by=sort_cols,
                 ascending=False
             )
 
-        # 現在の芝/ダートと同じ過去走だけを見る
         if "芝・ダ" in master_data.columns:
-
             if "ダ" in surface_keyword:
-
                 filtered_master = master_data[
                     master_data["芝・ダ"]
                     .astype(str)
@@ -1567,9 +1443,7 @@ def run_integrated_simulation(
                         na=False
                     )
                 ].copy()
-
             else:
-
                 filtered_master = master_data[
                     ~master_data["芝・ダ"]
                     .astype(str)
@@ -1578,9 +1452,7 @@ def run_integrated_simulation(
                         na=False
                     )
                 ].copy()
-
         else:
-
             filtered_master = master_data.copy()
 
         recent_master_data = (
@@ -1593,77 +1465,60 @@ def run_integrated_simulation(
         class_rank_map = {
             "新馬": 1,
             "未勝利": 1,
-
             "1勝": 2,
             "1勝クラス": 2,
-
             "2勝": 3,
             "2勝クラス": 3,
-
             "3勝": 4,
             "3勝クラス": 4,
-
             "OP": 5,
             "オープン": 5,
             "リステッド": 5,
-
             "G3": 6,
             "G2": 7,
             "G1": 8,
         }
 
         # =================================================
-        # ライジングスター
+        # ライジングスター判定のインデントを綺麗に修正
         # =================================================
+        for hname, group in filtered_master.groupby("馬名_clean"):
+            sort_cols = [c for c in ["年", "月", "日"] if c in group.columns]
+            if sort_cols:
+                group_sorted = group.sort_values(sort_cols, ascending=False)
+            else:
+                group_sorted = group
 
- # 【修正後のイメージ】
-for hname, group in filtered_master.groupby("馬名_clean"):
-    # ① 確実に日付の新しい順に並べ直してから直近2走を取る
-    sort_cols = [c for c in ["年", "月", "日"] if c in group.columns]
-    if sort_cols:
-        group_sorted = group.sort_values(sort_cols, ascending=False)
-    else:
-        group_sorted = group
+            if "着順" in group_sorted.columns and len(group_sorted) >= 2:
+                top2 = group_sorted.head(2)
+                finishes = pd.to_numeric(top2["着順"], errors="coerce").tolist()
 
-    if "着順" in group_sorted.columns and len(group_sorted) >= 2:
-        top2 = group_sorted.head(2) # 確実に「最新の2走」を取得
-        finishes = pd.to_numeric(top2["着順"], errors="coerce").tolist()
-
-        # ② 前走（finishes[0]）と2走前（finishes[1]）が両方とも 1着 か判定
-        if len(finishes) == 2 and finishes[0] == 1 and finishes[1] == 1:
-            rising_star_map[hname] = True
-        else:
-            rising_star_map[hname] = False
-    else:
-        rising_star_map[hname] = False
-
+                if len(finishes) == 2 and finishes[0] == 1 and finishes[1] == 1:
+                    rising_star_map[hname] = True
+                else:
+                    rising_star_map[hname] = False
+            else:
+                rising_star_map[hname] = False
 
         # =================================================
         # 理論値計算
         # =================================================
-
         def calc_theories_score(group):
-
             if (
                 "馬名_clean" in group.columns
                 and not group["馬名_clean"].empty
             ):
-
                 h_name = str(
                     group["馬名_clean"].iloc[0]
                 )
-
             elif (
                 "馬名" in group.columns
                 and not group["馬名"].empty
             ):
-
                 h_name = normalize_horse_name(
                     str(group["馬名"].iloc[0])
                 )
-
             else:
-
                 h_name = (
                     str(group.name)
                     if group.name
@@ -1678,12 +1533,7 @@ for hname, group in filtered_master.groupby("馬名_clean"):
             derived_times = []
             derived_f3s = []
 
-            # ---------------------------------------------
-            # 過去6走を1走ずつ処理
-            # ---------------------------------------------
-
             for _, row in group.iterrows():
-
                 r_course = str(
                     row.get(
                         "場所",
@@ -1734,6 +1584,7 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                         surface
                     )
                 ).strip()
+
                 r_class = str(
                     row.get(
                         "略レース名",
@@ -1761,11 +1612,6 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                     if "ダ" in r_surface
                     else "芝"
                 )
-                r_surface_short = (
-                    "ダ"
-                    if "ダ" in r_surface
-                    else "芝"
-                )
 
                 if (
                     pd.isna(r_dist)
@@ -1773,15 +1619,10 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                 ):
                     continue
 
-                # -----------------------------------------
-                # 過去コース補正
-                # -----------------------------------------
-
                 past_course_multiplier = 1.0
 
                 if "小倉" in r_course:
                     past_course_multiplier = 1.11
-
                 elif (
                     "函館" in r_course
                     or "札幌" in r_course
@@ -1809,17 +1650,12 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                     - past_c_rank
                 )
 
-                # =========================================
-                # 走破タイム
-                # =========================================
-  
                 converted_time = np.nan
 
                 if (
                     not pd.isna(r_time)
                     and r_time > 0
                 ):
-
                     adjusted_r_time = (
                         r_time
                         * past_course_multiplier
@@ -1828,41 +1664,39 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                     past_base_time = 0.0
 
                     if base_master_df is not None:
-
                         m_match = base_master_df[
-    (
-        base_master_df["競馬場"]
-        .astype(str)
-        .str.contains(
-            r_course,
-            na=False
-        )
-    )
-    &
-    (
-        base_master_df["芝/ダート"]
-        ==
-        r_surface_short
-    )
-    &
-    (
-        base_master_df["距離_num"]
-        ==
-        r_dist
-    )
-    &
-    (
-        base_master_df["クラス"]
-        .astype(str)
-        .str.contains(
-            r_class_keyword,
-            na=False
-        )
-    )
-]
+                            (
+                                base_master_df["競馬場"]
+                                .astype(str)
+                                .str.contains(
+                                    r_course,
+                                    na=False
+                                )
+                            )
+                            &
+                            (
+                                base_master_df["芝/ダート"]
+                                ==
+                                r_surface_short
+                            )
+                            &
+                            (
+                                base_master_df["距離_num"]
+                                ==
+                                r_dist
+                            )
+                            &
+                            (
+                                base_master_df["クラス"]
+                                .astype(str)
+                                .str.contains(
+                                    r_class_keyword,
+                                    na=False
+                                )
+                            )
+                        ]
 
                         if m_match.empty:
-
                             m_match = base_master_df[
                                 (
                                     base_master_df["競馬場"]
@@ -1887,7 +1721,6 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                             ]
 
                         if not m_match.empty:
-
                             b_col = (
                                 r_baba
                                 if r_baba in [
@@ -1900,7 +1733,6 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                             )
 
                             if b_col in m_match.columns:
-
                                 past_base_time = pd.to_numeric(
                                     m_match.iloc[0][b_col],
                                     errors="coerce"
@@ -1910,7 +1742,6 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                         pd.isna(past_base_time)
                         or past_base_time <= 0
                     ):
-
                         past_base_time = (
                             r_dist
                             / 1000.0
@@ -1920,43 +1751,26 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                             else 59.0
                         )
 
-                    # =========================================
-                    # 距離変更によるペナルティ・ボーナス
-                    # =========================================
-
                     distance_diff = (
                         target_distance - r_dist
                     )
 
                     if distance_diff > 0:
-
-                        # -------------------------------------
-                        # 距離延長
-                        # -------------------------------------
-
                         remaining = distance_diff
                         current_distance = r_dist
                         distance_penalty_or_bonus = 0.0
 
                         while remaining > 0:
-
                             if current_distance < 1400:
-
                                 furlong_weight = 1.15
                                 next_boundary = 1400
-
                             elif current_distance < 1800:
-
                                 furlong_weight = 1.00
                                 next_boundary = 1800
-
                             elif current_distance < 2200:
-
                                 furlong_weight = 0.85
                                 next_boundary = 2200
-
                             else:
-
                                 furlong_weight = 0.70
                                 next_boundary = float("inf")
 
@@ -1971,36 +1785,22 @@ for hname, group in filtered_master.groupby("馬名_clean"):
 
                             current_distance += segment
                             remaining -= segment
-
                     else:
-
-                        # -------------------------------------
-                        # 距離短縮
-                        # -------------------------------------
-
                         remaining = abs(distance_diff)
                         current_distance = r_dist
                         distance_penalty_or_bonus = 0.0
 
                         while remaining > 0:
-
                             if current_distance <= 1400:
-
                                 furlong_weight = 1.15
                                 previous_boundary = 0
-
                             elif current_distance <= 1800:
-
                                 furlong_weight = 1.00
                                 previous_boundary = 1400
-
                             elif current_distance <= 2200:
-
                                 furlong_weight = 0.85
                                 previous_boundary = 1800
-
                             else:
-
                                 furlong_weight = 0.70
                                 previous_boundary = 2200
 
@@ -2016,16 +1816,9 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                             current_distance -= segment
                             remaining -= segment
 
-                    # =========================================
-                    # クラス補正
-                    # =========================================
-
                     if is_rising:
-
                         class_level_penalty = 0.0
-
                     else:
-
                         class_level_penalty = (
                             -0.20
                             if class_diff > 0
@@ -2033,10 +1826,6 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                             if class_diff < 0
                             else 0.0
                         )
-
-                    # =========================================
-                    # 今回条件への換算タイム
-                    # =========================================
 
                     time_diff = (
                         past_base_time
@@ -2050,33 +1839,24 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                         + class_level_penalty
                     )
 
-                    # ライジングスター補正
                     if is_rising:
-
                         converted_time -= 0.2
 
                     if (
                         not pd.isna(converted_time)
                         and converted_time > 0
                     ):
-
                         derived_times.append(
                             converted_time
                         )
                             
-                # =========================================
-                # 上がり3F
-                # =========================================
-
                 if (
                     not pd.isna(r_f3_time)
                     and r_f3_time > 0
                 ):
-
                     past_base_f3 = 0.0
 
                     if f3_master_df is not None:
-
                         f3_match = f3_master_df[
                             (
                                 f3_master_df["競馬場"]
@@ -2099,19 +1879,17 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                                 r_dist
                             )
                             &
-(
-    f3_master_df["クラス"]
-    .astype(str)
-    .str.contains(
-        r_target_base_class,
-        na=False
-    )
-)
+                            (
+                                f3_master_df["クラス"]
+                                .astype(str)
+                                .str.contains(
+                                    r_target_base_class,
+                                    na=False
+                                )
+                            )
                         ]
 
-                        # ★ここが元コードのバグ修正箇所
                         if f3_match.empty:
-
                             f3_match = f3_master_df[
                                 (
                                     f3_master_df["競馬場"]
@@ -2136,7 +1914,6 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                             ]
 
                         if not f3_match.empty:
-
                             b_col = (
                                 r_baba
                                 if r_baba in [
@@ -2149,7 +1926,6 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                             )
 
                             if b_col in f3_match.columns:
-
                                 past_base_f3 = pd.to_numeric(
                                     f3_match.iloc[0][b_col],
                                     errors="coerce"
@@ -2159,7 +1935,6 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                         pd.isna(past_base_f3)
                         or past_base_f3 <= 0
                     ):
-
                         past_base_f3 = (
                             34.5
                             if r_surface_keyword == "芝"
@@ -2174,18 +1949,15 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                     f3_class_adjustment = 0.0
 
                     if not is_rising:
-
                         if (
                             r_surface_keyword
                             == "ダート"
                         ):
-
                             if class_diff > 0:
                                 f3_class_adjustment = (
                                     class_diff
                                     * 0.15
                                 )
-
                             elif class_diff < 0:
                                 f3_class_adjustment = (
                                     class_diff
@@ -2202,14 +1974,9 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                         converted_f3
                     )
 
-            # =============================================
-            # 走破タイム指数
-            # =============================================
-
             soha_score = 0.0
 
             if derived_times:
-
                 sorted_times = sorted(
                     derived_times
                 )
@@ -2220,18 +1987,6 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                     )
                 )
 
-                st.write(
-                    "予測タイム確認:",
-                    h_name,
-                    "換算値=",
-                    [round(x, 1) for x in sorted_times],
-                    "中央値=",
-                    round(val_to_use, 1),
-                    "今回基準=",
-                    round(target_base_seconds, 1)
-                )
-
-                # 過去6走を今回条件へ換算した中央値を保存
                 horse_predicted_time_map[h_name] = val_to_use
 
                 time_advantage = (
@@ -2247,14 +2002,9 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                     )
                 )
 
-            # =============================================
-            # 上がり3F指数
-            # =============================================
-
             f3_score = 0.0
 
             if derived_f3s:
-
                 sorted_f3s = sorted(
                     derived_f3s
                 )
@@ -2280,26 +2030,17 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                     )
                 )
 
-            # =============================================
-            # 走破＋上がり統合
-            # =============================================
-
             if straight_length < 320:
-
                 combined_score = (
                     soha_score * 0.75
                     + f3_score * 0.25
                 )
-
             elif 320 <= straight_length < 400:
-
                 combined_score = (
                     soha_score * 0.7
                     + f3_score * 0.3
                 )
-
             else:
-
                 combined_score = (
                     soha_score * 0.6
                     + f3_score * 0.4
@@ -2314,10 +2055,6 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                 }
             )
 
-        # =================================================
-        # 全馬計算
-        # =================================================
-
         theories_df = (
             recent_master_data
             .groupby("馬名_clean")
@@ -2327,7 +2064,6 @@ for hname, group in filtered_master.groupby("馬名_clean"):
         )
 
         if not theories_df.empty:
-
             if "soha_score" in theories_df.columns:
                 horse_soha_theory_map = (
                     theories_df[
@@ -2349,12 +2085,7 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                     ].to_dict()
                 )
 
-        # =================================================
-        # 着順能力
-        # =================================================
-
         if "着順" in recent_master_data.columns:
-
             recent_master_data[
                 "着順_num"
             ] = pd.to_numeric(
@@ -2372,9 +2103,7 @@ for hname, group in filtered_master.groupby("馬名_clean"):
             )
 
             for hname, af in avg_finishes.items():
-
                 if not pd.isna(af):
-
                     horse_ability_map[hname] = max(
                         0.0,
                         (
@@ -2383,15 +2112,10 @@ for hname, group in filtered_master.groupby("馬名_clean"):
                         ) * 0.5
                     )
 
-    # =====================================================
-    # 現在レースの統合指数
-    # =====================================================
-
     scored_horses = []
     rising_star_flags = []
 
     for idx, r in res_df.iterrows():
-
         hname_clean = str(
             r.get(
                 "馬名_clean",
@@ -2494,13 +2218,11 @@ for hname, group in filtered_master.groupby("馬名_clean"):
             )
 
         if straight_length < 320:
-
             if kyakushitsu in [
                 "逃げ",
                 "先行"
             ]:
                 raw_index += 5.0
-
             elif kyakushitsu in [
                 "差し",
                 "追込"
@@ -2515,7 +2237,6 @@ for hname, group in filtered_master.groupby("馬名_clean"):
             ]
         ):
             raw_index += 3.0
-
         elif (
             pace == "H（ハイ）"
             and kyakushitsu in [
@@ -2536,7 +2257,6 @@ for hname, group in filtered_master.groupby("馬名_clean"):
             and wakuban <= 3
         ):
             raw_index += 3.0
-
         elif (
             bias == "外有利"
             and wakuban >= 6
@@ -2551,10 +2271,7 @@ for hname, group in filtered_master.groupby("馬名_clean"):
         )
 
     res_df["統合指数"] = scored_horses
-
-    res_df["ライジングスター"] = (
-        rising_star_flags
-    )
+    res_df["ライジングスター"] = rising_star_flags
 
     res_df = res_df.sort_values(
         by="統合指数",
@@ -2568,13 +2285,9 @@ for hname, group in filtered_master.groupby("馬名_clean"):
         len(res_df) + 1
     )
 
-    # =====================================================
-    # 予測走破タイム
-    # =====================================================
     times = []
 
     for i in range(len(res_df)):
-
         hname_clean = str(
             res_df.iloc[i].get(
                 "馬名_clean",
@@ -2588,7 +2301,6 @@ for hname, group in filtered_master.groupby("馬名_clean"):
         )
 
         if pd.isna(predicted_time):
-
             predicted_time = target_base_seconds
 
         times.append(
@@ -2605,6 +2317,7 @@ for hname, group in filtered_master.groupby("馬名_clean"):
 
     return res_df
 
+
 # =========================================================
 # シミュレーション実行
 # =========================================================
@@ -2615,31 +2328,19 @@ st.markdown("<br>", unsafe_allow_html=True)
 if st.button(
     "🚀 走破タイム×上がり3F完全統合シミュレーションを実行"
 ):
-
     with st.spinner(
         "JRA-VANから各馬の過去走を取得し、"
         "基準走破タイム・基準上がり3Fと照合しています..."
     ):
-
-        # ---------------------------------------------
-        # ① JRA-VANから過去走を取得
-        # ---------------------------------------------
-
         master_data = build_master_data_from_jv(
             df_race
         )
 
         if master_data.empty:
-
             st.error(
                 "JRA-VANから過去走データを取得できませんでした。"
             )
-
             st.stop()
-
-        # ---------------------------------------------
-        # ② 既存シミュレーション
-        # ---------------------------------------------
 
         st.session_state[
             "df_simulated"
@@ -2684,7 +2385,6 @@ if (
     and "df_simulated"
     in st.session_state
 ):
-
     st.markdown(
         f"""
         <br>
@@ -2739,12 +2439,7 @@ if (
         hide_index=True,
     )
 
-    # ---------------------------------------------
-    # 取得した過去走件数
-    # ---------------------------------------------
-
     if "master_data_jv" in st.session_state:
-
         master_debug = (
             st.session_state[
                 "master_data_jv"
@@ -2755,9 +2450,7 @@ if (
             f"📊 JRA-VANから取得した過去走データ: "
             f"{len(master_debug)}件"
         )
-
 else:
-
     st.info(
         "👆 ペース・バイアス等を設定して、"
         "上のボタンを押すとJRA-VANの過去走を取得して"
