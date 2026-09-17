@@ -1018,21 +1018,21 @@ def build_master_data_from_jv(df_current):
             or pd.isna(month)
             or pd.isna(day)
         ):
-            date_str = str(date_value)
+            date_str = str(date_value).strip()
 
-            if len(date_str) >= 10:
-                try:
-                    dt = pd.to_datetime(
-                        date_str,
-                        errors="coerce"
-                    )
+            try:
+                dt = pd.to_datetime(
+                    date_str,
+                    errors="coerce"
+                )
 
-                    if not pd.isna(dt):
-                        year = dt.year
-                        month = dt.month
-                        day = dt.day
-                except Exception:
-                    pass
+                if not pd.isna(dt):
+                    year = dt.year
+                    month = dt.month
+                    day = dt.day
+
+            except Exception:
+                pass
 
         rows.append(
             {
