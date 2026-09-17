@@ -2603,8 +2603,7 @@ for hname, group in filtered_master.groupby("馬名_clean"):
         for t in times
     ]
 
-        return res_df
-
+    return res_df
 
 # =========================================================
 # シミュレーション実行
