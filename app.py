@@ -1713,7 +1713,18 @@ def run_integrated_simulation(
                     .strip()
                     .replace("クラス", "")
                 )
-
+if h_name == "アスクエジンバラ":
+    st.write(
+        "★★アスクエジンバラ過去走確認★★",
+        {
+            "場所": r_course,
+            "距離": r_dist,
+            "走破タイム": r_time,
+            "馬場": r_baba,
+            "芝ダ": r_surface,
+            "クラス": r_class,
+        }
+    )
                 r_surface_keyword = (
                     "ダート"
                     if "ダ" in r_surface
