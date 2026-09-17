@@ -16,7 +16,9 @@ API_BASE = "https://symantec-clark-albany-ski.trycloudflare.com"
 def normalize_horse_name(name):
     if not isinstance(name, str):
         return ""
-    return unicodedata.normalize("NFKC", name).strip()
+    # 全角・半角スペースをすべて削除して綺麗にする
+    n = unicodedata.normalize("NFKC", name)
+    return "".join(n.split())
 
 
 def api_get(path, timeout=20):
@@ -80,7 +82,7 @@ st.markdown(
 
 st.markdown(
     "<h2 style='text-align: center; color: #f1c40f;'>"
-    "本格競馬展開シミュレーター（JRA-VAN完全連携版・デバッグモード）"
+    "本格競馬展開シミュレーター（JRA-VAN完全連携版・修正完了）"
     "</h2>",
     unsafe_allow_html=True,
 )
@@ -316,7 +318,7 @@ for h in horses:
     row = {
         "枠番": h.get("枠番", h.get("wakuban", 1)),
         "馬番": h.get("馬番", h.get("umaban", 1)),
-        "馬名": h.get("馬名", h.get("bamei", "")),
+        "馬名": normalize_horse_name(h.get("馬名", h.get("bamei", ""))),
         "オッズ": format_odds(h.get("オッズ", h.get("odds"))),
         "人気": h.get("人気", h.get("ninki")),
         "脚質": style_from_value(h.get("脚質", h.get("kyakushitsu", 3))),
@@ -331,7 +333,6 @@ for h in horses:
     race_rows.append(row)
 
 df_race = pd.DataFrame(race_rows)
-df_race["馬名"] = df_race["馬名"].apply(normalize_horse_name)
 df_race["馬名_clean"] = df_race["馬名"]
 
 straight_lengths_dict = {
@@ -406,28 +407,29 @@ def build_master_data_from_jv(df_current):
     for horse_name in df_current["馬名"].tolist():
         history = load_horse_history(normalize_horse_name(horse_name))
         for h in history:
-            h["_target_horse_name"] = horse_name  # デバッグ用保持
+            h["_target_horse_name"] = horse_name
             all_history.append(h)
 
     if not all_history:
-        return pd.DataFrame(), []
+        return pd.DataFrame()
 
     rows = []
-    raw_debug_list = []
-
     for h in all_history:
-        raw_debug_list.append(h)  # 生データ保持
         horse_name = normalize_horse_name(h.get("馬名", h.get("bamei", h.get("_target_horse_name", ""))))
         
-        raw_finish = h.get("着順", h.get("kakutei_chakujun", np.nan))
+        raw_finish = h.get("kakutei_chakujun", h.get("着順", np.nan))
         finish = np.nan
         try:
-            if pd.notna(raw_finish):
-                import re
-                f_str = unicodedata.normalize("NFKC", str(raw_finish))
-                match_f = re.search(r'\d+', f_str)
-                if match_f:
-                    finish = float(match_f.group(0))
+            if raw_finish is not None:
+                f_str = str(raw_finish).strip()
+                # "00" や "0" は未確定・出走前データなので除外する
+                if f_str and f_str != "00" and f_str != "0":
+                    import re
+                    match_f = re.search(r'\d+', f_str)
+                    if match_f:
+                        val = int(match_f.group(0))
+                        if val > 0:
+                            finish = float(val)
         except Exception:
             pass
 
@@ -437,38 +439,28 @@ def build_master_data_from_jv(df_current):
             "場所": str(h.get("場所", h.get("place", ""))),
             "距離": float(h.get("距離", h.get("kyori", 0)) or 0),
             "着順": finish,
-            "raw_着順_input": raw_finish,  # デバッグ用
-            "年": h.get("年", np.nan),
+            "年": h.get("年", h.get("kaisai_nen", np.nan)),
             "月": h.get("月", np.nan),
             "日": h.get("日", np.nan),
         })
 
-    return pd.DataFrame(rows), raw_debug_list
+    return pd.DataFrame(rows)
 
 
 # =========================================================
-# シミュレーション＆判定
+# シミュレーション実行ボタン
 # =========================================================
 
-if st.button("🚀 デバッグ情報付きシミュレーション実行"):
-    master_data, raw_debug_list = build_master_data_from_jv(df_race)
+if st.button("🚀 シミュレーション実行"):
+    master_data = build_master_data_from_jv(df_race)
 
-    st.session_state["master_data"] = master_data
-    st.session_state["raw_debug_list"] = raw_debug_list
-    st.session_state["sim_executed"] = True
-
-if st.session_state.get("sim_executed", False):
-    st.markdown("### 🔍 取得された過去走データ（生データ確認用）")
-    raw_list = st.session_state.get("raw_debug_list", [])
-    
-    if raw_list:
-        # ロブチェンに該当するデータを絞り込み表示
-        rob_data = [x for x in raw_list if "ロブチェン" in str(x)]
-        if rob_data:
-            st.write(f"**「ロブチェン」のAPI取得生データ ({len(rob_data)}件):**")
-            st.json(rob_data[:5])  # 最初の5件を表示
-        else:
-            st.warning("APIから取得したデータの中に「ロブチェン」という文字が見つかりませんでした。馬名が一致していない可能性があります。")
-            st.write("取得できた生データのサンプル:", raw_list[:2])
+    if master_data.empty:
+        st.error("有効な過去走データが構築できませんでした。")
     else:
-        st.error("過去走データが1件も取得できませんでした。")
+        st.success(f"過去走データの読み込みに成功しました！（総レコード数: {len(master_data)}件）")
+        
+        # サンプルとしてロブチェン等の着順データを確認表示
+        st.write("### 📊 読み込んだ過去走の着順サンプル確認", master_data[["馬名", "場所", "距離", "着順", "年"]].head(10))
+        
+        # 簡易的な能力計算や表示のシミュレーション処理をここに繋げられます
+        st.info("ここに本来の展開・能力シミュレーション結果を表示します。")
