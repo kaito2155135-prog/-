@@ -1089,7 +1089,7 @@ def build_master_data_from_jv(df_current):
             soha_time = np.nan        
         
         # ★ここから追加
-        if str(h.get("馬名", h.get("bamei", ""))).strip() == "アスクエジンバラ":
+        if str(h.get("馬名", h.get("bamei", ""))).strip() == "コスモキュランダ":
             st.write(
                 "★★JRA-VAN取得直後の走破タイム★★",
                 {
