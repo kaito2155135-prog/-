@@ -1230,11 +1230,16 @@ def run_integrated_simulation(
     # =====================================================
     target_base_seconds = 0.0
 
-        target_base_class = (
-            "OP"
-            if target_cls in ["G1", "G2", "G3", "L", "OP"]
-            else str(target_cls).strip().replace("クラス", "")
-        )
+    st.write("基準Excel:", base_master_df is not None)
+
+    if base_master_df is not None:
+        st.write("基準Excel列:", base_master_df.columns.tolist())
+
+    target_base_class = (
+        "OP"
+        if target_cls in ["G1", "G2", "G3", "L", "OP"]
+        else str(target_cls).strip().replace("クラス", "")
+    )
     
 
     if base_master_df is not None:
