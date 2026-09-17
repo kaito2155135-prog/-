@@ -162,7 +162,6 @@ def format_time_seconds(value):
     if value is None:
         return np.nan
 
-
     try:
         if isinstance(value, str):
             value = value.strip()
@@ -170,7 +169,6 @@ def format_time_seconds(value):
             if not value:
                 return np.nan
 
-            # 「2:12.6」の形式
             if ":" in value:
                 parts = value.split(":")
 
@@ -180,7 +178,6 @@ def format_time_seconds(value):
                         + float(parts[1])
                     )
 
-            # JRA-VANの4桁走破タイム
             if value.isdigit() and len(value) == 4:
                 num = int(value)
 
@@ -197,14 +194,12 @@ def format_time_seconds(value):
 
             return minutes * 60.0 + seconds
 
-        # 数値として「MMSS.s」で入っている場合
         if 100 <= num < 300:
             minutes = int(num // 100)
             seconds = num - minutes * 100
 
             return minutes * 60.0 + seconds
 
-        # すでに秒数として入っている場合
         if num < 100:
             return num
 
@@ -288,11 +283,6 @@ def condition_from_code(value):
 
 
 def surface_from_race(race):
-    """
-    API側のsurfaceを最優先。
-    なければ従来の項目やtrack_codeから判定。
-    """
-
     surface_name = str(
         race.get(
             "surface",
@@ -333,10 +323,6 @@ def surface_from_race(race):
 # =========================================================
 
 def detect_class(race_name="", grade_code="", condition_code=""):
-    """
-    JRA-VANのgrade_code・競走条件コード・レース名からクラスを判定
-    """
-
     race_name = str(race_name or "")
     grade_code = str(grade_code or "").strip().upper()
     condition_code = str(condition_code or "").strip()
@@ -1144,6 +1130,7 @@ def build_master_data_from_jv(df_current):
             )
         ].copy()
 
+    # 日付順（新しい順：年・月・日の降順）で確実にソート
     sort_cols = [
         c
         for c in ["年", "月", "日"]
@@ -1480,7 +1467,7 @@ def run_integrated_simulation(
         }
 
         # =================================================
-        # ライジングスター判定のインデントを綺麗に修正
+        # ライジングスター判定（日付順で直近2走を確実に取得して判定）
         # =================================================
         for hname, group in filtered_master.groupby("馬名_clean"):
             sort_cols = [c for c in ["年", "月", "日"] if c in group.columns]
