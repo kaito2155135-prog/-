@@ -1616,37 +1616,27 @@ def run_integrated_simulation(
         # ライジングスター
         # =================================================
 
-        for hname, group in filtered_master.groupby(
-            "馬名_clean"
-        ):
+ # 【修正後のイメージ】
+for hname, group in filtered_master.groupby("馬名_clean"):
+    # ① 確実に日付の新しい順に並べ直してから直近2走を取る
+    sort_cols = [c for c in ["年", "月", "日"] if c in group.columns]
+    if sort_cols:
+        group_sorted = group.sort_values(sort_cols, ascending=False)
+    else:
+        group_sorted = group
 
-            if (
-                "着順" in group.columns
-                and len(group) >= 2
-            ):
+    if "着順" in group_sorted.columns and len(group_sorted) >= 2:
+        top2 = group_sorted.head(2) # 確実に「最新の2走」を取得
+        finishes = pd.to_numeric(top2["着順"], errors="coerce").tolist()
 
-                top2 = group.head(2)
+        # ② 前走（finishes[0]）と2走前（finishes[1]）が両方とも 1着 か判定
+        if len(finishes) == 2 and finishes[0] == 1 and finishes[1] == 1:
+            rising_star_map[hname] = True
+        else:
+            rising_star_map[hname] = False
+    else:
+        rising_star_map[hname] = False
 
-                finishes = pd.to_numeric(
-                    top2["着順"],
-                    errors="coerce"
-                ).tolist()
-
-                if (
-                    len(finishes) == 2
-                    and finishes[0] == 1
-                    and finishes[1] == 1
-                ):
-
-                    rising_star_map[hname] = True
-
-                else:
-
-                    rising_star_map[hname] = False
-
-            else:
-
-                rising_star_map[hname] = False
 
         # =================================================
         # 理論値計算
