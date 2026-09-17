@@ -1061,6 +1061,22 @@ def build_master_data_from_jv(df_current):
     if master_df.empty:
         return master_df
 
+    # 未出走・出走予定レースを過去走から除外
+
+    if "着順" in master_df.columns:
+
+        master_df = master_df[
+
+            pd.to_numeric(
+
+                master_df["着順"],
+
+                errors="coerce"
+
+            ) >= 1
+
+        ].copy()
+        
     jra_places = [
         "東京",
         "中山",
