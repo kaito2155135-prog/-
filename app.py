@@ -1130,7 +1130,6 @@ def build_master_data_from_jv(df_current):
             )
         ].copy()
 
-    # 日付順（新しい順：年・月・日の降順）で確実にソート
     sort_cols = [
         c
         for c in ["年", "月", "日"]
@@ -1467,7 +1466,7 @@ def run_integrated_simulation(
         }
 
         # =================================================
-        # ライジングスター判定（日付順で直近2走を確実に取得して判定）
+        # ライジングスター判定の強化（確実に直近2走の着順=1を判定）
         # =================================================
         for hname, group in filtered_master.groupby("馬名_clean"):
             sort_cols = [c for c in ["年", "月", "日"] if c in group.columns]
@@ -1478,7 +1477,14 @@ def run_integrated_simulation(
 
             if "着順" in group_sorted.columns and len(group_sorted) >= 2:
                 top2 = group_sorted.head(2)
-                finishes = pd.to_numeric(top2["着順"], errors="coerce").tolist()
+                # 文字列や欠損値が混ざっても確実に数値化（例: "1着" や "1"）
+                finishes = []
+                for val in top2["着順"].tolist():
+                    try:
+                        s_val = "".join(filter(str.isdigit, str(val)))
+                        finishes.append(int(s_val) if s_val else 99)
+                    except Exception:
+                        finishes.append(99)
 
                 if len(finishes) == 2 and finishes[0] == 1 and finishes[1] == 1:
                     rising_star_map[hname] = True
