@@ -1423,6 +1423,22 @@ def run_integrated_simulation(
         # ライジングスター判定の堅牢化
         # =================================================
         for hname, group in filtered_master.groupby("馬名_clean"):
+
+            if "ロブチェン" in hname:
+                st.write(
+                    "★★ロブチェン確認★★",
+                    group[
+                        [
+                            "年",
+                            "月",
+                            "日",
+                            "着順",
+                            "場所",
+                            "距離"
+                        ]
+                    ].head(6)
+                )
+   
             sort_cols = [c for c in ["年", "月", "日"] if c in group.columns]
             if sort_cols:
                 group_sorted = group.sort_values(sort_cols, ascending=False)
