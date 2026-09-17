@@ -159,10 +159,6 @@ if df_f3_master is not None and "距離" in df_f3_master.columns:
 # =========================================================
 
 def format_time_seconds(value):
-    """
-    JRA-VANの走破タイムを秒に変換。
-    """
-
     if value is None:
         return np.nan
 
@@ -173,9 +169,10 @@ def format_time_seconds(value):
             if not value:
                 return np.nan
 
-            # 1:34.5 のような形式
+            # 「2:23.2」の形式
             if ":" in value:
                 parts = value.split(":")
+
                 if len(parts) == 2:
                     return (
                         float(parts[0]) * 60.0
@@ -184,23 +181,29 @@ def format_time_seconds(value):
 
         num = float(value)
 
-        # 通常の秒表記
-        # 例：132.5 → 132.5秒
-        if num < 300:
+        # JRA-VANの走破タイム
+        # 例：
+        # 223.2 → 2分23.2秒 → 143.2秒
+        # 214.3 → 2分14.3秒 → 134.3秒
+        # 201.2 → 2分01.2秒 → 121.2秒
+        # 156.8 → 1分56.8秒 → 116.8秒
+        if 100 <= num < 300:
+            minutes = int(num // 100)
+            seconds = num - minutes * 100
+
+            return minutes * 60.0 + seconds
+
+        # すでに秒数として入っている場合
+        if num < 100:
             return num
 
-        # JRA-VAN側で10倍された走破タイム
-        # 例：1325 → 132.5秒
         if num < 10000:
             return num / 10.0
 
-        # 念のため100倍形式にも対応
-        # 例：13250 → 132.5秒
         return num / 100.0
 
     except Exception:
         return np.nan
-
 
 def format_weight(value):
     if value is None:
