@@ -169,7 +169,7 @@ def format_time_seconds(value):
             if not value:
                 return np.nan
 
-            # 「2:23.2」の形式
+            # 「2:12.6」の形式
             if ":" in value:
                 parts = value.split(":")
 
@@ -179,14 +179,25 @@ def format_time_seconds(value):
                         + float(parts[1])
                     )
 
+            # JRA-VANの4桁走破タイム
+            # 例：
+            # 2126 → 2分12.6秒 → 132.6秒
+            # 2317 → 2分31.7秒 → 151.7秒
+            # 1568 → 1分56.8秒 → 116.8秒
+            # 3084 → 3分08.4秒 → 188.4秒
+            if value.isdigit() and len(value) == 4:
+                num = int(value)
+
+                minutes = num // 1000
+                seconds = (num % 1000) / 10.0
+
+                return minutes * 60.0 + seconds
+
         num = float(value)
 
-        # JRA-VANの走破タイム
+        # 数値として「MMSS.s」で入っている場合
         # 例：
         # 223.2 → 2分23.2秒 → 143.2秒
-        # 214.3 → 2分14.3秒 → 134.3秒
-        # 201.2 → 2分01.2秒 → 121.2秒
-        # 156.8 → 1分56.8秒 → 116.8秒
         if 100 <= num < 300:
             minutes = int(num // 100)
             seconds = num - minutes * 100
@@ -197,14 +208,10 @@ def format_time_seconds(value):
         if num < 100:
             return num
 
-        if num < 10000:
-            return num / 10.0
-
-        return num / 100.0
+        return num / 10.0
 
     except Exception:
         return np.nan
-
 def format_weight(value):
     if value is None:
         return np.nan
