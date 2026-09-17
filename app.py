@@ -201,7 +201,17 @@ def format_time_seconds(value):
                 return minutes * 60.0 + seconds
 
         num = float(value)
+# ★★★ここを追加★★★
 
+        if 1000 <= num < 10000:
+
+            minutes = int(num // 1000)
+
+            seconds = (num % 1000) / 10.0
+
+            return minutes * 60.0 + seconds
+
+        # ★★★ここまで★★★
         # 数値として「MMSS.s」で入っている場合
         # 例：
         # 223.2 → 2分23.2秒 → 143.2秒
