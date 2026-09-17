@@ -526,7 +526,7 @@ for h in horses:
                     )
                 )
             )
-　　　　),
+        ),
         "得意馬場": "指定なし",
         "場所": race_place,
         "距離": race_distance,
