@@ -159,12 +159,6 @@ if df_f3_master is not None and "距離" in df_f3_master.columns:
 # =========================================================
 
 def format_time_seconds(value):
-    st.write(
-        "★★変換関数に入った値★★",
-        repr(value),
-        type(value).__name__
-    )
-
     if value is None:
         return np.nan
 
@@ -1112,18 +1106,6 @@ def build_master_data_from_jv(df_current):
         except Exception:
             soha_time = np.nan        
         
-        # ★ここから追加
-        if str(h.get("馬名", h.get("bamei", ""))).strip() == "コスモキュランダ":
-            st.write(
-                "★★JRA-VAN取得直後の走破タイム★★",
-                {
-                    "raw_走破タイム": h.get("走破タイム"),
-                    "raw_soha_time": h.get("soha_time"),
-                    "変換後": soha_time,
-                }
-            )
-        # ★ここまで
-
         # 上がり3F
         f3 = h.get(
             "上がり3Fタイム",
@@ -1788,18 +1770,7 @@ def run_integrated_simulation(
                     .strip()
                     .replace("クラス", "")
                 )
-                if h_name == "アスクエジンバラ":
-                    st.write(
-                        "★★アスクエジンバラ過去走確認★★",
-                        {
-                            "場所": r_course,
-                            "距離": r_dist,
-                            "走破タイム": r_time,
-                            "馬場": r_baba,
-                            "芝ダ": r_surface,
-                            "クラス": r_class,
-                        }
-                    )
+   
                 r_surface_keyword = (
                     "ダート"
                     if "ダ" in r_surface
