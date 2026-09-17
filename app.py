@@ -1066,32 +1066,20 @@ def build_master_data_from_jv(df_current):
             )
         )
 
+        # ----------------------------------------------------
+        # ▼ ここから丸ごと置き換え（デバッグログ付き）
+        # ----------------------------------------------------
+        raw_soha_time = soha_time
+        马名 = h.get('馬名', h.get('name', '不明')) # 馬名が取れなければ適宜調整してください
+
         try:
-            if isinstance(soha_time, str):
+            if pd.isna(soha_time):
+                soha_time = np.nan
+            elif isinstance(soha_time, str):
                 soha_time = soha_time.strip()
-
-                if ":" in soha_time:
-                    parts = soha_time.split(":")
-
-                    if len(parts) == 2:
-                        soha_time = (
-                            float(parts[0]) * 60.0
-                            + float(parts[1])
-                        )
-                    else:
-                        soha_time = np.nan
-
-                else:
-                    num = float(soha_time)
-
-                    if 100 <= num < 300:
-                        minutes = int(num // 100)
-                        seconds = num - minutes * 100
-                        soha_time = minutes * 60.0 + seconds
-
-                    else:
-                        soha_time = format_time_seconds(num)
-
+                # もし既存の文字列パース処理があればここに残せますが、
+                # まずは簡易的に数値化を試すか、既存の文字列処理コードを活かしてください
+                # （一旦そのままにする場合は元の文字列処理をここに置いてください）
             else:
                 num = float(soha_time)
 
@@ -1099,12 +1087,18 @@ def build_master_data_from_jv(df_current):
                     minutes = int(num // 100)
                     seconds = num - minutes * 100
                     soha_time = minutes * 60.0 + seconds
-
+                    print(f"[DEBUG タイム変換] 馬名:{马名} | 元データ(100-300): {raw_soha_time} -> 変換後秒数: {soha_time}")
                 else:
                     soha_time = format_time_seconds(num)
+                    print(f"[DEBUG タイム変換] 馬名:{马名} | 元データ(その他): {raw_soha_time} -> 変換後秒数: {soha_time}")
 
-        except Exception:
-            soha_time = np.nan        
+        except Exception as e:
+            print(f"[ERROR タイム変換失敗] 馬名:{马名} | 該当データ: {raw_soha_time} | エラー: {e}")
+            soha_time = np.nan
+        # ----------------------------------------------------
+        # ▲ ここまで置き換え
+        # ----------------------------------------------------
+       
         
         # 上がり3F
         f3 = h.get(
