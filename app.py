@@ -2124,7 +2124,7 @@ def run_integrated_simulation(
     f3_master_df["クラス"]
     .astype(str)
     .str.contains(
-        r_class_keyword,
+        r_target_base_class,
         na=False
     )
 )
