@@ -92,21 +92,19 @@ st.markdown(
 
 @st.cache_data
 def load_base_data_excel():
-    excel_filename = "JRA全競馬場_芝ダート_クラス別_馬場別基準タイム.xlsx"
 
-    if not os.path.exists(excel_filename):
-        st.error(f"Excelが見つかりません: {excel_filename}")
-        st.write("現在の場所:", os.getcwd())
-        st.write(
-            "現在のフォルダのxlsx:",
-            [
-                f
-                for f in os.listdir(".")
-                if f.lower().endswith(".xlsx")
-            ]
-        )
+    xlsx_files = [
+        f for f in os.listdir(".")
+        if f.lower().endswith(".xlsx")
+        and "馬場別基準タイム" in f
+    ]
+
+    if not xlsx_files:
+        st.error("馬場別基準タイムのExcelが見つかりません")
         return None, None
-        
+
+    excel_filename = xlsx_files[0]
+
     try:
         xls = pd.ExcelFile(excel_filename)
 
