@@ -1935,19 +1935,6 @@ def run_integrated_simulation(
                         + class_level_penalty
                     )
 
-                    if h_name == "ジャスティンシカゴ":
-                        st.write(
-                            "★★換算タイム詳細★★",
-                            {
-                                "距離": r_dist,
-                                "走破タイム": r_soha_time,
-                                "time_diff": time_diff,
-                                "距離補正": distance_penalty_or_bonus,
-                                "クラス補正": class_level_penalty,
-                                "換算後": converted_time,
-                            }
-                        )
-
                     if is_rising:
                         converted_time -= 0.2
 
