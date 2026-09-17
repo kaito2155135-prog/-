@@ -516,8 +516,17 @@ for h in horses:
             h.get("ninki")
         ),
         "脚質": style_from_value(
-            h.get("脚質", h.get("kyakushitsu", 3))
-        ),
+            h.get(
+                "脚質",
+                h.get(
+                    "kyakushitsu_hantei",
+                    h.get(
+                        "kyakushitsu",
+                        3
+                    )
+                )
+            )
+　　　　),
         "得意馬場": "指定なし",
         "場所": race_place,
         "距離": race_distance,
