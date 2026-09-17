@@ -2044,11 +2044,13 @@ def run_integrated_simulation(
                         converted_time -= 0.2
 
                     if (
-                    not pd.isna(converted_time)
-                    and converted_time > 0
-                ):
-                    derived_times.append(converted_time)                
-
+                        not pd.isna(converted_time)
+                        and converted_time > 0
+                    ):
+                        derived_times.append(
+                            converted_time
+                        )
+                            
                 # =========================================
                 # 上がり3F
                 # =========================================
