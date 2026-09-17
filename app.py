@@ -1047,10 +1047,19 @@ def build_master_data_from_jv(df_current):
                 np.nan
             )
         )
+        soha_time = format_time_seconds(soha_time)
 
-        soha_time = format_time_seconds(
-            soha_time
-        )
+        # ★ここから追加
+        if str(h.get("馬名", h.get("bamei", ""))).strip() == "アスクエジンバラ":
+            st.write(
+                "★★JRA-VAN取得直後の走破タイム★★",
+                {
+                    "raw_走破タイム": h.get("走破タイム"),
+                    "raw_soha_time": h.get("soha_time"),
+                    "変換後": soha_time,
+                }
+            )
+        # ★ここまで
 
         # 上がり3F
         f3 = h.get(
