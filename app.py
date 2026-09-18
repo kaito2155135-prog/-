@@ -1058,6 +1058,12 @@ def build_master_data_from_jv(df_current):
                 "年": year,
                 "月": month,
                 "日": day,
+                "脚質": style_from_value(
+                    h.get(
+                        "kyakushitsu_hantei",
+                        3
+                    )
+                ),
                 "斤量": format_weight(
                     h.get("斤量", h.get("futan_juryo"))
                 ),
