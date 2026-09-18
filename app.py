@@ -1433,37 +1433,38 @@ def run_integrated_simulation(
         )
 
         # ============================================================
-# 直近6走から基本脚質を判定
-# ============================================================
-style_map = {}
+        # 直近6走から基本脚質を判定
+        # ============================================================
+        style_map = {}
 
-for horse_name, group in recent_master_data.groupby("馬名_clean"):
+        for horse_name, group in recent_master_data.groupby("馬名_clean"):
 
-    styles = group["脚質"].astype(str).tolist()
+            styles = group["脚質"].astype(str).tolist()
 
-    # 直近のレースほど重くする
-    weights = list(range(len(styles), 0, -1))
+            # 直近のレースほど重くする
+            weights = list(range(len(styles), 0, -1))
 
-    style_scores = {
-        "逃げ": 0,
-        "先行": 0,
-        "差し": 0,
-        "追込": 0,
-    }
+            style_scores = {
+                "逃げ": 0,
+                "先行": 0,
+                "差し": 0,
+                "追込": 0,
+            }
 
-    for style, weight in zip(styles, weights):
-        if style in style_scores:
-            style_scores[style] += weight
+            for style, weight in zip(styles, weights):
+                if style in style_scores:
+                    style_scores[style] += weight
 
-    if max(style_scores.values()) > 0:
-        base_style = max(
-            style_scores,
-            key=style_scores.get
-        )
-    else:
-        base_style = "差し"
+            if max(style_scores.values()) > 0:
+                base_style = max(
+                    style_scores,
+                    key=style_scores.get
+                )
+            else:
+                base_style = "差し"
 
-    style_map[horse_name] = base_style
+            style_map[horse_name] = base_style
+            
         class_rank_map = {
             "新馬": 1,
             "未勝利": 1,
