@@ -2153,11 +2153,9 @@ def run_integrated_simulation(
             )
         )
 
-        kyakushitsu = str(
-            r.get(
-                "脚質",
-                "差し"
-            )
+        kyakushitsu = style_map.get(
+            r.get("馬名_clean"),
+            "差し"
         )
 
         tokui_baba = str(
