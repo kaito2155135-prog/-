@@ -1613,7 +1613,7 @@ def run_integrated_simulation(
                 past_course_multiplier = 1.0
 
                 if "小倉" in r_course:
-                    past_course_multiplier = 1.11
+                    past_course_multiplier = 1.05
                 elif (
                     "函館" in r_course
                     or "札幌" in r_course
