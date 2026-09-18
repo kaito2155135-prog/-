@@ -503,7 +503,6 @@ default_baba = condition_from_code(surface_condition_code)
 race_rows = []
 
 for h in horses:
-    st.write("脚質デバッグ:", h)
     row = {
         "枠番": h.get("枠番", h.get("wakuban", 1)),
         "馬番": h.get("馬番", h.get("umaban", 1)),
@@ -1299,7 +1298,7 @@ def run_integrated_simulation(
                 f3_master_df["クラス"]
                 .astype(str)
                 .str.contains(
-                    target_base_class,
+                    r_class_keyword,
                     na=False
                 )
             )
