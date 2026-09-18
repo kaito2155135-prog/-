@@ -2144,6 +2144,7 @@ def run_integrated_simulation(
 
     scored_horses = []
     rising_star_flags = []
+    inferred_styles = []
 
     for idx, r in res_df.iterrows():
         hname_clean = str(
@@ -2156,6 +2157,10 @@ def run_integrated_simulation(
         kyakushitsu = style_map.get(
             r.get("馬名_clean"),
             "差し"
+        )
+
+        inferred_styles.append(
+            kyakushitsu
         )
 
         tokui_baba = str(
@@ -2300,6 +2305,7 @@ def run_integrated_simulation(
 
     res_df["統合指数"] = scored_horses
     res_df["ライジングスター"] = rising_star_flags
+    res_df["脚質"] = inferred_styles
 
     res_df = res_df.sort_values(
         by="統合指数",
