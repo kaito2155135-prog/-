@@ -10,7 +10,7 @@ import requests
 # 基本設定
 # =========================================================
 
-API_BASE = "https://cia-analysis-taken-elegant.trycloudflare.com"
+API_BASE = "https://fifth-monte-male-mostly.trycloudflare.com"
 
 
 def normalize_horse_name(name):
