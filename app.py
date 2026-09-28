@@ -2487,6 +2487,25 @@ def save_geo_prediction(
         return False
 
 # ============================================================
+# Geo予想をSQLiteへ自動保存
+# ============================================================
+
+saved = save_geo_prediction(
+    race_id=race_id,
+    geo=geo,
+    pace=pace,
+    bias=bias,
+    condition=condition,
+    race_info=race_info
+)
+
+if saved:
+
+    st.success(
+        "💾 ジオの予想をSQLiteへ自動保存しました"
+    )
+
+# ============================================================
 # 🧠 ジオ STEP2
 # レース全体を分析して最終判断
 # ============================================================
