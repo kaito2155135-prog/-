@@ -2487,25 +2487,6 @@ def save_geo_prediction(
         return False
 
 # ============================================================
-# Geo予想をSQLiteへ自動保存
-# ============================================================
-
-saved = save_geo_prediction(
-    race_id=race_id,
-    geo=geo,
-    pace=pace,
-    bias=bias,
-    condition=condition,
-    race_info=race_info
-)
-
-if saved:
-
-    st.success(
-        "💾 ジオの予想をSQLiteへ自動保存しました"
-    )
-
-# ============================================================
 # 🧠 ジオ STEP2
 # レース全体を分析して最終判断
 # ============================================================
@@ -3051,20 +3032,62 @@ if (
 
     st.markdown("---")
 
-    if st.button(
-        "🧠 ジオにレースを分析させる",
-        key="geo_prediction_button",
-        type="primary"
-    ):
+if st.button(
+    "🧠 ジオにレースを分析させる",
+    key="geo_prediction_button",
+    type="primary"
+):
 
-        geo_result = run_geo_prediction(
-            st.session_state["df_simulated"],
-            selected_pace,
-            selected_bias,
-            selected_condition,
+    geo_result = run_geo_prediction(
+        st.session_state["df_simulated"],
+        selected_pace,
+        selected_bias,
+        selected_condition,
+    )
+
+    # ========================================================
+    # 🧠 ジオ予想をSQLiteへ自動保存
+    # ========================================================
+
+    if geo_result is not None:
+
+        # race_id を安全に取得
+        current_race_id = st.session_state.get(
+            "race_id"
         )
 
-        st.session_state["geo_prediction"] = geo_result
+        # race_info を安全に取得
+        current_race_info = st.session_state.get(
+            "race_info",
+            {}
+        )
+
+        if current_race_id:
+
+            saved = save_geo_prediction(
+                race_id=current_race_id,
+                geo=geo_result,
+                pace=selected_pace,
+                bias=selected_bias,
+                condition=selected_condition,
+                race_info=current_race_info
+            )
+
+            if saved:
+
+                st.success(
+                    "💾 ジオの予想をSQLiteへ自動保存しました"
+                )
+
+        else:
+
+            st.warning(
+                "⚠️ race_idが取得できないため、"
+                "ジオ予想は表示しますが保存できませんでした。"
+            )
+
+    # セッションに保存
+    st.session_state["geo_prediction"] = geo_result
 
     if "geo_prediction" in st.session_state:
 
