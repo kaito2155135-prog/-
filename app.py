@@ -406,6 +406,13 @@ race_id = selected_race_summary.get(
     )
 )
 
+# =========================================================
+# 選択中レースIDを保存
+# =========================================================
+
+race_id = str(race_id)
+
+st.session_state["current_race_id"] = race_id
 
 # =========================================================
 # 選択レース詳細
@@ -538,6 +545,7 @@ for h in horses:
 
 
 df_race = pd.DataFrame(race_rows)
+df_race["レースID"] = race_id
 
 
 df_race["馬名"] = df_race["馬名"].apply(normalize_horse_name)
