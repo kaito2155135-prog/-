@@ -2406,410 +2406,452 @@ if st.button(
             f"JRA-VAN過去走 {len(master_data)}件を取得して計算しました。"
         )
 
+# ============================================================
+# 🧠 ジオ STEP2
+# レース全体を分析して最終判断
+# ============================================================
 
-# =========================================================
-# 🧠 ジオ予想エンジン STEP1
-# =========================================================
-
-def run_geo_prediction(
-    df_sim,
-    pace,
-    bias,
-    condition,
-):
-    """
-    STEP1:
-    既存の統合指数を受け取り、
-    ジオとして ◎○▲ と「買う/見送る」を決定する。
-    
-    ※現段階ではルールベース。
-    今後、血統・状態・勝負度合い・過去のジオ判断を追加する。
-    """
+def run_geo_prediction(df_sim, pace, bias, condition):
 
     df = df_sim.copy()
 
-    if df.empty or len(df) < 3:
+    if df.empty:
         return None
 
-    # -----------------------------------------------------
-    # 安全に数値化
-    # -----------------------------------------------------
-
-    df["統合指数_num"] = pd.to_numeric(
-        df["統合指数"],
-        errors="coerce"
+    # --------------------------------------------------------
+    # 基本整理
+    # --------------------------------------------------------
+    df["統合指数"] = pd.to_numeric(
+        df["統合指数"], errors="coerce"
     ).fillna(0)
 
-    df["オッズ_num"] = pd.to_numeric(
-        df["オッズ"],
-        errors="coerce"
+    df["予測走破タイム"] = pd.to_numeric(
+        df["予測走破タイム"], errors="coerce"
     )
 
-    # -----------------------------------------------------
-    # 現在のランキング順を維持
-    # -----------------------------------------------------
+    df["オッズ"] = pd.to_numeric(
+        df["オッズ"], errors="coerce"
+    ).fillna(999)
+
+    # --------------------------------------------------------
+    # ジオ評価値
+    # --------------------------------------------------------
+    df["ジオ評価"] = df["統合指数"]
+
+    reasons = {}
+
+    for idx, row in df.iterrows():
+
+        score = float(row["統合指数"])
+        odds = float(row["オッズ"])
+
+        horse = str(row.get("馬名", ""))
+        style = str(row.get("脚質", ""))
+        ground = str(row.get("得意馬場", ""))
+
+        point = []
+        bonus = 0
+        penalty = 0
+
+        # ====================================================
+        # ① 統合指数
+        # ====================================================
+
+        if score >= df["統合指数"].quantile(0.8):
+            bonus += 8
+            point.append("能力指数が上位")
+
+        elif score >= df["統合指数"].quantile(0.6):
+            bonus += 3
+
+        # ====================================================
+        # ② 展開
+        # ====================================================
+
+        if pace == "S":
+
+            if style in ["逃げ", "先行"]:
+                bonus += 7
+                point.append("スローペースなら前有利")
+
+            elif style == "差し":
+                penalty += 4
+
+            elif style == "追込":
+                penalty += 7
+
+        elif pace == "M":
+
+            if style in ["先行", "差し"]:
+                bonus += 4
+                point.append("ミドルペースへの適性")
+
+        elif pace == "H":
+
+            if style == "差し":
+                bonus += 7
+                point.append("ハイペースなら差し有利")
+
+            elif style == "追込":
+                bonus += 5
+                point.append("展開が向けば末脚を活かせる")
+
+            elif style == "逃げ":
+                penalty += 6
+
+        # ====================================================
+        # ③ 馬場適性
+        # ====================================================
+
+        if ground:
+
+            if condition in ground:
+
+                bonus += 5
+                point.append(f"{condition}馬場への適性")
+
+        # ====================================================
+        # ④ 馬場バイアス
+        # ====================================================
+
+        if bias == "内有利":
+
+            if style in ["逃げ", "先行"]:
+                bonus += 4
+                point.append("内有利の馬場と脚質が合う")
+
+            elif style == "追込":
+                penalty += 3
+
+        elif bias == "外有利":
+
+            if style in ["差し", "追込"]:
+                bonus += 4
+                point.append("外有利の馬場と脚質が合う")
+
+        # ====================================================
+        # ⑤ 人気との乖離
+        # ====================================================
+
+        # 人気薄なのに指数が高い馬
+        if odds >= 8 and score >= df["統合指数"].quantile(0.7):
+
+            bonus += 8
+            point.append("人気に対して能力評価が高い穴候補")
+
+        # 1～3番人気なのに指数が低い馬
+        if odds <= 4 and score <= df["統合指数"].quantile(0.4):
+
+            penalty += 7
+            point.append("人気先行の可能性")
+
+        # ====================================================
+        # ⑥ ジオ評価
+        # ====================================================
+
+        geo_score = score + bonus - penalty
+
+        df.loc[idx, "ジオ評価"] = geo_score
+
+        reasons[horse] = point
+
+    # --------------------------------------------------------
+    # ジオ評価で再ランキング
+    # --------------------------------------------------------
 
     df = df.sort_values(
-        "統合指数_num",
+        "ジオ評価",
         ascending=False
     ).reset_index(drop=True)
 
-    # -----------------------------------------------------
-    # 3頭を選出
-    # -----------------------------------------------------
+    # --------------------------------------------------------
+    # ◎ ○ ▲
+    # --------------------------------------------------------
 
-    top3 = df.head(3).copy()
+    if len(df) >= 1:
+        honmei = df.iloc[0]
 
-    if len(top3) < 3:
-        return None
-
-    first = top3.iloc[0]
-    second = top3.iloc[1]
-    third = top3.iloc[2]
-
-    # -----------------------------------------------------
-    # ◎と○▲の指数差
-    # -----------------------------------------------------
-
-    first_score = float(first["統合指数_num"])
-    second_score = float(second["統合指数_num"])
-    third_score = float(third["統合指数_num"])
-
-    gap_1_2 = first_score - second_score
-    gap_1_3 = first_score - third_score
-
-    # -----------------------------------------------------
-    # ◎の人気
-    # -----------------------------------------------------
-
-    first_odds = first.get("オッズ_num", np.nan)
-
-    if pd.isna(first_odds) or first_odds <= 0:
-        first_odds = np.nan
-
-    # -----------------------------------------------------
-    # 人気による評価
-    #
-    # 穴馬を機械的に消さない。
-    # ただし人気薄を◎固定する場合は要求信頼度を上げる。
-    # -----------------------------------------------------
-
-    if not pd.isna(first_odds):
-
-        if first_odds <= 2.5:
-            popularity_factor = 1.0
-
-        elif first_odds <= 5.0:
-            popularity_factor = 1.5
-
-        elif first_odds <= 10.0:
-            popularity_factor = 2.5
-
-        else:
-            popularity_factor = 4.0
-
+    if len(df) >= 2:
+        second = df.iloc[1]
     else:
-        popularity_factor = 2.0
+        second = None
 
-    # -----------------------------------------------------
-    # ◎1着固定の信頼度
-    # -----------------------------------------------------
+    if len(df) >= 3:
+        third = df.iloc[2]
+    else:
+        third = None
 
-    confidence = 65.0
+    # --------------------------------------------------------
+    # ジオの評価差
+    # --------------------------------------------------------
 
-    # ◎と○の差
-    confidence += min(
-        10.0,
-        max(
-            0.0,
-            gap_1_2 * 1.5
+    if second is not None:
+        gap12 = (
+            honmei["ジオ評価"]
+            - second["ジオ評価"]
         )
-    )
+    else:
+        gap12 = 0
 
-    # ◎と▲の差
-    confidence += min(
-        8.0,
-        max(
-            0.0,
-            gap_1_3 * 0.8
+    if third is not None:
+        gap13 = (
+            honmei["ジオ評価"]
+            - third["ジオ評価"]
         )
-    )
+    else:
+        gap13 = 0
 
-    # 人気薄なら慎重に
-    confidence -= popularity_factor
+    # --------------------------------------------------------
+    # 自信度
+    # --------------------------------------------------------
 
-    # -----------------------------------------------------
-    # ペースとの相性
-    # -----------------------------------------------------
+    confidence = 60
 
-    first_style = str(
-        first.get("脚質", "差し")
-    )
+    if gap12 >= 15:
+        confidence += 15
+    elif gap12 >= 8:
+        confidence += 8
+    elif gap12 <= 3:
+        confidence -= 8
 
-    if (
-        pace == "S（スロー）"
-        and first_style in ["逃げ", "先行"]
-    ):
-        confidence += 4.0
+    if gap13 >= 20:
+        confidence += 8
 
-    elif (
-        pace == "H（ハイ）"
-        and first_style in ["差し", "追込"]
-    ):
-        confidence += 4.0
+    # 本命が極端な人気薄の場合は少し慎重に
+    if honmei["オッズ"] >= 15:
+        confidence -= 8
 
-    # -----------------------------------------------------
-    # 馬場適性
-    # -----------------------------------------------------
+    confidence = max(0, min(100, int(confidence)))
 
-    first_baba = str(
-        first.get("得意馬場", "指定なし")
-    )
+    # --------------------------------------------------------
+    # 勝負判断
+    # --------------------------------------------------------
 
-    if (
-        first_baba != "指定なし"
-        and first_baba == condition
-    ):
-        confidence += 4.0
-
-    # -----------------------------------------------------
-    # トラックバイアス
-    # -----------------------------------------------------
-
-    try:
-        first_wakuban = int(
-            first.get("枠番", 1)
-        )
-    except Exception:
-        first_wakuban = 1
-
-    if (
-        bias == "内有利"
-        and first_wakuban <= 3
-    ):
-        confidence += 3.0
-
-    elif (
-        bias == "外有利"
-        and first_wakuban >= 6
-    ):
-        confidence += 3.0
-
-    # -----------------------------------------------------
-    # 0～100に収める
-    # -----------------------------------------------------
-
-    confidence = max(
-        0.0,
-        min(
-            100.0,
-            confidence
-        )
-    )
-
-    # -----------------------------------------------------
-    # 「買う / 見送る」
-    #
-    # STEP1ではかなり慎重にする。
-    # -----------------------------------------------------
-
-    if confidence >= 72:
-
+    if confidence >= 75:
         decision = "🔥 買う"
 
     elif confidence >= 62:
-
         decision = "△ 保留"
 
     else:
-
         decision = "🚫 見送る"
 
-    # -----------------------------------------------------
-    # 理由を生成
-    # -----------------------------------------------------
+    # --------------------------------------------------------
+    # ジオコメント
+    # --------------------------------------------------------
 
-    reasons = []
+    main_name = str(honmei["馬名"])
 
-    reasons.append(
-        f"統合指数は全体1位（{first_score:.1f}pt）"
+    main_reason = reasons.get(main_name, [])
+
+    if not main_reason:
+        main_reason = ["総合的な能力評価を重視"]
+
+    comment = []
+
+    comment.append(
+        f"{main_name}をジオの本命◎と判断。"
     )
 
-    reasons.append(
-        f"2位との差は{gap_1_2:.1f}pt"
+    comment.append(
+        f"統合指数は{honmei['統合指数']:.1f}、"
+        f"ジオ評価は{honmei['ジオ評価']:.1f}。"
     )
 
-    reasons.append(
-        f"3位との差は{gap_1_3:.1f}pt"
-    )
-
-    reasons.append(
-        f"脚質は{first_style}"
-    )
-
-    reasons.append(
-        f"想定ペースは{pace}"
-    )
-
-    reasons.append(
-        f"馬場は{condition}"
-    )
-
-    reasons.append(
-        f"バイアスは{bias}"
-    )
-
-    if not pd.isna(first_odds):
-
-        reasons.append(
-            f"現在オッズは{first_odds:.1f}倍"
+    if pace:
+        comment.append(
+            f"想定ペースは{pace}。"
         )
 
-    # -----------------------------------------------------
+    comment.append(
+        "、".join(main_reason[:3]) + "。"
+    )
+
+    # --------------------------------------------------------
+    # 買い目
+    # --------------------------------------------------------
+
+    tickets = []
+
+    if len(df) >= 3:
+
+        h = str(df.iloc[0]["馬番"])
+        s = str(df.iloc[1]["馬番"])
+        t = str(df.iloc[2]["馬番"])
+
+        tickets.append(
+            f"{h} → {s} → {t}"
+        )
+
+        tickets.append(
+            f"{h} → {t} → {s}"
+        )
+
+    # --------------------------------------------------------
     # 結果
-    # -----------------------------------------------------
+    # --------------------------------------------------------
 
     return {
-        "◎": first.to_dict(),
-        "○": second.to_dict(),
-        "▲": third.to_dict(),
-        "confidence": confidence,
+        "df_geo": df,
+        "honmei": honmei,
+        "second": second,
+        "third": third,
         "decision": decision,
+        "confidence": confidence,
+        "gap12": gap12,
+        "gap13": gap13,
+        "comment": comment,
+        "tickets": tickets,
         "reasons": reasons,
-        "gap_1_2": gap_1_2,
-        "gap_1_3": gap_1_3,
+        "pace": pace,
+        "bias": bias,
+        "condition": condition,
     }
 
 
-# =========================================================
+# ============================================================
 # 🧠 ジオ表示
-# =========================================================
+# ============================================================
 
 def display_geo_prediction(geo):
 
     if geo is None:
-        st.warning(
-            "ジオが予想を作成できませんでした。"
-        )
+        st.warning("ジオが判断できるデータがありません。")
         return
-
-    first = geo["◎"]
-    second = geo["○"]
-    third = geo["▲"]
-
-    confidence = geo["confidence"]
 
     st.markdown("---")
 
-    st.markdown(
-        """
-        <h2 style="text-align:center;color:#f1c40f;">
-            🧠 ジオ予想
-        </h2>
-        """,
-        unsafe_allow_html=True,
+    st.subheader("🧠 ジオの最終判断")
+
+    # --------------------------------------------------------
+    # 本命
+    # --------------------------------------------------------
+
+    cols = st.columns(3)
+
+    horse_data = [
+        ("◎ 本命", geo["honmei"]),
+        ("○ 対抗", geo["second"]),
+        ("▲ 単穴", geo["third"]),
+    ]
+
+    for col, (label, horse) in zip(cols, horse_data):
+
+        with col:
+
+            if horse is None:
+                st.info(f"{label}\n\n該当なし")
+                continue
+
+            st.markdown(
+                f"### {label}"
+            )
+
+            st.markdown(
+                f"## {horse['馬番']}番"
+            )
+
+            st.markdown(
+                f"### {horse['馬名']}"
+            )
+
+            st.write(
+                f"ジオ評価：**{horse['ジオ評価']:.1f}**"
+            )
+
+            st.write(
+                f"統合指数：{horse['統合指数']:.1f}"
+            )
+
+            st.write(
+                f"オッズ：{horse['オッズ']:.1f}"
+            )
+
+            st.write(
+                f"脚質：{horse.get('脚質', '')}"
+            )
+
+    # --------------------------------------------------------
+    # 結論
+    # --------------------------------------------------------
+
+    st.markdown("### 🎯 ジオの結論")
+
+    st.success(
+        f"{geo['decision']}　｜　自信度 **{geo['confidence']}%**"
     )
 
-    col1, col2, col3 = st.columns(3)
+    # --------------------------------------------------------
+    # ジオの考察
+    # --------------------------------------------------------
 
-    with col1:
-        st.markdown(
-            f"""
-            ### ◎ {int(first["馬番"])}番
-            ## {first["馬名"]}
-            **統合指数：{first["統合指数_num"]:.1f}pt**
-            """
-        )
+    st.markdown("### 💭 ジオの考察")
 
-    with col2:
-        st.markdown(
-            f"""
-            ### ○ {int(second["馬番"])}番
-            ## {second["馬名"]}
-            **統合指数：{second["統合指数_num"]:.1f}pt**
-            """
-        )
+    for text in geo["comment"]:
+        st.write("・" + text)
 
-    with col3:
-        st.markdown(
-            f"""
-            ### ▲ {int(third["馬番"])}番
-            ## {third["馬名"]}
-            **統合指数：{third["統合指数_num"]:.1f}pt**
-            """
-        )
+    # --------------------------------------------------------
+    # 買い目
+    # --------------------------------------------------------
 
-    # -----------------------------------------------------
-    # 最終判断
-    # -----------------------------------------------------
+    if geo["tickets"]:
 
-    st.markdown("### 🎯 ジオの最終判断")
+        st.markdown("### 🎫 ジオの3連単")
 
-    if geo["decision"] == "🔥 買う":
+        for i, ticket in enumerate(
+            geo["tickets"], 1
+        ):
 
-        st.success(
-            f"**{geo['decision']}**　"
-            f"自信度：**{confidence:.0f}/100**"
-        )
+            st.write(
+                f"**{i}. {ticket}**"
+            )
 
-    elif geo["decision"] == "△ 保留":
+    # --------------------------------------------------------
+    # レース条件
+    # --------------------------------------------------------
 
-        st.warning(
-            f"**{geo['decision']}**　"
-            f"自信度：**{confidence:.0f}/100**"
-        )
+    with st.expander("🔎 ジオが見たレース条件"):
 
-    else:
-
-        st.error(
-            f"**{geo['decision']}**　"
-            f"自信度：**{confidence:.0f}/100**"
-        )
-
-    # -----------------------------------------------------
-    # 3連単2点
-    # -----------------------------------------------------
-
-    st.markdown("### 🎫 ジオの3連単2点")
-
-    ticket1 = (
-        f"{int(first['馬番'])}"
-        f"→"
-        f"{int(second['馬番'])}"
-        f"→"
-        f"{int(third['馬番'])}"
-    )
-
-    ticket2 = (
-        f"{int(first['馬番'])}"
-        f"→"
-        f"{int(third['馬番'])}"
-        f"→"
-        f"{int(second['馬番'])}"
-    )
-
-    c1, c2 = st.columns(2)
-
-    with c1:
-        st.info(
-            f"**① {ticket1}**"
-        )
-
-    with c2:
-        st.info(
-            f"**② {ticket2}**"
-        )
-
-    # -----------------------------------------------------
-    # 判断材料
-    # -----------------------------------------------------
-
-    st.markdown("### 🔎 ジオの判断材料")
-
-    for reason in geo["reasons"]:
         st.write(
-            f"・{reason}"
+            f"ペース：{geo['pace']}"
         )
+
+        st.write(
+            f"馬場バイアス：{geo['bias']}"
+        )
+
+        st.write(
+            f"馬場状態：{geo['condition']}"
+        )
+
+    # --------------------------------------------------------
+    # 全馬のジオ評価
+    # --------------------------------------------------------
+
+    with st.expander("📊 ジオの全頭評価"):
+
+        show_cols = [
+            "着順予測",
+            "馬番",
+            "馬名",
+            "ジオ評価",
+            "統合指数",
+            "予測走破タイム",
+            "オッズ",
+            "脚質",
+        ]
+
+        show_cols = [
+            c for c in show_cols
+            if c in geo["df_geo"].columns
+        ]
+
+        st.dataframe(
+            geo["df_geo"][show_cols],
+            use_container_width=True,
+            hide_index=True
+        )
+
 
     # -----------------------------------------------------
     # 今後の学習用データ
@@ -2899,17 +2941,21 @@ if (
 # 🧠 ジオ予想実行
 # =========================================================
 
+# ============================================================
+# 🧠 ジオ STEP2 起動
+# ============================================================
+
 if (
-    st.session_state.get(
-        "sim_executed",
-        False
-    )
+    st.session_state.get("sim_executed", False)
     and "df_simulated" in st.session_state
 ):
 
+    st.markdown("---")
+
     if st.button(
-        "🧠 ジオに最終判断させる",
-        key="geo_prediction_button"
+        "🧠 ジオにレースを分析させる",
+        key="geo_prediction_button",
+        type="primary"
     ):
 
         geo_result = run_geo_prediction(
@@ -2919,15 +2965,13 @@ if (
             selected_condition,
         )
 
-        if geo_result is not None:
+        st.session_state["geo_prediction"] = geo_result
 
-            st.session_state[
-                "geo_prediction"
-            ] = geo_result
+    if "geo_prediction" in st.session_state:
 
-            display_geo_prediction(
-                geo_result
-            )
+        display_geo_prediction(
+            st.session_state["geo_prediction"]
+        )
 
 else:
     st.info(
