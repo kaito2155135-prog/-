@@ -2407,6 +2407,86 @@ if st.button(
         )
 
 # ============================================================
+# Geo予想をSQLiteへ自動保存
+# ============================================================
+
+def save_geo_prediction(
+    race_id,
+    geo,
+    pace,
+    bias,
+    condition,
+    race_info=None
+):
+
+    try:
+
+        if not race_id:
+            st.warning(
+                "⚠️ race_idが取得できないため、Geo予想を保存できません"
+            )
+            return False
+
+        race_info = race_info or {}
+
+        payload = {
+
+            "race_id": str(race_id),
+
+            "race": {
+
+                "date": race_info.get("date"),
+                "venue": race_info.get("venue"),
+                "race_no": race_info.get("race_no"),
+                "name": race_info.get("name"),
+
+            },
+
+            "pace": pace,
+            "bias": bias,
+            "condition": condition,
+
+            "geo": geo,
+
+        }
+
+        response = requests.post(
+            f"{API_BASE}/geo/prediction",
+            json=payload,
+            timeout=10
+        )
+
+        if response.status_code == 200:
+
+            result = response.json()
+
+            if result.get("ok"):
+
+                return True
+
+            st.warning(
+                f"⚠️ Geo予想保存失敗: "
+                f"{result.get('error')}"
+            )
+
+            return False
+
+        st.warning(
+            f"⚠️ Geo予想保存APIエラー: "
+            f"{response.status_code}"
+        )
+
+        return False
+
+    except Exception as e:
+
+        st.warning(
+            f"⚠️ Geo予想保存エラー: {e}"
+        )
+
+        return False
+
+# ============================================================
 # 🧠 ジオ STEP2
 # レース全体を分析して最終判断
 # ============================================================
