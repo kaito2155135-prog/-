@@ -2408,6 +2408,416 @@ if st.button(
 
 
 # =========================================================
+# 🧠 ジオ予想エンジン STEP1
+# =========================================================
+
+def run_geo_prediction(
+    df_sim,
+    pace,
+    bias,
+    condition,
+):
+    """
+    STEP1:
+    既存の統合指数を受け取り、
+    ジオとして ◎○▲ と「買う/見送る」を決定する。
+    
+    ※現段階ではルールベース。
+    今後、血統・状態・勝負度合い・過去のジオ判断を追加する。
+    """
+
+    df = df_sim.copy()
+
+    if df.empty or len(df) < 3:
+        return None
+
+    # -----------------------------------------------------
+    # 安全に数値化
+    # -----------------------------------------------------
+
+    df["統合指数_num"] = pd.to_numeric(
+        df["統合指数"],
+        errors="coerce"
+    ).fillna(0)
+
+    df["オッズ_num"] = pd.to_numeric(
+        df["オッズ"],
+        errors="coerce"
+    )
+
+    # -----------------------------------------------------
+    # 現在のランキング順を維持
+    # -----------------------------------------------------
+
+    df = df.sort_values(
+        "統合指数_num",
+        ascending=False
+    ).reset_index(drop=True)
+
+    # -----------------------------------------------------
+    # 3頭を選出
+    # -----------------------------------------------------
+
+    top3 = df.head(3).copy()
+
+    if len(top3) < 3:
+        return None
+
+    first = top3.iloc[0]
+    second = top3.iloc[1]
+    third = top3.iloc[2]
+
+    # -----------------------------------------------------
+    # ◎と○▲の指数差
+    # -----------------------------------------------------
+
+    first_score = float(first["統合指数_num"])
+    second_score = float(second["統合指数_num"])
+    third_score = float(third["統合指数_num"])
+
+    gap_1_2 = first_score - second_score
+    gap_1_3 = first_score - third_score
+
+    # -----------------------------------------------------
+    # ◎の人気
+    # -----------------------------------------------------
+
+    first_odds = first.get("オッズ_num", np.nan)
+
+    if pd.isna(first_odds) or first_odds <= 0:
+        first_odds = np.nan
+
+    # -----------------------------------------------------
+    # 人気による評価
+    #
+    # 穴馬を機械的に消さない。
+    # ただし人気薄を◎固定する場合は要求信頼度を上げる。
+    # -----------------------------------------------------
+
+    if not pd.isna(first_odds):
+
+        if first_odds <= 2.5:
+            popularity_factor = 1.0
+
+        elif first_odds <= 5.0:
+            popularity_factor = 1.5
+
+        elif first_odds <= 10.0:
+            popularity_factor = 2.5
+
+        else:
+            popularity_factor = 4.0
+
+    else:
+        popularity_factor = 2.0
+
+    # -----------------------------------------------------
+    # ◎1着固定の信頼度
+    # -----------------------------------------------------
+
+    confidence = 65.0
+
+    # ◎と○の差
+    confidence += min(
+        10.0,
+        max(
+            0.0,
+            gap_1_2 * 1.5
+        )
+    )
+
+    # ◎と▲の差
+    confidence += min(
+        8.0,
+        max(
+            0.0,
+            gap_1_3 * 0.8
+        )
+    )
+
+    # 人気薄なら慎重に
+    confidence -= popularity_factor
+
+    # -----------------------------------------------------
+    # ペースとの相性
+    # -----------------------------------------------------
+
+    first_style = str(
+        first.get("脚質", "差し")
+    )
+
+    if (
+        pace == "S（スロー）"
+        and first_style in ["逃げ", "先行"]
+    ):
+        confidence += 4.0
+
+    elif (
+        pace == "H（ハイ）"
+        and first_style in ["差し", "追込"]
+    ):
+        confidence += 4.0
+
+    # -----------------------------------------------------
+    # 馬場適性
+    # -----------------------------------------------------
+
+    first_baba = str(
+        first.get("得意馬場", "指定なし")
+    )
+
+    if (
+        first_baba != "指定なし"
+        and first_baba == condition
+    ):
+        confidence += 4.0
+
+    # -----------------------------------------------------
+    # トラックバイアス
+    # -----------------------------------------------------
+
+    try:
+        first_wakuban = int(
+            first.get("枠番", 1)
+        )
+    except Exception:
+        first_wakuban = 1
+
+    if (
+        bias == "内有利"
+        and first_wakuban <= 3
+    ):
+        confidence += 3.0
+
+    elif (
+        bias == "外有利"
+        and first_wakuban >= 6
+    ):
+        confidence += 3.0
+
+    # -----------------------------------------------------
+    # 0～100に収める
+    # -----------------------------------------------------
+
+    confidence = max(
+        0.0,
+        min(
+            100.0,
+            confidence
+        )
+    )
+
+    # -----------------------------------------------------
+    # 「買う / 見送る」
+    #
+    # STEP1ではかなり慎重にする。
+    # -----------------------------------------------------
+
+    if confidence >= 72:
+
+        decision = "🔥 買う"
+
+    elif confidence >= 62:
+
+        decision = "△ 保留"
+
+    else:
+
+        decision = "🚫 見送る"
+
+    # -----------------------------------------------------
+    # 理由を生成
+    # -----------------------------------------------------
+
+    reasons = []
+
+    reasons.append(
+        f"統合指数は全体1位（{first_score:.1f}pt）"
+    )
+
+    reasons.append(
+        f"2位との差は{gap_1_2:.1f}pt"
+    )
+
+    reasons.append(
+        f"3位との差は{gap_1_3:.1f}pt"
+    )
+
+    reasons.append(
+        f"脚質は{first_style}"
+    )
+
+    reasons.append(
+        f"想定ペースは{pace}"
+    )
+
+    reasons.append(
+        f"馬場は{condition}"
+    )
+
+    reasons.append(
+        f"バイアスは{bias}"
+    )
+
+    if not pd.isna(first_odds):
+
+        reasons.append(
+            f"現在オッズは{first_odds:.1f}倍"
+        )
+
+    # -----------------------------------------------------
+    # 結果
+    # -----------------------------------------------------
+
+    return {
+        "◎": first.to_dict(),
+        "○": second.to_dict(),
+        "▲": third.to_dict(),
+        "confidence": confidence,
+        "decision": decision,
+        "reasons": reasons,
+        "gap_1_2": gap_1_2,
+        "gap_1_3": gap_1_3,
+    }
+
+
+# =========================================================
+# 🧠 ジオ表示
+# =========================================================
+
+def display_geo_prediction(geo):
+
+    if geo is None:
+        st.warning(
+            "ジオが予想を作成できませんでした。"
+        )
+        return
+
+    first = geo["◎"]
+    second = geo["○"]
+    third = geo["▲"]
+
+    confidence = geo["confidence"]
+
+    st.markdown("---")
+
+    st.markdown(
+        """
+        <h2 style="text-align:center;color:#f1c40f;">
+            🧠 ジオ予想
+        </h2>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown(
+            f"""
+            ### ◎ {int(first["馬番"])}番
+            ## {first["馬名"]}
+            **統合指数：{first["統合指数_num"]:.1f}pt**
+            """
+        )
+
+    with col2:
+        st.markdown(
+            f"""
+            ### ○ {int(second["馬番"])}番
+            ## {second["馬名"]}
+            **統合指数：{second["統合指数_num"]:.1f}pt**
+            """
+        )
+
+    with col3:
+        st.markdown(
+            f"""
+            ### ▲ {int(third["馬番"])}番
+            ## {third["馬名"]}
+            **統合指数：{third["統合指数_num"]:.1f}pt**
+            """
+        )
+
+    # -----------------------------------------------------
+    # 最終判断
+    # -----------------------------------------------------
+
+    st.markdown("### 🎯 ジオの最終判断")
+
+    if geo["decision"] == "🔥 買う":
+
+        st.success(
+            f"**{geo['decision']}**　"
+            f"自信度：**{confidence:.0f}/100**"
+        )
+
+    elif geo["decision"] == "△ 保留":
+
+        st.warning(
+            f"**{geo['decision']}**　"
+            f"自信度：**{confidence:.0f}/100**"
+        )
+
+    else:
+
+        st.error(
+            f"**{geo['decision']}**　"
+            f"自信度：**{confidence:.0f}/100**"
+        )
+
+    # -----------------------------------------------------
+    # 3連単2点
+    # -----------------------------------------------------
+
+    st.markdown("### 🎫 ジオの3連単2点")
+
+    ticket1 = (
+        f"{int(first['馬番'])}"
+        f"→"
+        f"{int(second['馬番'])}"
+        f"→"
+        f"{int(third['馬番'])}"
+    )
+
+    ticket2 = (
+        f"{int(first['馬番'])}"
+        f"→"
+        f"{int(third['馬番'])}"
+        f"→"
+        f"{int(second['馬番'])}"
+    )
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        st.info(
+            f"**① {ticket1}**"
+        )
+
+    with c2:
+        st.info(
+            f"**② {ticket2}**"
+        )
+
+    # -----------------------------------------------------
+    # 判断材料
+    # -----------------------------------------------------
+
+    st.markdown("### 🔎 ジオの判断材料")
+
+    for reason in geo["reasons"]:
+        st.write(
+            f"・{reason}"
+        )
+
+    # -----------------------------------------------------
+    # 今後の学習用データ
+    # -----------------------------------------------------
+
+    st.session_state["geo_prediction"] = geo
+
+# =========================================================
 # 結果表示
 # =========================================================
 
