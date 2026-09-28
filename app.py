@@ -2894,6 +2894,41 @@ if (
             f"📊 JRA-VANから取得した過去走データ: "
             f"{len(master_debug)}件"
         )
+
+# =========================================================
+# 🧠 ジオ予想実行
+# =========================================================
+
+if (
+    st.session_state.get(
+        "sim_executed",
+        False
+    )
+    and "df_simulated" in st.session_state
+):
+
+    if st.button(
+        "🧠 ジオに最終判断させる",
+        key="geo_prediction_button"
+    ):
+
+        geo_result = run_geo_prediction(
+            st.session_state["df_simulated"],
+            selected_pace,
+            selected_bias,
+            selected_condition,
+        )
+
+        if geo_result is not None:
+
+            st.session_state[
+                "geo_prediction"
+            ] = geo_result
+
+            display_geo_prediction(
+                geo_result
+            )
+
 else:
     st.info(
         "👆 ペース・バイアス等を設定して、"
