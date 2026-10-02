@@ -552,6 +552,107 @@ df_race["レースID"] = race_id
 df_race["馬名"] = df_race["馬名"].apply(normalize_horse_name)
 df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
 
+# =========================================================
+# 血統情報取得
+# =========================================================
+
+@st.cache_data(ttl=3600)
+def get_pedigree(ketto_toroku_bango):
+    ketto_toroku_bango = str(
+        ketto_toroku_bango
+    ).strip()
+
+    if not ketto_toroku_bango:
+        return {
+            "父": "",
+            "母": "",
+            "父血統登録番号": "",
+            "母血統登録番号": "",
+        }
+
+    try:
+        url = (
+            API_BASE.rstrip("/")
+            + f"/geo/pedigree/{ketto_toroku_bango}"
+        )
+
+        r = requests.get(
+            url,
+            timeout=20
+        )
+
+        r.raise_for_status()
+
+        data = r.json()
+
+        parent1 = data.get(
+            "parent1",
+            {}
+        ) or {}
+
+        parent2 = data.get(
+            "parent2",
+            {}
+        ) or {}
+
+        return {
+            "父": parent1.get(
+                "bamei",
+                ""
+            ),
+            "母": parent2.get(
+                "bamei",
+                ""
+            ),
+            "父血統登録番号": parent1.get(
+                "ketto_toroku_bango",
+                ""
+            ),
+            "母血統登録番号": parent2.get(
+                "ketto_toroku_bango",
+                ""
+            ),
+        }
+
+    except Exception:
+        return {
+            "父": "",
+            "母": "",
+            "父血統登録番号": "",
+            "母血統登録番号": "",
+        }
+
+
+# 各馬の父・母を取得
+pedigree_rows = []
+
+for _, row in df_race.iterrows():
+
+    pedigree = get_pedigree(
+        row.get(
+            "血統登録番号",
+            ""
+        )
+    )
+
+    pedigree_rows.append(
+        pedigree
+    )
+
+
+pedigree_df = pd.DataFrame(
+    pedigree_rows,
+    index=df_race.index
+)
+
+
+df_race = pd.concat(
+    [
+        df_race,
+        pedigree_df
+    ],
+    axis=1
+)
 
 # =========================================================
 # 直線・コース補正
