@@ -10,7 +10,7 @@ import requests
 # 基本設定
 # =========================================================
 
-API_BASE = "https://graph-dealtime-jane-tapes.trycloudflare.com"
+API_BASE = "https://grades-transparent-participation-mozilla.trycloudflare.com"
 
 
 def normalize_horse_name(name):
