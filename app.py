@@ -515,8 +515,8 @@ for h in horses:
         "馬番": h.get("馬番", h.get("umaban", 1)),
         "馬名": h.get("馬名", h.get("bamei", "")),
         "血統登録番号": h.get(
-        "血統登録番号",
-        h.get("ketto_toroku_bango", "")
+          "血統登録番号",
+          h.get("ketto_toroku_bango", "")
         ),
         "オッズ": format_odds(
             h.get("オッズ", h.get("odds"))
