@@ -3120,33 +3120,33 @@ def run_geo_prediction(
         # ⑥ ジオ評価
         # ====================================================
 
-# 血統適性による補正
-bloodline_bonus = 0.0
+        # 血統適性による補正
+        bloodline_bonus = 0.0
 
-bloodline = row.get("血統適性", {})
+        bloodline = row.get("血統適性", {})
 
-if isinstance(bloodline, dict):
-    bloodline_score = bloodline.get("score", 50.0)
-    bloodline_confidence = bloodline.get("confidence", "低")
+        if isinstance(bloodline, dict):
+            bloodline_score = bloodline.get("score", 50.0)
+            bloodline_confidence = bloodline.get("confidence", "低")
 
-    try:
-        bloodline_score = float(bloodline_score)
-    except (TypeError, ValueError):
-        bloodline_score = 50.0
+            try:
+                bloodline_score = float(bloodline_score)
+            except (TypeError, ValueError):
+                bloodline_score = 50.0
 
-    # 50点を基準に、最大±4点まで
-    bloodline_bonus = (bloodline_score - 50.0) / 10.0
-    bloodline_bonus = max(-4.0, min(4.0, bloodline_bonus))
+            # 50点を基準に、最大±4点まで
+            bloodline_bonus = (bloodline_score - 50.0) / 10.0
+            bloodline_bonus = max(-4.0, min(4.0, bloodline_bonus))
 
-    # 信頼度によって補正を弱める
-    confidence_factor = {
-        "高": 1.0,
-        "中": 0.85,
-        "やや低": 0.6,
-        "低": 0.4,
-    }.get(bloodline_confidence, 0.5)
+            # 信頼度によって補正を弱める
+            confidence_factor = {
+                "高": 1.0,
+                "中": 0.85,
+                "やや低": 0.6,
+                "低": 0.4,
+            }.get(bloodline_confidence, 0.5)
 
-    bloodline_bonus *= confidence_factor
+            bloodline_bonus *= confidence_factor
         
         geo_score = (
             score
