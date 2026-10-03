@@ -3439,6 +3439,16 @@ def display_geo_prediction(geo):
             )
 
             st.write(
+               f"父："
+               f"{horse.get('父', '不明')}"
+           )
+
+            st.write(
+               f"母："
+               f"{horse.get('母', '不明')}"
+           )
+            
+            st.write(
                 f"ジオ評価："
                 f"**{horse['ジオ評価']:.1f}**"
             )
