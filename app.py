@@ -3124,6 +3124,7 @@ def run_geo_prediction(
             score
             + bonus
             - penalty
+            + bloodline_bonus
         )
 
         df.loc[
