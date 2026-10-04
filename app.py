@@ -3036,90 +3036,176 @@ else:
     )
 
 # =========================================================
-# 【追加機能】prediction_logs 連携 & 採点ボード
+# 【追加機能】Geo予想連携 & 採点ボード
 # =========================================================
 
 st.markdown("---")
 st.markdown("<h2>📊 予想ログ・採点ボード（回収率・的中率）</h2>", unsafe_allow_html=True)
 
-# タブで「採点ボード」「結果更新」を分離
-tab_score, tab_update = st.tabs(["📈 採点ボード（回収率・的中率）", "⚙️ レース結果の確定・UPDATE"])
+# Geoの現在の保存先（geo_predictions / geo_results）を表示する
+tab_score, tab_update = st.tabs([
+    "📈 採点ボード（回収率・的中率）",
+    "⚙️ レース結果・払戻の登録"
+])
 
 with tab_score:
     st.markdown("### 🎯 予測データと実績の突き合わせ結果")
-    
-    # 採点ボードデータを取得するAPI呼び出し（バックエンドにエンドポイントがあると仮定）
+
+    col_refresh, _ = st.columns([1, 5])
+    with col_refresh:
+        if st.button("🔄 更新", key="scoreboard_refresh"):
+            st.rerun()
+
     scoreboard_data = api_get("/prediction/scoreboard")
-    
-    if scoreboard_data and isinstance(scoreboard_data, dict):
+
+    if scoreboard_data and isinstance(scoreboard_data, dict) and scoreboard_data.get("ok", True):
         summary = scoreboard_data.get("summary", {})
+
         col_s1, col_s2, col_s3, col_s4 = st.columns(4)
         with col_s1:
-            st.metric("総予想レース数", f"{summary.get('total_races', 0)} 競走")
+            st.metric(
+                "総予想レース数",
+                f"{int(summary.get('total_races', 0) or 0)} 競走"
+            )
         with col_s2:
-            st.metric("的中率", f"{summary.get('hit_rate', 0.0):.1f}%")
+            st.metric(
+                "3連単的中率",
+                f"{float(summary.get('hit_rate', 0.0) or 0.0):.1f}%"
+            )
         with col_s3:
-            st.metric("回収率", f"{summary.get('recovery_rate', 0.0):.1f}%")
+            st.metric(
+                "回収率",
+                f"{float(summary.get('recovery_rate', 0.0) or 0.0):.1f}%"
+            )
         with col_s4:
-            st.metric("収支", f"{summary.get('net_profit', 0):,} 円")
-            
+            st.metric(
+                "収支",
+                f"{int(summary.get('net_profit', 0) or 0):,} 円"
+            )
+
+        registered = int(summary.get("dividend_registered_races", 0) or 0)
+        total = int(summary.get("total_races", 0) or 0)
+        st.caption(
+            f"払戻登録済み: {registered}/{total}レース ｜ "
+            f"投資: {int(summary.get('total_bet', 0) or 0):,}円 ｜ "
+            f"払戻: {int(summary.get('total_payout', 0) or 0):,}円"
+        )
+
         logs_list = scoreboard_data.get("logs", [])
         if logs_list:
-            st.markdown("#### 📜 過去の予測ログ一覧")
+            st.markdown("#### 📜 過去のGeo予想ログ一覧")
             df_logs = pd.DataFrame(logs_list)
-            st.dataframe(df_logs, use_container_width=True, hide_index=True)
+
+            # 表示用に必要な列だけ、存在するものを順番に出す
+            display_cols = [
+                "race_date",
+                "venue",
+                "race_no",
+                "race_name",
+                "honmei_umaban",
+                "honmei_bamei",
+                "ticket1",
+                "ticket2",
+                "actual",
+                "hit",
+                "actual_dividend",
+                "bet_cost",
+                "payout",
+                "profit",
+                "decision",
+                "confidence",
+            ]
+            display_cols = [c for c in display_cols if c in df_logs.columns]
+            st.dataframe(
+                df_logs[display_cols] if display_cols else df_logs,
+                use_container_width=True,
+                hide_index=True
+            )
         else:
-            st.info("prediction_logs にデータがまだありません。レースを予想して保存してください。")
+            st.info("まだ確定済みのGeo予想はありません。予想を保存するとここに表示されます。")
+
     else:
-        # APIが未実装または通信できない場合のモック・フォールバック表示
+        error_message = "採点ボードAPIからデータを取得できませんでした。"
+        if isinstance(scoreboard_data, dict):
+            error_message += f"\n{scoreboard_data.get('error', '')}"
+
+        st.error(error_message)
         st.info(
-            "💡 バックエンドの採点ボード用API（/prediction/scoreboard）からデータを取得しています。\n"
-            "まだデータがないか、バックエンド側の実装が未完了です。"
+            "Flask APIを最新版に更新し、"
+            "Cloudflare Tunnelの転送先が同じ5000番ポートになっていることを確認してください。"
         )
-        # ダミー表示例
-        col_s1, col_s2, col_s3 = st.columns(3)
-        with col_s1:
-            st.metric("的中率", "--- %")
-        with col_s2:
-            st.metric("回収率", "--- %")
-        with col_s3:
-            st.metric("集計対象", "0件")
 
 
 with tab_update:
-    st.markdown("### 🏆 レース結果（着順・配当オッズ）の反映")
-    st.write("レースが確定したあとに、実際の着順と配当データを取得して `prediction_logs` の該当レースを UPDATE します。")
-    
+    st.markdown("### 🏆 レース結果・払戻金の登録")
+    st.write(
+        "Geoのレース結果は `/geo/settle/<race_id>` で自動確定します。"
+        "ここでは3連単の払戻金を登録して、回収率・収支に反映します。"
+    )
+
     target_update_race_id = st.text_input(
         "更新対象レースID",
         value=st.session_state.get("current_race_id", ""),
         key="update_target_race_id"
     )
-    
+
     col_u1, col_u2 = st.columns(2)
     with col_u1:
-        actual_1st = st.text_input("1着 馬番")
+        actual_dividend = st.number_input(
+            "3連単 払戻金（円）",
+            min_value=0,
+            value=0,
+            step=100,
+            key="scoreboard_actual_dividend"
+        )
     with col_u2:
-        actual_dividend = st.number_input("払戻金（円）", min_value=0, value=0, step=100)
-        
-    if st.button("📥 実際の着順・オッズでログをUPDATEする"):
+        bet_cost = st.number_input(
+            "そのレースの投資額（円）",
+            min_value=0,
+            value=200,
+            step=100,
+            key="scoreboard_bet_cost"
+        )
+
+    if st.button(
+        "📥 結果・払戻を採点ボードへ反映する",
+        key="scoreboard_update_result",
+        type="primary"
+    ):
         if not target_update_race_id:
             st.warning("⚠️ レースIDを入力してください。")
         else:
             update_payload = {
                 "race_id": target_update_race_id,
-                "actual_1st": actual_1st,
-                "actual_dividend": actual_dividend
+                "actual_dividend": int(actual_dividend),
+                "bet_cost": int(bet_cost),
             }
+
             try:
                 res = requests.post(
                     f"{API_BASE.rstrip('/')}/prediction/update_result",
                     json=update_payload,
-                    timeout=10
+                    timeout=20
                 )
-                if res.status_code == 200 and res.json().get("ok"):
-                    st.success(f"✅ レースID: {target_update_race_id} の結果を正常にUPDATEしました！")
+
+                if res.status_code == 200:
+                    result = res.json()
+                    if result.get("ok"):
+                        st.success(
+                            f"✅ {target_update_race_id} を更新しました。 "
+                            f"払戻 {result.get('payout', 0):,}円 / "
+                            f"収支 {result.get('profit', 0):+,}円"
+                        )
+                        st.rerun()
+                    else:
+                        st.error(f"❌ 更新に失敗しました: {result.get('error', '不明なエラー')}")
                 else:
-                    st.error(f"❌ UPDATEに失敗しました: {res.text}")
+                    try:
+                        detail = res.json().get("error", res.text)
+                    except Exception:
+                        detail = res.text
+                    st.error(f"❌ UPDATEに失敗しました: HTTP {res.status_code} / {detail}")
+
             except Exception as e:
                 st.error(f"❌ サーバー通信エラー: {e}")
+
