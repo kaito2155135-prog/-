@@ -588,6 +588,9 @@ def get_pedigree(ketto_toroku_bango):
 
         data = r.json()
 
+        st.write(f"【血統API DEBUG】登録番号={ketto_toroku_bango} / HTTP={r.status_code}")
+        st.json(data)
+
         parent1 = data.get(
             "parent1",
             {}
@@ -617,7 +620,9 @@ def get_pedigree(ketto_toroku_bango):
             ),
         }
 
-    except Exception:
+    except Exception as e:
+        st.error(f"【血統APIエラー】血統登録番号={ketto_toroku_bango} / {type(e).__name__}: {e}")
+        st.code(f"URL: {url if 'url' in locals() else '(URL生成前)'}")
         return {
             "父": "",
             "母": "",
