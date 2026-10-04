@@ -3034,3 +3034,92 @@ else:
         "上のボタンを押すとJRA-VANの過去走を取得して"
         "統合シミュレーションを実行します。"
     )
+
+# =========================================================
+# 【追加機能】prediction_logs 連携 & 採点ボード
+# =========================================================
+
+st.markdown("---")
+st.markdown("<h2>📊 予想ログ・採点ボード（回収率・的中率）</h2>", unsafe_allow_html=True)
+
+# タブで「採点ボード」「結果更新」を分離
+tab_score, tab_update = st.tabs(["📈 採点ボード（回収率・的中率）", "⚙️ レース結果の確定・UPDATE"])
+
+with tab_score:
+    st.markdown("### 🎯 予測データと実績の突き合わせ結果")
+    
+    # 採点ボードデータを取得するAPI呼び出し（バックエンドにエンドポイントがあると仮定）
+    scoreboard_data = api_get("/prediction/scoreboard")
+    
+    if scoreboard_data and isinstance(scoreboard_data, dict):
+        summary = scoreboard_data.get("summary", {})
+        col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+        with col_s1:
+            st.metric("総予想レース数", f"{summary.get('total_races', 0)} 競走")
+        with col_s2:
+            st.metric("的中率", f"{summary.get('hit_rate', 0.0):.1f}%")
+        with col_s3:
+            st.metric("回収率", f"{summary.get('recovery_rate', 0.0):.1f}%")
+        with col_s4:
+            st.metric("収支", f"{summary.get('net_profit', 0):,} 円")
+            
+        logs_list = scoreboard_data.get("logs", [])
+        if logs_list:
+            st.markdown("#### 📜 過去の予測ログ一覧")
+            df_logs = pd.DataFrame(logs_list)
+            st.dataframe(df_logs, use_container_width=True, hide_index=True)
+        else:
+            st.info("prediction_logs にデータがまだありません。レースを予想して保存してください。")
+    else:
+        # APIが未実装または通信できない場合のモック・フォールバック表示
+        st.info(
+            "💡 バックエンドの採点ボード用API（/prediction/scoreboard）からデータを取得しています。\n"
+            "まだデータがないか、バックエンド側の実装が未完了です。"
+        )
+        # ダミー表示例
+        col_s1, col_s2, col_s3 = st.columns(3)
+        with col_s1:
+            st.metric("的中率", "--- %")
+        with col_s2:
+            st.metric("回収率", "--- %")
+        with col_s3:
+            st.metric("集計対象", "0件")
+
+
+with tab_update:
+    st.markdown("### 🏆 レース結果（着順・配当オッズ）の反映")
+    st.write("レースが確定したあとに、実際の着順と配当データを取得して `prediction_logs` の該当レースを UPDATE します。")
+    
+    target_update_race_id = st.text_input(
+        "更新対象レースID",
+        value=st.session_state.get("current_race_id", ""),
+        key="update_target_race_id"
+    )
+    
+    col_u1, col_u2 = st.columns(2)
+    with col_u1:
+        actual_1st = st.text_input("1着 馬番")
+    with col_u2:
+        actual_dividend = st.number_input("払戻金（円）", min_value=0, value=0, step=100)
+        
+    if st.button("📥 実際の着順・オッズでログをUPDATEする"):
+        if not target_update_race_id:
+            st.warning("⚠️ レースIDを入力してください。")
+        else:
+            update_payload = {
+                "race_id": target_update_race_id,
+                "actual_1st": actual_1st,
+                "actual_dividend": actual_dividend
+            }
+            try:
+                res = requests.post(
+                    f"{API_BASE.rstrip('/')}/prediction/update_result",
+                    json=update_payload,
+                    timeout=10
+                )
+                if res.status_code == 200 and res.json().get("ok"):
+                    st.success(f"✅ レースID: {target_update_race_id} の結果を正常にUPDATEしました！")
+                else:
+                    st.error(f"❌ UPDATEに失敗しました: {res.text}")
+            except Exception as e:
+                st.error(f"❌ サーバー通信エラー: {e}")
