@@ -3125,29 +3125,121 @@ with tab_auto:
             })
         st.dataframe(pd.DataFrame(type_rows), use_container_width=True, hide_index=True)
 
-        st.markdown("#### レース別詳細")
+        st.markdown("#### 🏇 レース別成績")
         if races:
+            # -------------------------------------------------
+            # レースごとのサマリーを先に一覧表示
+            # → 何のレースで当たったかを一目で確認できるようにする
+            # -------------------------------------------------
+            race_summary_rows = []
+            prepared_races = []
+
             for race in races:
-                race_title = " ".join(str(x) for x in [
-                    race.get("race_date") or "",
-                    race.get("venue") or "",
-                    race.get("race_no") or "",
-                    race.get("race_name") or ""
-                ] if x)
+                bets = race.get("verification", {}).get("bets", [])
+                hit_count = sum(1 for bet in bets if bet.get("hit"))
+                bet_count = len(bets)
+                payout = sum(int(bet.get("払戻", 0) or 0) for bet in bets)
+                investment = sum(int(bet.get("投資", 0) or 0) for bet in bets)
+                profit = payout - investment
+
+                race_date = str(race.get("race_date") or "")
+                venue = str(race.get("venue") or "")
+                race_no = str(race.get("race_no") or "")
+                race_name = str(race.get("race_name") or "")
                 marks = f"◎{race.get('◎')} ○{race.get('○')} ▲{race.get('▲')}"
-                with st.expander(f"{race_title}　{marks}"):
-                    bets = race.get("verification", {}).get("bets", [])
-                    detail_rows = []
-                    for bet in bets:
-                        detail_rows.append({
-                            "券種": bet.get("券種"),
-                            "買い目": bet.get("買い目"),
-                            "判定": "🎯 的中" if bet.get("hit") else "－",
-                            "投資": f"{bet.get('投資', 0):,}円",
-                            "払戻": f"{bet.get('払戻', 0):,}円",
-                            "収支": f"{bet.get('収支', 0):+,}円",
-                        })
-                    st.dataframe(pd.DataFrame(detail_rows), use_container_width=True, hide_index=True)
+
+                if hit_count > 0:
+                    result_label = f"🎯 {hit_count}/{bet_count}"
+                else:
+                    result_label = f"❌ 0/{bet_count}"
+
+                race_summary_rows.append({
+                    "日付": race_date,
+                    "場所": venue,
+                    "R": race_no,
+                    "レース名": race_name,
+                    "◎○▲": marks,
+                    "的中": result_label,
+                    "払戻": f"{payout:,}円",
+                    "収支": f"{profit:+,}円",
+                })
+                prepared_races.append((race, hit_count, bet_count, payout, investment, profit, marks))
+
+            # 的中あり／全ての切り替え
+            filter_mode = st.radio(
+                "表示",
+                ["全レース", "🎯 的中あり", "❌ 全滅"],
+                horizontal=True,
+                key="geo_bet_race_filter",
+            )
+
+            if filter_mode == "🎯 的中あり":
+                filtered_races = [x for x in prepared_races if x[1] > 0]
+            elif filter_mode == "❌ 全滅":
+                filtered_races = [x for x in prepared_races if x[1] == 0]
+            else:
+                filtered_races = prepared_races
+
+            filtered_summary_rows = []
+            for race, hit_count, bet_count, payout, investment, profit, marks in filtered_races:
+                filtered_summary_rows.append({
+                    "日付": str(race.get("race_date") or ""),
+                    "場所": str(race.get("venue") or ""),
+                    "R": str(race.get("race_no") or ""),
+                    "レース名": str(race.get("race_name") or ""),
+                    "◎○▲": marks,
+                    "的中": f"🎯 {hit_count}/{bet_count}" if hit_count > 0 else f"❌ 0/{bet_count}",
+                    "払戻": f"{payout:,}円",
+                    "収支": f"{profit:+,}円",
+                })
+
+            st.dataframe(
+                pd.DataFrame(filtered_summary_rows),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            st.caption("💡 表の下からレースを開くと、11点それぞれの的中・払戻・収支を確認できます。")
+
+            # -------------------------------------------------
+            # 各レースの11点詳細
+            # -------------------------------------------------
+            st.markdown("#### 🔎 レース別詳細")
+            if filtered_races:
+                for race, hit_count, bet_count, payout, investment, profit, marks in filtered_races:
+                    race_title = " ".join(str(x) for x in [
+                        race.get("race_date") or "",
+                        race.get("venue") or "",
+                        race.get("race_no") or "",
+                        race.get("race_name") or ""
+                    ] if x)
+
+                    result_mark = "🎯" if hit_count > 0 else "❌"
+                    expander_title = (
+                        f"{result_mark} {race_title}　{marks}　"
+                        f"{hit_count}/{bet_count}的中　"
+                        f"払戻 {payout:,}円　収支 {profit:+,}円"
+                    )
+
+                    with st.expander(expander_title):
+                        bets = race.get("verification", {}).get("bets", [])
+                        detail_rows = []
+                        for bet in bets:
+                            detail_rows.append({
+                                "券種": bet.get("券種"),
+                                "買い目": bet.get("買い目"),
+                                "判定": "🎯 的中" if bet.get("hit") else "－",
+                                "投資": f"{bet.get('投資', 0):,}円",
+                                "払戻": f"{bet.get('払戻', 0):,}円",
+                                "収支": f"{bet.get('収支', 0):+,}円",
+                            })
+                        st.dataframe(
+                            pd.DataFrame(detail_rows),
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+            else:
+                st.info("選択した条件に該当するレースはありません。")
         else:
             st.info("払戻データが確認できるGeo予想はまだありません。")
 
