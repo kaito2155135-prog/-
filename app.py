@@ -3043,242 +3043,226 @@ else:
 st.markdown("<h2>🎯 Geo自動馬券検証</h2>", unsafe_allow_html=True)
 
 # 採点ボードは廃止し、自動馬券検証へ一本化
-tab_auto, tab_update = st.tabs(["🎯 自動馬券検証", "⚙️ レース結果の確定・UPDATE"])
+st.markdown("### 🎯 Geo自動馬券検証")
+st.caption("◎○▲から11点を自動生成し、JRA-VANのharaimodoshiと照合します。各点100円で計算します。")
 
-with tab_auto:
-    st.markdown("### 🎯 Geo自動馬券検証")
-    st.caption("◎○▲から11点を自動生成し、JRA-VANのharaimodoshiと照合します。各点100円で計算します。")
+auto_data = api_get("/prediction/bet_verification?limit=500")
 
-    auto_data = api_get("/prediction/bet_verification?limit=500")
+if auto_data and auto_data.get("ok"):
+    overall = auto_data.get("overall", {})
+    by_type = auto_data.get("by_type", {})
+    races = auto_data.get("races", [])
 
-    if auto_data and auto_data.get("ok"):
-        overall = auto_data.get("overall", {})
-        by_type = auto_data.get("by_type", {})
-        races = auto_data.get("races", [])
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1:
+        st.metric("払戻確認済み", f"{auto_data.get('払戻確認済みレース数', 0)}R")
+    with c2:
+        st.metric("総投資", f"{overall.get('投資', 0):,}円")
+    with c3:
+        st.metric("総払戻", f"{overall.get('払戻', 0):,}円")
+    with c4:
+        st.metric("回収率", f"{overall.get('回収率', 0):.1f}%")
+    with c5:
+        st.metric("収支", f"{overall.get('収支', 0):+,}円")
 
-        c1, c2, c3, c4, c5 = st.columns(5)
-        with c1:
-            st.metric("払戻確認済み", f"{auto_data.get('払戻確認済みレース数', 0)}R")
-        with c2:
-            st.metric("総投資", f"{overall.get('投資', 0):,}円")
-        with c3:
-            st.metric("総払戻", f"{overall.get('払戻', 0):,}円")
-        with c4:
-            st.metric("回収率", f"{overall.get('回収率', 0):.1f}%")
-        with c5:
-            st.metric("収支", f"{overall.get('収支', 0):+,}円")
-
-        st.markdown("#### 券種別成績")
-        type_rows = []
-        for name in ["単勝", "複勝", "馬連", "ワイド", "馬単", "3連複", "3連単"]:
-            x = by_type.get(name, {})
-            type_rows.append({
-                "券種": name,
-                "点数": x.get("点数", 0),
-                "的中": x.get("的中", 0),
-                "的中率": f"{x.get('的中率', 0):.1f}%",
-                "投資": f"{x.get('投資', 0):,}円",
-                "払戻": f"{x.get('払戻', 0):,}円",
-                "収支": f"{x.get('収支', 0):+,}円",
-                "回収率": f"{x.get('回収率', 0):.1f}%",
-            })
-        st.dataframe(pd.DataFrame(type_rows), use_container_width=True, hide_index=True)
-
-        st.markdown("#### 🏇 レース別成績")
-        if races:
-            # -------------------------------------------------
-            # レースごとのサマリーを先に一覧表示
-            # → 何のレースで当たったかを一目で確認できるようにする
-            # -------------------------------------------------
-            race_summary_rows = []
-            prepared_races = []
-
-            for race in races:
-                bets = race.get("verification", {}).get("bets", [])
-                hit_count = sum(1 for bet in bets if bet.get("hit"))
-                bet_count = len(bets)
-                payout = sum(int(bet.get("払戻", 0) or 0) for bet in bets)
-                investment = sum(int(bet.get("投資", 0) or 0) for bet in bets)
-                profit = payout - investment
-
-                # -------------------------------------------------
-                # 過去に保存したGeo予想は、旧形式のため
-                # race_date / venue / race_no / race_name が
-                # NULLになっている場合がある。
-                # その場合はrace_idから /race/<race_id> を参照して
-                # JRA-VANのレース情報を補完する。
-                # -------------------------------------------------
-                race_date = str(race.get("race_date") or "")
-                venue = str(race.get("venue") or "")
-                race_no = str(race.get("race_no") or "")
-                race_name = str(race.get("race_name") or "")
-
-                if not (race_date and venue and race_no and race_name):
-                    try:
-                        race_id = str(race.get("race_id") or "").strip()
-                        if race_id:
-                            race_detail = api_get(f"/race/{race_id}")
-                            race_meta = (
-                                race_detail.get("race", {})
-                                if isinstance(race_detail, dict)
-                                else {}
-                            )
-                            race_date = race_date or str(race_meta.get("date") or "")
-                            venue = venue or str(race_meta.get("venue") or "")
-                            race_no = race_no or str(race_meta.get("race_no") or "")
-                            race_name = race_name or str(race_meta.get("name") or "")
-                    except Exception:
-                        pass
-
-                marks = f"◎{race.get('◎')} ○{race.get('○')} ▲{race.get('▲')}"
-
-                if hit_count > 0:
-                    result_label = f"🎯 {hit_count}/{bet_count}"
-                else:
-                    result_label = f"❌ 0/{bet_count}"
-
-                # 表示用に補完済みのレース情報をraceへ保持
-                race["_display_race_date"] = race_date
-                race["_display_venue"] = venue
-                race["_display_race_no"] = race_no
-                race["_display_race_name"] = race_name
-
-                race_summary_rows.append({
-                    "日付": race_date,
-                    "場所": venue,
-                    "R": race_no,
-                    "レース名": race_name,
-                    "◎○▲": marks,
-                    "的中": result_label,
-                    "払戻": f"{payout:,}円",
-                    "収支": f"{profit:+,}円",
-                })
-                prepared_races.append((race, hit_count, bet_count, payout, investment, profit, marks))
-
-            # 的中あり／全ての切り替え
-            filter_mode = st.radio(
-                "表示",
-                ["全レース", "🎯 的中あり", "❌ 全滅"],
-                horizontal=True,
-                key="geo_bet_race_filter",
-            )
-
-            if filter_mode == "🎯 的中あり":
-                filtered_races = [x for x in prepared_races if x[1] > 0]
-            elif filter_mode == "❌ 全滅":
-                filtered_races = [x for x in prepared_races if x[1] == 0]
-            else:
-                filtered_races = prepared_races
-
-            filtered_summary_rows = []
-            for race, hit_count, bet_count, payout, investment, profit, marks in filtered_races:
-                # prepared_races作成時に補完した表示情報を使う
-                race_date = str(race.get("_display_race_date") or race.get("race_date") or "")
-                venue = str(race.get("_display_venue") or race.get("venue") or "")
-                race_no = str(race.get("_display_race_no") or race.get("race_no") or "")
-                race_name = str(race.get("_display_race_name") or race.get("race_name") or "")
-                filtered_summary_rows.append({
-                    "日付": race_date,
-                    "場所": venue,
-                    "R": race_no,
-                    "レース名": race_name,
-                    "◎○▲": marks,
-                    "的中": f"🎯 {hit_count}/{bet_count}" if hit_count > 0 else f"❌ 0/{bet_count}",
-                    "払戻": f"{payout:,}円",
-                    "収支": f"{profit:+,}円",
-                })
-
-            st.dataframe(
-                pd.DataFrame(filtered_summary_rows),
-                use_container_width=True,
-                hide_index=True,
-            )
-
-            st.caption("💡 表の下からレースを開くと、11点それぞれの的中・払戻・収支を確認できます。")
-
-            # -------------------------------------------------
-            # 各レースの11点詳細
-            # -------------------------------------------------
-            st.markdown("#### 🔎 レース別詳細")
-            if filtered_races:
-                for race, hit_count, bet_count, payout, investment, profit, marks in filtered_races:
-                    race_title = " ".join(str(x) for x in [
-                        race.get("_display_race_date") or race.get("race_date") or "",
-                        race.get("_display_venue") or race.get("venue") or "",
-                        race.get("_display_race_no") or race.get("race_no") or "",
-                        race.get("_display_race_name") or race.get("race_name") or ""
-                    ] if x)
-
-                    result_mark = "🎯" if hit_count > 0 else "❌"
-                    expander_title = (
-                        f"{result_mark} {race_title}　{marks}　"
-                        f"{hit_count}/{bet_count}的中　"
-                        f"払戻 {payout:,}円　収支 {profit:+,}円"
-                    )
-
-                    with st.expander(expander_title):
-                        bets = race.get("verification", {}).get("bets", [])
-                        detail_rows = []
-                        for bet in bets:
-                            detail_rows.append({
-                                "券種": bet.get("券種"),
-                                "買い目": bet.get("買い目"),
-                                "判定": "🎯 的中" if bet.get("hit") else "－",
-                                "投資": f"{bet.get('投資', 0):,}円",
-                                "払戻": f"{bet.get('払戻', 0):,}円",
-                                "収支": f"{bet.get('収支', 0):+,}円",
-                            })
-                        st.dataframe(
-                            pd.DataFrame(detail_rows),
-                            use_container_width=True,
-                            hide_index=True,
-                        )
-            else:
-                st.info("選択した条件に該当するレースはありません。")
-        else:
-            st.info("払戻データが確認できるGeo予想はまだありません。")
-
-        missing = auto_data.get("払戻未登録レース数", 0)
-        if missing:
-            st.info(f"払戻データ未登録: {missing}R。払戻データがDBに入れば自動で検証対象になります。")
-    else:
-        st.warning("自動馬券検証APIからデータを取得できませんでした。API側の更新後に再読み込みしてください。")
-
-
-with tab_update:
-    st.markdown("### 🏆 レース結果（着順・配当オッズ）の反映")
-    st.write("レースが確定したあとに、実際の着順と配当データを取得して `prediction_logs` の該当レースを UPDATE します。")
-    
-    target_update_race_id = st.text_input(
-        "更新対象レースID",
-        value=st.session_state.get("current_race_id", ""),
-        key="update_target_race_id"
+    # -------------------------------------------------
+    # ◎○▲の予想精度
+    # レース結果が確定しているものを自動集計
+    # -------------------------------------------------
+    mark_stats = auto_data.get("mark_stats", {})
+    st.markdown("#### 🏇 ジオ印の予想精度")
+    st.caption(
+        f"着順確認済み: {auto_data.get('着順確認済みレース数', 0)}R。 "
+        "馬券の回収率とは別に、ジオ自身の予想精度を表示します。"
     )
-    
-    col_u1, col_u2 = st.columns(2)
-    with col_u1:
-        actual_1st = st.text_input("1着 馬番")
-    with col_u2:
-        actual_dividend = st.number_input("払戻金（円）", min_value=0, value=0, step=100)
-        
-    if st.button("📥 実際の着順・オッズでログをUPDATEする"):
-        if not target_update_race_id:
-            st.warning("⚠️ レースIDを入力してください。")
+
+    mark_rows = []
+    for mark in ["◎", "○", "▲"]:
+        x = mark_stats.get(mark, {})
+        mark_rows.append({
+            "印": mark,
+            "対象R": x.get("対象R", 0),
+            "勝率": f"{x.get('勝率', 0):.1f}%",
+            "連対率": f"{x.get('連対率', 0):.1f}%",
+            "複勝率": f"{x.get('複勝率', 0):.1f}%",
+            "1着": x.get("1着", 0),
+            "2着以内": x.get("2着以内", 0),
+            "3着以内": x.get("3着以内", 0),
+        })
+    st.dataframe(pd.DataFrame(mark_rows), use_container_width=True, hide_index=True)
+
+    st.markdown("#### 券種別成績")
+    type_rows = []
+    for name in ["単勝", "複勝", "馬連", "ワイド", "馬単", "3連複", "3連単"]:
+        x = by_type.get(name, {})
+        type_rows.append({
+            "券種": name,
+            "点数": x.get("点数", 0),
+            "的中": x.get("的中", 0),
+            "的中率": f"{x.get('的中率', 0):.1f}%",
+            "投資": f"{x.get('投資', 0):,}円",
+            "払戻": f"{x.get('払戻', 0):,}円",
+            "収支": f"{x.get('収支', 0):+,}円",
+            "回収率": f"{x.get('回収率', 0):.1f}%",
+        })
+    st.dataframe(pd.DataFrame(type_rows), use_container_width=True, hide_index=True)
+
+    st.markdown("#### 🏇 レース別成績")
+    if races:
+        # -------------------------------------------------
+        # レースごとのサマリーを先に一覧表示
+        # → 何のレースで当たったかを一目で確認できるようにする
+        # -------------------------------------------------
+        race_summary_rows = []
+        prepared_races = []
+
+        for race in races:
+            bets = race.get("verification", {}).get("bets", [])
+            hit_count = sum(1 for bet in bets if bet.get("hit"))
+            bet_count = len(bets)
+            payout = sum(int(bet.get("払戻", 0) or 0) for bet in bets)
+            investment = sum(int(bet.get("投資", 0) or 0) for bet in bets)
+            profit = payout - investment
+
+            # -------------------------------------------------
+            # 過去に保存したGeo予想は、旧形式のため
+            # race_date / venue / race_no / race_name が
+            # NULLになっている場合がある。
+            # その場合はrace_idから /race/<race_id> を参照して
+            # JRA-VANのレース情報を補完する。
+            # -------------------------------------------------
+            race_date = str(race.get("race_date") or "")
+            venue = str(race.get("venue") or "")
+            race_no = str(race.get("race_no") or "")
+            race_name = str(race.get("race_name") or "")
+
+            if not (race_date and venue and race_no and race_name):
+                try:
+                    race_id = str(race.get("race_id") or "").strip()
+                    if race_id:
+                        race_detail = api_get(f"/race/{race_id}")
+                        race_meta = (
+                            race_detail.get("race", {})
+                            if isinstance(race_detail, dict)
+                            else {}
+                        )
+                        race_date = race_date or str(race_meta.get("date") or "")
+                        venue = venue or str(race_meta.get("venue") or "")
+                        race_no = race_no or str(race_meta.get("race_no") or "")
+                        race_name = race_name or str(race_meta.get("name") or "")
+                except Exception:
+                    pass
+
+            marks = f"◎{race.get('◎')} ○{race.get('○')} ▲{race.get('▲')}"
+
+            if hit_count > 0:
+                result_label = f"🎯 {hit_count}/{bet_count}"
+            else:
+                result_label = f"❌ 0/{bet_count}"
+
+            # 表示用に補完済みのレース情報をraceへ保持
+            race["_display_race_date"] = race_date
+            race["_display_venue"] = venue
+            race["_display_race_no"] = race_no
+            race["_display_race_name"] = race_name
+
+            race_summary_rows.append({
+                "日付": race_date,
+                "場所": venue,
+                "R": race_no,
+                "レース名": race_name,
+                "◎○▲": marks,
+                "的中": result_label,
+                "払戻": f"{payout:,}円",
+                "収支": f"{profit:+,}円",
+            })
+            prepared_races.append((race, hit_count, bet_count, payout, investment, profit, marks))
+
+        # 的中あり／全ての切り替え
+        filter_mode = st.radio(
+            "表示",
+            ["全レース", "🎯 的中あり", "❌ 全滅"],
+            horizontal=True,
+            key="geo_bet_race_filter",
+        )
+
+        if filter_mode == "🎯 的中あり":
+            filtered_races = [x for x in prepared_races if x[1] > 0]
+        elif filter_mode == "❌ 全滅":
+            filtered_races = [x for x in prepared_races if x[1] == 0]
         else:
-            update_payload = {
-                "race_id": target_update_race_id,
-                "actual_1st": actual_1st,
-                "actual_dividend": actual_dividend
-            }
-            try:
-                res = requests.post(
-                    f"{API_BASE.rstrip('/')}/prediction/update_result",
-                    json=update_payload,
-                    timeout=10
+            filtered_races = prepared_races
+
+        filtered_summary_rows = []
+        for race, hit_count, bet_count, payout, investment, profit, marks in filtered_races:
+            # prepared_races作成時に補完した表示情報を使う
+            race_date = str(race.get("_display_race_date") or race.get("race_date") or "")
+            venue = str(race.get("_display_venue") or race.get("venue") or "")
+            race_no = str(race.get("_display_race_no") or race.get("race_no") or "")
+            race_name = str(race.get("_display_race_name") or race.get("race_name") or "")
+            filtered_summary_rows.append({
+                "日付": race_date,
+                "場所": venue,
+                "R": race_no,
+                "レース名": race_name,
+                "◎○▲": marks,
+                "的中": f"🎯 {hit_count}/{bet_count}" if hit_count > 0 else f"❌ 0/{bet_count}",
+                "払戻": f"{payout:,}円",
+                "収支": f"{profit:+,}円",
+            })
+
+        st.dataframe(
+            pd.DataFrame(filtered_summary_rows),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        st.caption("💡 表の下からレースを開くと、11点それぞれの的中・払戻・収支を確認できます。")
+
+        # -------------------------------------------------
+        # 各レースの11点詳細
+        # -------------------------------------------------
+        st.markdown("#### 🔎 レース別詳細")
+        if filtered_races:
+            for race, hit_count, bet_count, payout, investment, profit, marks in filtered_races:
+                race_title = " ".join(str(x) for x in [
+                    race.get("_display_race_date") or race.get("race_date") or "",
+                    race.get("_display_venue") or race.get("venue") or "",
+                    race.get("_display_race_no") or race.get("race_no") or "",
+                    race.get("_display_race_name") or race.get("race_name") or ""
+                ] if x)
+
+                result_mark = "🎯" if hit_count > 0 else "❌"
+                expander_title = (
+                    f"{result_mark} {race_title}　{marks}　"
+                    f"{hit_count}/{bet_count}的中　"
+                    f"払戻 {payout:,}円　収支 {profit:+,}円"
                 )
-                if res.status_code == 200 and res.json().get("ok"):
-                    st.success(f"✅ レースID: {target_update_race_id} の結果を正常にUPDATEしました！")
-                else:
-                    st.error(f"❌ UPDATEに失敗しました: {res.text}")
-            except Exception as e:
-                st.error(f"❌ サーバー通信エラー: {e}")
+
+                with st.expander(expander_title):
+                    bets = race.get("verification", {}).get("bets", [])
+                    detail_rows = []
+                    for bet in bets:
+                        detail_rows.append({
+                            "券種": bet.get("券種"),
+                            "買い目": bet.get("買い目"),
+                            "判定": "🎯 的中" if bet.get("hit") else "－",
+                            "投資": f"{bet.get('投資', 0):,}円",
+                            "払戻": f"{bet.get('払戻', 0):,}円",
+                            "収支": f"{bet.get('収支', 0):+,}円",
+                        })
+                    st.dataframe(
+                        pd.DataFrame(detail_rows),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+        else:
+            st.info("選択した条件に該当するレースはありません。")
+    else:
+        st.info("払戻データが確認できるGeo予想はまだありません。")
+
+    missing = auto_data.get("払戻未登録レース数", 0)
+    if missing:
+        st.info(f"払戻データ未登録: {missing}R。払戻データがDBに入れば自動で検証対象になります。")
+else:
+    st.warning("自動馬券検証APIからデータを取得できませんでした。API側の更新後に再読み込みしてください。")
