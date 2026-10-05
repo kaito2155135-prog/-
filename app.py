@@ -3142,16 +3142,47 @@ with tab_auto:
                 investment = sum(int(bet.get("投資", 0) or 0) for bet in bets)
                 profit = payout - investment
 
+                # -------------------------------------------------
+                # 過去に保存したGeo予想は、旧形式のため
+                # race_date / venue / race_no / race_name が
+                # NULLになっている場合がある。
+                # その場合はrace_idから /race/<race_id> を参照して
+                # JRA-VANのレース情報を補完する。
+                # -------------------------------------------------
                 race_date = str(race.get("race_date") or "")
                 venue = str(race.get("venue") or "")
                 race_no = str(race.get("race_no") or "")
                 race_name = str(race.get("race_name") or "")
+
+                if not (race_date and venue and race_no and race_name):
+                    try:
+                        race_id = str(race.get("race_id") or "").strip()
+                        if race_id:
+                            race_detail = api_get(f"/race/{race_id}")
+                            race_meta = (
+                                race_detail.get("race", {})
+                                if isinstance(race_detail, dict)
+                                else {}
+                            )
+                            race_date = race_date or str(race_meta.get("date") or "")
+                            venue = venue or str(race_meta.get("venue") or "")
+                            race_no = race_no or str(race_meta.get("race_no") or "")
+                            race_name = race_name or str(race_meta.get("name") or "")
+                    except Exception:
+                        pass
+
                 marks = f"◎{race.get('◎')} ○{race.get('○')} ▲{race.get('▲')}"
 
                 if hit_count > 0:
                     result_label = f"🎯 {hit_count}/{bet_count}"
                 else:
                     result_label = f"❌ 0/{bet_count}"
+
+                # 表示用に補完済みのレース情報をraceへ保持
+                race["_display_race_date"] = race_date
+                race["_display_venue"] = venue
+                race["_display_race_no"] = race_no
+                race["_display_race_name"] = race_name
 
                 race_summary_rows.append({
                     "日付": race_date,
@@ -3182,11 +3213,16 @@ with tab_auto:
 
             filtered_summary_rows = []
             for race, hit_count, bet_count, payout, investment, profit, marks in filtered_races:
+                # prepared_races作成時に補完した表示情報を使う
+                race_date = str(race.get("_display_race_date") or race.get("race_date") or "")
+                venue = str(race.get("_display_venue") or race.get("venue") or "")
+                race_no = str(race.get("_display_race_no") or race.get("race_no") or "")
+                race_name = str(race.get("_display_race_name") or race.get("race_name") or "")
                 filtered_summary_rows.append({
-                    "日付": str(race.get("race_date") or ""),
-                    "場所": str(race.get("venue") or ""),
-                    "R": str(race.get("race_no") or ""),
-                    "レース名": str(race.get("race_name") or ""),
+                    "日付": race_date,
+                    "場所": venue,
+                    "R": race_no,
+                    "レース名": race_name,
                     "◎○▲": marks,
                     "的中": f"🎯 {hit_count}/{bet_count}" if hit_count > 0 else f"❌ 0/{bet_count}",
                     "払戻": f"{payout:,}円",
@@ -3208,10 +3244,10 @@ with tab_auto:
             if filtered_races:
                 for race, hit_count, bet_count, payout, investment, profit, marks in filtered_races:
                     race_title = " ".join(str(x) for x in [
-                        race.get("race_date") or "",
-                        race.get("venue") or "",
-                        race.get("race_no") or "",
-                        race.get("race_name") or ""
+                        race.get("_display_race_date") or race.get("race_date") or "",
+                        race.get("_display_venue") or race.get("venue") or "",
+                        race.get("_display_race_no") or race.get("race_no") or "",
+                        race.get("_display_race_name") or race.get("race_name") or ""
                     ] if x)
 
                     result_mark = "🎯" if hit_count > 0 else "❌"
