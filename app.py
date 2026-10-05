@@ -3036,55 +3036,14 @@ else:
     )
 
 # =========================================================
-# 【追加機能】prediction_logs 連携 & 採点ボード
+# =========================================================
+# Geo自動馬券検証に成績管理を一本化
 # =========================================================
 
-st.markdown("---")
-st.markdown("<h2>📊 予想ログ・採点ボード（回収率・的中率）</h2>", unsafe_allow_html=True)
+st.markdown("<h2>🎯 Geo自動馬券検証</h2>", unsafe_allow_html=True)
 
-# タブで「採点ボード」「結果更新」を分離
-tab_score, tab_auto, tab_update = st.tabs(["📈 採点ボード（回収率・的中率）", "🎯 自動馬券検証", "⚙️ レース結果の確定・UPDATE"])
-
-with tab_score:
-    st.markdown("### 🎯 予測データと実績の突き合わせ結果")
-    
-    # 採点ボードデータを取得するAPI呼び出し（バックエンドにエンドポイントがあると仮定）
-    scoreboard_data = api_get("/prediction/scoreboard")
-    
-    if scoreboard_data and isinstance(scoreboard_data, dict):
-        summary = scoreboard_data.get("summary", {})
-        col_s1, col_s2, col_s3, col_s4 = st.columns(4)
-        with col_s1:
-            st.metric("総予想レース数", f"{summary.get('total_races', 0)} 競走")
-        with col_s2:
-            st.metric("的中率", f"{summary.get('hit_rate', 0.0):.1f}%")
-        with col_s3:
-            st.metric("回収率", f"{summary.get('recovery_rate', 0.0):.1f}%")
-        with col_s4:
-            st.metric("収支", f"{summary.get('net_profit', 0):,} 円")
-            
-        logs_list = scoreboard_data.get("logs", [])
-        if logs_list:
-            st.markdown("#### 📜 過去の予測ログ一覧")
-            df_logs = pd.DataFrame(logs_list)
-            st.dataframe(df_logs, use_container_width=True, hide_index=True)
-        else:
-            st.info("prediction_logs にデータがまだありません。レースを予想して保存してください。")
-    else:
-        # APIが未実装または通信できない場合のモック・フォールバック表示
-        st.info(
-            "💡 バックエンドの採点ボード用API（/prediction/scoreboard）からデータを取得しています。\n"
-            "まだデータがないか、バックエンド側の実装が未完了です。"
-        )
-        # ダミー表示例
-        col_s1, col_s2, col_s3 = st.columns(3)
-        with col_s1:
-            st.metric("的中率", "--- %")
-        with col_s2:
-            st.metric("回収率", "--- %")
-        with col_s3:
-            st.metric("集計対象", "0件")
-
+# 採点ボードは廃止し、自動馬券検証へ一本化
+tab_auto, tab_update = st.tabs(["🎯 自動馬券検証", "⚙️ レース結果の確定・UPDATE"])
 
 with tab_auto:
     st.markdown("### 🎯 Geo自動馬券検証")
