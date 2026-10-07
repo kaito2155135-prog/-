@@ -3006,19 +3006,23 @@ if st.button(
 
         if current_race_id:
             st.session_state["current_race_id"] = current_race_id
-            saved = save_geo_prediction(
-                race_id=current_race_id,
-                geo=geo_result,
-                pace=selected_pace,
-                bias=selected_bias,
-                condition=selected_condition,
-                race_info=current_race_info
-            )
 
-            if saved:
-                st.success("💾 ジオの予想をSQLiteへ自動保存しました")
+            # ----------------------------------------------------
+            # 個別予想は「手動分析」として画面表示のみ。
+            # 全自動予想の保存データには書き込まない。
+            #
+            # これにより、開催日全レース自動予想で固定した
+            # ◎○▲が、レース開催中の個別分析によって
+            # 上書きされることを完全に防ぐ。
+            # ----------------------------------------------------
+            st.info(
+                "👤 個別予想モード：この予想は画面表示のみで保存しません。"
+                "全自動予想の◎○▲・馬券検証には影響しません。"
+            )
         else:
-            st.warning("⚠️ race_idが取得できないため、ジオ予想は表示しますが保存できませんでした。")
+            st.warning(
+                "⚠️ race_idが取得できないため、個別予想を表示します。"
+            )
 
     st.session_state["geo_prediction"] = geo_result
 
