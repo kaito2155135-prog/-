@@ -2977,62 +2977,65 @@ if st.button(
         selected_condition,
     )
 
-# =========================================================
-# 現在選択しているレースのrace_idを取得
-# =========================================================
-current_race_id = None
+        # =========================================================
+        # 現在選択中のレース情報を取得
+        # ※古いcurrent_race_idを使わない
+        # =========================================================
+        current_race_id = None
 
-try:
-    # selected_race にrace_idが入っている場合
-    if isinstance(selected_race, dict):
-        current_race_id = (
-            selected_race.get("race_id")
-            or selected_race.get("race_code")
-            or selected_race.get("レースID")
-        )
-except Exception:
-    pass
+        try:
+            if isinstance(selected_race, dict):
+                current_race_id = (
+                    selected_race.get("race_id")
+                    or selected_race.get("race_code")
+                    or selected_race.get("レースID")
+                )
+        except Exception:
+            pass
 
-# selected_raceから取れない場合のみdf_raceを見る
-if not current_race_id:
-    try:
-        if "df_race" in globals() and "レースID" in df_race.columns:
-            ids = df_race["レースID"].dropna().astype(str)
-            if len(ids) > 0:
-                current_race_id = ids.iloc[0]
-    except Exception:
-        pass
+        # selected_raceから取れない場合のみdf_raceから取得
+        if not current_race_id:
+            try:
+                if "df_race" in globals() and "レースID" in df_race.columns:
+                    ids = df_race["レースID"].dropna().astype(str)
+                    if len(ids) > 0:
+                        current_race_id = ids.iloc[0]
+            except Exception:
+                pass
 
-if current_race_id:
-    current_race_id = str(current_race_id).strip()
         if current_race_id:
             current_race_id = str(current_race_id).strip()
 
-# =========================================================
-# 現在選択中のレース情報
-# =========================================================
-current_race_info = {}
+        # =========================================================
+        # 現在選択中のレース情報
+        # =========================================================
+        current_race_info = {}
 
-try:
-    if isinstance(selected_race, dict):
-        current_race_info = {
-            "date": selected_race.get("date"),
-            "venue": selected_race.get("venue"),
-            "race_no": selected_race.get("race_no"),
-            "name": selected_race.get("name"),
-        }
-except Exception:
-    current_race_info = {}
+        try:
+            if isinstance(selected_race, dict):
+                current_race_info = {
+                    "date": selected_race.get("date"),
+                    "venue": selected_race.get("venue"),
+                    "race_no": selected_race.get("race_no"),
+                    "name": selected_race.get("name"),
+                }
+        except Exception:
+            current_race_info = {}
 
-# 足りない情報だけsession_stateから補完
-saved_race_info = st.session_state.get("race_info", {})
+        # 足りない情報だけsession_stateから補完
+        saved_race_info = st.session_state.get("race_info", {})
 
-if isinstance(saved_race_info, dict):
-    for key in ["date", "venue", "race_no", "name"]:
-        if not current_race_info.get(key):
-            current_race_info[key] = saved_race_info.get(key)
+        if isinstance(saved_race_info, dict):
+            for key in ["date", "venue", "race_no", "name"]:
+                if not current_race_info.get(key):
+                    current_race_info[key] = saved_race_info.get(key)
+
+        # =========================================================
+        # Geo予想を保存
+        # =========================================================
         if current_race_id:
             st.session_state["current_race_id"] = current_race_id
+
             saved = save_geo_prediction(
                 race_id=current_race_id,
                 geo=geo_result,
@@ -3045,8 +3048,10 @@ if isinstance(saved_race_info, dict):
             if saved:
                 st.success("💾 ジオの予想をSQLiteへ自動保存しました")
         else:
-            st.warning("⚠️ race_idが取得できないため、ジオ予想は表示しますが保存できませんでした。")
-
+            st.warning(
+                "⚠️ race_idが取得できないため、"
+                "ジオ予想は表示しますが保存できませんでした。"
+            )
     st.session_state["geo_prediction"] = geo_result
 
     if "geo_prediction" in st.session_state:
