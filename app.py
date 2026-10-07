@@ -614,22 +614,10 @@ def get_pedigree(ketto_toroku_bango, race_surface="", race_distance="", going=""
         }
 
         return {
-            "父": parent1.get(
-                "bamei",
-                ""
-            ),
-            "母": parent2.get(
-                "bamei",
-                ""
-            ),
-            "父血統登録番号": parent1.get(
-                "ketto_toroku_bango",
-                ""
-            ),
-            "母血統登録番号": parent2.get(
-                "ketto_toroku_bango",
-                ""
-            ),
+            "父": parent1.get("bamei") or parent1.get("name") or "",
+            "母": parent2.get("bamei") or parent2.get("name") or "",
+            "父血統登録番号": parent1.get("ketto_toroku_bango") or parent1.get("id") or "",
+            "母血統登録番号": parent2.get("ketto_toroku_bango") or parent2.get("id") or "",
             "血統適性": bloodline_score,
         }
 
@@ -639,6 +627,7 @@ def get_pedigree(ketto_toroku_bango, race_surface="", race_distance="", going=""
             "母": "",
             "父血統登録番号": "",
             "母血統登録番号": "",
+            "血統適性": {"score": 50.0, "confidence": "低", "grade": "C", "note": "血統API取得失敗"},
         }
 
 
