@@ -661,8 +661,28 @@ def get_pedigree_bulk(targets, race_surface="", race_distance="", going="", venu
         r.raise_for_status()
         data = r.json()
         if data.get("ok"):
-            results = data.get("results", {}) or {}
-            if results:
+            raw_results = data.get("results", {}) or {}
+            if raw_results:
+                # 一括APIは father/mother 形式、既存のGeo側は 父/母 形式なのでここで統一する。
+                results = {}
+                for target, item in raw_results.items():
+                    item = item or {}
+                    father = item.get("father") or {}
+                    mother = item.get("mother") or {}
+                    bloodline_score = item.get("bloodline_score")
+                    if not isinstance(bloodline_score, dict):
+                        bloodline_score = {
+                            "score": float(bloodline_score) if bloodline_score is not None else 50.0,
+                            "confidence": "低",
+                            "grade": "C",
+                        }
+                    results[str(target).strip()] = {
+                        "父": father.get("name") or father.get("bamei") or "",
+                        "母": mother.get("name") or mother.get("bamei") or "",
+                        "父血統登録番号": father.get("hanshoku_toroku_bango") or father.get("ketto_toroku_bango") or father.get("id") or "",
+                        "母血統登録番号": mother.get("hanshoku_toroku_bango") or mother.get("ketto_toroku_bango") or mother.get("id") or "",
+                        "血統適性": bloodline_score,
+                    }
                 return results
 
         # 一括APIが古いFlaskのまま/404/一括SQL失敗でも全レースを止めない。
