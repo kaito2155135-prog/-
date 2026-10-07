@@ -3138,81 +3138,164 @@ def geo_auto_detect_pace(df):
 
 
 if st.button("🏇 開催日全レース自動予想", key="geo_all_race_auto_predict", type="primary", use_container_width=True):
-    target_date = str(selected_race_summary.get("date", selected_race_summary.get("kaisai_date", "")) or "").strip()
-    day_races = [r for r in race_list if str(r.get("date", r.get("kaisai_date", "")) or "").strip() == target_date]
+    # 払い戻し・結果確定とは完全分離した「予想だけ」の一括処理
+    def _normalize_date(value):
+        return "".join(ch for ch in str(value or "") if ch.isdigit())[:8]
+
+    target_date_raw = selected_race_summary.get("date", selected_race_summary.get("kaisai_date", ""))
+    target_date = _normalize_date(target_date_raw)
+
+    # 開始時に最新のレース一覧を取得（古いキャッシュに依存しない）
+    fresh = api_get("/races/latest?days=7", timeout=30)
+    if isinstance(fresh, dict):
+        source_races = fresh.get("races", [])
+    elif isinstance(fresh, list):
+        source_races = fresh
+    else:
+        source_races = race_list
+
+    day_races = [
+        r for r in source_races
+        if _normalize_date(r.get("date", r.get("kaisai_date", ""))) == target_date
+    ]
+
+    # race_id重複を除去
+    unique = {}
+    for r in day_races:
+        rid = str(r.get("race_id", r.get("id", r.get("race_code", ""))) or "").strip()
+        if rid:
+            unique[rid] = r
+    day_races = list(unique.values())
 
     def _race_sort_key(x):
         place = str(x.get("place", x.get("venue", "")))
-        raw_no = str(x.get("race_no", x.get("race_bango", "0"))).replace("R", "")
+        raw_no = str(x.get("race_no", x.get("race_bango", "0"))).replace("R", "").strip()
         return (place, int(raw_no) if raw_no.isdigit() else 0)
+
     day_races.sort(key=_race_sort_key)
 
-    saved_ids_data = api_get("/geo/prediction_ids?limit=10000", timeout=30)
-    saved_ids = set()
-    if isinstance(saved_ids_data, dict) and saved_ids_data.get("ok"):
-        saved_ids = {str(x.get("race_id", "")).strip() for x in saved_ids_data.get("predictions", []) if str(x.get("race_id", "")).strip()}
-
-    pending = []
-    for item in day_races:
-        rid = str(item.get("race_id", item.get("id", item.get("race_code", ""))) or "").strip()
-        if rid and rid not in saved_ids:
-            pending.append(item)
-
-    st.info(f"📅 {target_date} の開催日全{len(day_races)}Rを確認。未予想 {len(pending)}R / 保存済み {len(day_races)-len(pending)}R")
-
-    if not pending:
-        st.success("✅ この開催日の予想はすべて保存済みです。")
+    if not day_races:
+        st.error(f"⚠️ {target_date_raw} の開催レースを取得できませんでした。")
     else:
-        progress = st.progress(0, text="全レース自動予想を開始します...")
-        success_count = skip_count = error_count = 0
-        errors = []
-        for idx, race_summary in enumerate(pending, start=1):
-            rid = str(race_summary.get("race_id", race_summary.get("id", race_summary.get("race_code", ""))) or "").strip()
-            label = race_display_name(race_summary)
-            progress.progress((idx-1)/max(len(pending),1), text=f"{idx}/{len(pending)}R  {label}")
-            try:
-                detail = api_get(f"/race/{rid}", timeout=30)
-                context = geo_auto_race_context(race_summary, detail)
-                if context is None:
-                    skip_count += 1; errors.append(f"{label}: 出走馬データなし"); continue
-                df_auto = context["df_race"]
-                if len(df_auto) < 3:
-                    skip_count += 1; errors.append(f"{label}: 出走馬3頭未満"); continue
+        # 既存予想だけ確認。払い戻しDBはここでは見ない。
+        saved_ids_data = api_get("/geo/prediction_ids?limit=10000", timeout=30)
+        saved_ids = set()
+        if isinstance(saved_ids_data, dict) and saved_ids_data.get("ok"):
+            saved_ids = {
+                str(x.get("race_id", "")).strip()
+                for x in saved_ids_data.get("predictions", [])
+                if str(x.get("race_id", "")).strip()
+            }
 
-                auto_pace = geo_auto_detect_pace(df_auto)
-                auto_bias = "フラット"
-                auto_condition = context["default_baba"]
-                master_data = build_master_data_from_jv(df_auto)
-                if master_data.empty:
-                    skip_count += 1; errors.append(f"{label}: 過去走データなし"); continue
+        pending = []
+        already_saved = []
+        for item in day_races:
+            rid = str(item.get("race_id", item.get("id", item.get("race_code", ""))) or "").strip()
+            if not rid:
+                continue
+            if rid in saved_ids:
+                already_saved.append(item)
+            else:
+                pending.append(item)
 
-                df_sim = run_integrated_simulation(
-                    df_auto, auto_pace, auto_bias, auto_condition, master_data,
-                    context["race_category"], context["straight_len"], context["race_place"],
-                    context["race_surface"], context["course_toughness"], context["race_class"],
-                    df_base_master, df_f3_master,
-                )
-                geo = run_geo_prediction(df_sim, auto_pace, auto_bias, auto_condition)
-                if geo is None:
-                    skip_count += 1; errors.append(f"{label}: ジオ予想生成失敗"); continue
+        st.info(f"📅 {target_date_raw} の開催日全{len(day_races)}Rを確認。未予想 {len(pending)}R / 保存済み {len(already_saved)}R")
 
-                saved = save_geo_prediction(
-                    race_id=rid, geo=geo, pace=auto_pace, bias=auto_bias,
-                    condition=auto_condition, race_info=context["race_info"],
-                )
-                if saved:
-                    success_count += 1
-                else:
-                    error_count += 1; errors.append(f"{label}: SQLite保存失敗")
-            except Exception as e:
-                error_count += 1; errors.append(f"{label}: {e}")
+        if not pending:
+            st.success("✅ この開催日の予想はすべて保存済みです。")
+        else:
+            progress = st.progress(0, text=f"全レース自動予想を開始… 0/{len(pending)}R")
+            success_count = 0
+            skip_count = 0
+            error_count = 0
+            errors = []
 
-        progress.progress(1.0, text="全レース自動予想 完了")
-        st.success(f"🏁 自動予想完了：新規保存 {success_count}R / スキップ {skip_count}R / エラー {error_count}R")
-        if errors:
-            with st.expander("⚠️ スキップ・エラー詳細"):
-                for message in errors:
-                    st.write("・" + message)
+            for idx, race_summary in enumerate(pending, start=1):
+                rid = str(race_summary.get("race_id", race_summary.get("id", race_summary.get("race_code", ""))) or "").strip()
+                label = race_display_name(race_summary)
+                progress.progress((idx - 1) / max(len(pending), 1), text=f"🧠 {idx}/{len(pending)}R {label} を分析中…")
+
+                try:
+                    # ① レース詳細取得
+                    detail = api_get(f"/race/{rid}", timeout=30)
+                    if not detail:
+                        skip_count += 1
+                        errors.append(f"{label}: レース詳細取得失敗")
+                        continue
+
+                    # ② 出走馬→血統→血統適性を、このレース専用に構築
+                    context = geo_auto_race_context(race_summary, detail)
+                    if context is None:
+                        skip_count += 1
+                        errors.append(f"{label}: 出走馬データなし")
+                        continue
+
+                    df_auto = context["df_race"]
+                    if len(df_auto) < 3:
+                        skip_count += 1
+                        errors.append(f"{label}: 出走馬3頭未満")
+                        continue
+
+                    # 血統が全部空なら、血統を取得できていないので予想しない
+                    missing_pedigree = sum(
+                        1 for _, h in df_auto.iterrows()
+                        if not str(h.get("父", "") or "").strip()
+                        and not str(h.get("母", "") or "").strip()
+                    )
+                    if missing_pedigree == len(df_auto):
+                        skip_count += 1
+                        errors.append(f"{label}: 血統データを取得できなかったため中止")
+                        continue
+
+                    # ③ 自動ペース・馬場
+                    auto_pace = geo_auto_detect_pace(df_auto)
+                    auto_bias = "フラット"
+                    auto_condition = context["default_baba"]
+
+                    # ④ 過去走取得→統合シミュレーション
+                    master_data = build_master_data_from_jv(df_auto)
+                    if master_data.empty:
+                        skip_count += 1
+                        errors.append(f"{label}: 過去走データなし")
+                        continue
+
+                    df_sim = run_integrated_simulation(
+                        df_auto, auto_pace, auto_bias, auto_condition, master_data,
+                        context["race_category"], context["straight_len"], context["race_place"],
+                        context["race_surface"], context["course_toughness"], context["race_class"],
+                        df_base_master, df_f3_master,
+                    )
+
+                    # ⑤ ジオ予想
+                    geo = run_geo_prediction(df_sim, auto_pace, auto_bias, auto_condition)
+                    if geo is None:
+                        skip_count += 1
+                        errors.append(f"{label}: ジオ予想生成失敗")
+                        continue
+
+                    # ⑥ ◎○▲保存 → 保存後は必ず次のRへ
+                    if save_geo_prediction(
+                        race_id=rid, geo=geo, pace=auto_pace, bias=auto_bias,
+                        condition=auto_condition, race_info=context["race_info"]
+                    ):
+                        success_count += 1
+                    else:
+                        error_count += 1
+                        errors.append(f"{label}: SQLite保存失敗")
+
+                except Exception as e:
+                    # 1Rの失敗で全体を止めない
+                    error_count += 1
+                    errors.append(f"{label}: {type(e).__name__}: {e}")
+                    continue
+
+                progress.progress(idx / max(len(pending), 1), text=f"✅ {idx}/{len(pending)}R 完了。次のレースへ…")
+
+            progress.progress(1.0, text="🏁 開催日全レース自動予想 完了")
+            st.success(f"🏁 自動予想完了：新規保存 {success_count}R / スキップ {skip_count}R / エラー {error_count}R / 保存済み {len(already_saved)}R")
+            if errors:
+                with st.expander("⚠️ スキップ・エラー詳細"):
+                    for message in errors:
+                        st.write("・" + message)
 
 
 # =========================================================
