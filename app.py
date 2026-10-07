@@ -656,15 +656,60 @@ def get_pedigree_bulk(targets, race_surface="", race_distance="", going="", venu
                 "going": going or "",
                 "venue": venue_code or "",
             },
-            timeout=180,
+            timeout=120,
         )
         r.raise_for_status()
         data = r.json()
-        if not data.get("ok"):
-            return {}
-        return data.get("results", {}) or {}
+        if data.get("ok"):
+            results = data.get("results", {}) or {}
+            if results:
+                return results
+
+        # 一括APIが古いFlaskのまま/404/一括SQL失敗でも全レースを止めない。
+        # 従来APIを最大8並列でフォールバックする。
+        def _fallback(target):
+            try:
+                return target, get_pedigree(
+                    target,
+                    race_surface=race_surface,
+                    race_distance=race_distance,
+                    going=going,
+                    venue_code=venue_code,
+                )
+            except Exception:
+                return target, {}
+
+        results = {}
+        with ThreadPoolExecutor(max_workers=min(8, max(1, len(clean_targets)))) as ex:
+            futures = [ex.submit(_fallback, target) for target in clean_targets]
+            for future in as_completed(futures):
+                target, result = future.result()
+                if result:
+                    results[target] = result
+        return results
+
     except Exception:
-        return {}
+        # HTTPエラー時も同じフォールバックを実行
+        def _fallback(target):
+            try:
+                return target, get_pedigree(
+                    target,
+                    race_surface=race_surface,
+                    race_distance=race_distance,
+                    going=going,
+                    venue_code=venue_code,
+                )
+            except Exception:
+                return target, {}
+
+        results = {}
+        with ThreadPoolExecutor(max_workers=min(8, max(1, len(clean_targets)))) as ex:
+            futures = [ex.submit(_fallback, target) for target in clean_targets]
+            for future in as_completed(futures):
+                target, result = future.result()
+                if result:
+                    results[target] = result
+        return results
 
 
 # 各馬の父・母を取得
