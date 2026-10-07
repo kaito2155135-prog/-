@@ -3338,6 +3338,42 @@ if st.button("🏇 開催日全レース自動予想", key="geo_all_race_auto_pr
 st.markdown("<h2>🎯 Geo自動馬券検証</h2>", unsafe_allow_html=True)
 
 # 採点ボードは廃止し、自動馬券検証へ一本化
+st.markdown("### 🎯 保存データ管理")
+
+reset_confirm = st.checkbox(
+    "保存済みのGeo予想・結果をすべて削除する",
+    key="geo_reset_confirm"
+)
+
+if st.button(
+    "🗑️ 保存データをリセット",
+    key="geo_reset_button",
+    disabled=not reset_confirm,
+    use_container_width=True
+):
+    try:
+        response = requests.post(
+            f"{API_BASE.rstrip('/')}/prediction/reset",
+            timeout=20
+        )
+        result = response.json()
+        if response.status_code == 200 and result.get("ok"):
+            st.success(
+                f"✅ 保存データをリセットしました。"
+                f" 予想{result.get('deleted_predictions', 0)}R / "
+                f"結果{result.get('deleted_results', 0)}件を削除。"
+            )
+            st.session_state.pop("geo_prediction", None)
+            st.session_state.pop("df_simulated", None)
+            st.session_state.pop("master_data_jv", None)
+            st.session_state["sim_executed"] = False
+        else:
+            st.error(f"❌ リセット失敗: {result.get('error', response.text)}")
+    except Exception as e:
+        st.error(f"❌ リセット通信エラー: {e}")
+
+st.markdown("---")
+
 st.markdown("### 🎯 Geo自動馬券検証")
 st.caption("◎○▲から11点を自動生成し、JRA-VANのharaimodoshiと照合します。各点100円で計算します。")
 
