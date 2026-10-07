@@ -3370,8 +3370,12 @@ if st.button("🏇 開催日全レース自動予想", key="geo_all_race_auto_pr
                     # 血統が全部空なら、血統を取得できていないので予想しない
                     missing_pedigree = sum(
                         1 for _, h in df_auto.iterrows()
-                        if not str(h.get("父", "") or "").strip()
-                        and not str(h.get("母", "") or "").strip()
+                        if not (
+                            str(h.get("父", "") or "").strip()
+                            or str(h.get("母", "") or "").strip()
+                            or str(h.get("父血統登録番号", "") or "").strip()
+                            or str(h.get("母血統登録番号", "") or "").strip()
+                        )
                     )
                     if missing_pedigree == len(df_auto):
                         skip_count += 1
