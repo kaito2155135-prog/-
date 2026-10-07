@@ -656,7 +656,7 @@ def get_pedigree_bulk(targets, race_surface="", race_distance="", going="", venu
                 "going": going or "",
                 "venue": venue_code or "",
             },
-            timeout=90,
+            timeout=180,
         )
         r.raise_for_status()
         data = r.json()
@@ -3132,6 +3132,8 @@ def geo_auto_race_context(race_summary, race_detail):
         str(row.get("血統登録番号", "") or "").strip()
         for _, row in df.iterrows()
     ]
+    # 血統は1頭ずつ取得せず、1レース1回の一括取得。
+    # API側では父母産駒実績を親単位でキャッシュするため、2R目以降は大幅に高速化する。
     bulk_map = get_pedigree_bulk(
         pedigree_targets,
         race_surface=race_surface,
