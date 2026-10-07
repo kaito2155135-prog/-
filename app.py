@@ -1006,7 +1006,7 @@ def format_time(seconds):
 # JRA-VAN → 既存master_data形式
 # =========================================================
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_horse_history(horse_name):
     encoded_name = requests.utils.quote(
         horse_name,
@@ -1056,7 +1056,7 @@ def build_master_data_from_jv(df_current):
     histories = [None] * total
     completed = 0
 
-    with ThreadPoolExecutor(max_workers=min(8, max(1, total))) as executor:
+    with ThreadPoolExecutor(max_workers=min(12, max(1, total))) as executor:
         futures = [executor.submit(_fetch_history, item) for item in enumerate(horse_names)]
         for future in as_completed(futures):
             i, horse_name, history = future.result()
@@ -3324,7 +3324,7 @@ if st.button("🏇 開催日全レース自動予想", key="geo_all_race_auto_pr
             for idx, race_summary in enumerate(pending, start=1):
                 rid = str(race_summary.get("race_id", race_summary.get("id", race_summary.get("race_code", ""))) or "").strip()
                 label = race_display_name(race_summary)
-                progress.progress((idx - 1) / max(len(pending), 1), text=f"🧠 {idx}/{len(pending)}R {label} を分析中…")
+                progress.progress((idx - 1) / max(len(pending), 1), text=f"🧠 {idx}/{len(pending)}R {label}：血統・過去走を取得中…")
 
                 try:
                     # ① レース詳細取得
