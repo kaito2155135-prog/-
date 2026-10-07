@@ -635,6 +635,38 @@ def get_pedigree(ketto_toroku_bango, race_surface="", race_distance="", going=""
         }
 
 
+@st.cache_data(ttl=3600)
+def get_pedigree_bulk(targets, race_surface="", race_distance="", going="", venue_code=""):
+    """複数頭の血統適性を1回のAPI呼び出しで取得。開催日全レース用。"""
+    clean_targets = []
+    for x in targets or []:
+        x = str(x or "").strip()
+        if x:
+            clean_targets.append(x)
+    clean_targets = list(dict.fromkeys(clean_targets))
+    if not clean_targets:
+        return {}
+    try:
+        r = requests.post(
+            API_BASE.rstrip("/") + "/geo/bloodline-aptitude-bulk",
+            json={
+                "ketto_toroku_bangos": clean_targets,
+                "surface": race_surface or "",
+                "distance": race_distance or "",
+                "going": going or "",
+                "venue": venue_code or "",
+            },
+            timeout=90,
+        )
+        r.raise_for_status()
+        data = r.json()
+        if not data.get("ok"):
+            return {}
+        return data.get("results", {}) or {}
+    except Exception:
+        return {}
+
+
 # 各馬の父・母を取得
 pedigree_rows = []
 
@@ -2743,8 +2775,9 @@ def run_geo_prediction(
             except (TypeError, ValueError):
                 bloodline_score = 50.0
 
-            bloodline_bonus = (bloodline_score - 50.0) / 10.0
-            bloodline_bonus = max(-4.0, min(4.0, bloodline_bonus))
+            bloodline_bonus = (bloodline_score - 50.0) / 6.25
+            # 血統適性はジオ評価へ実効で最大±8点まで反映
+            bloodline_bonus = max(-8.0, min(8.0, bloodline_bonus))
 
             confidence_factor = {
                 "高": 1.0,
@@ -3093,33 +3126,29 @@ def geo_auto_race_context(race_summary, race_detail):
     df["馬名"] = df["馬名"].apply(normalize_horse_name)
     df["馬名_clean"] = df["馬名"].apply(normalize_horse_name)
 
-    # 血統取得は1頭ずつ直列に待つと開催日全レースで非常に時間がかかるため、
-    # 複数頭を並列取得する。API/DBへの負荷を抑えるため8並列。
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
+    # 開催日全レースでは、馬ごとにHTTP/APIを叩くと非常に遅い。
+    # 1レース分を一括送信し、API側で父母産駒実績をまとめて集計する。
     pedigree_targets = [
         str(row.get("血統登録番号", "") or "").strip()
         for _, row in df.iterrows()
     ]
-    pedigree_rows = [None] * len(pedigree_targets)
-
-    def _fetch_pedigree(item):
-        idx, target = item
-        return idx, get_pedigree(
-            target,
-            race_surface=race_surface,
-            race_distance=race_distance,
-            going=default_baba,
-            venue_code=meta.get("venue_code", "")
-        )
-
-    with ThreadPoolExecutor(max_workers=min(8, max(1, len(pedigree_targets)))) as executor:
-        futures = [executor.submit(_fetch_pedigree, item) for item in enumerate(pedigree_targets)]
-        for future in as_completed(futures):
-            idx, pedigree = future.result()
-            pedigree_rows[idx] = pedigree
-
+    bulk_map = get_pedigree_bulk(
+        pedigree_targets,
+        race_surface=race_surface,
+        race_distance=race_distance,
+        going=default_baba,
+        venue_code=meta.get("venue_code", "")
+    )
+    pedigree_rows = [
+        bulk_map.get(str(target).strip(), {
+            "父": "", "母": "",
+            "父血統登録番号": "", "母血統登録番号": "",
+            "血統適性": {"score": 50.0, "confidence": "低", "grade": "C", "note": "血統API取得失敗"}
+        })
+        for target in pedigree_targets
+    ]
     df = pd.concat([df, pd.DataFrame(pedigree_rows, index=df.index)], axis=1)
+
     if "血統適性" not in df.columns:
         df["血統適性"] = [{"score": 50.0, "confidence": "低"} for _ in range(len(df))]
     else:
@@ -3309,11 +3338,17 @@ if st.button("🏇 開催日全レース自動予想", key="geo_all_race_auto_pr
                         continue
 
                     # ⑥ ◎○▲保存 → 保存後は必ず次のRへ
-                    if save_geo_prediction(
+                    saved_ok = save_geo_prediction(
                         race_id=rid, geo=geo, pace=auto_pace, bias=auto_bias,
                         condition=auto_condition, race_info=context["race_info"]
-                    ):
-                        success_count += 1
+                    )
+                    if saved_ok:
+                        verify = api_get(f"/geo/prediction/{rid}", timeout=15)
+                        if isinstance(verify, dict) and verify.get("ok"):
+                            success_count += 1
+                        else:
+                            error_count += 1
+                            errors.append(f"{label}: 保存APIは成功したがDB保存確認に失敗")
                     else:
                         error_count += 1
                         errors.append(f"{label}: SQLite保存失敗")
