@@ -596,15 +596,19 @@ def get_pedigree(ketto_toroku_bango, race_surface="", race_distance="", going=""
 
         data = r.json()
 
-        parent1 = data.get(
-            "parent1",
-            {}
-        ) or {}
+        # 血統実績APIは father / mother、従来APIは parent1 / parent2 を返すため
+        # 両方に対応する。
+        parent1 = (
+            data.get("parent1")
+            or data.get("father")
+            or {}
+        )
 
-        parent2 = data.get(
-            "parent2",
-            {}
-        ) or {}
+        parent2 = (
+            data.get("parent2")
+            or data.get("mother")
+            or {}
+        )
 
         bloodline_score = data.get("bloodline_score") or {
             "score": 50.0,
