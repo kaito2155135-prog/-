@@ -560,7 +560,7 @@ df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
 # =========================================================
 
 @st.cache_data(ttl=3600)
-def get_pedigree(ketto_toroku_bango):
+def get_pedigree(ketto_toroku_bango, race_surface="", race_distance="", going="", venue_code=""):
     ketto_toroku_bango = str(
         ketto_toroku_bango
     ).strip()
@@ -576,12 +576,20 @@ def get_pedigree(ketto_toroku_bango):
     try:
         url = (
             API_BASE.rstrip("/")
-            + f"/geo/pedigree/{ketto_toroku_bango}"
+            + f"/geo/bloodline-aptitude/{ketto_toroku_bango}"
         )
+
+        params = {
+            "surface": race_surface or "",
+            "distance": race_distance or "",
+            "going": going or "",
+            "venue": venue_code or "",
+        }
 
         r = requests.get(
             url,
-            timeout=20
+            params=params,
+            timeout=30
         )
 
         r.raise_for_status()
@@ -597,6 +605,13 @@ def get_pedigree(ketto_toroku_bango):
             "parent2",
             {}
         ) or {}
+
+        bloodline_score = data.get("bloodline_score") or {
+            "score": 50.0,
+            "confidence": "低",
+            "grade": "B",
+            "note": "血統実績データなし"
+        }
 
         return {
             "父": parent1.get(
@@ -615,6 +630,7 @@ def get_pedigree(ketto_toroku_bango):
                 "ketto_toroku_bango",
                 ""
             ),
+            "血統適性": bloodline_score,
         }
 
     except Exception as e:
@@ -631,7 +647,11 @@ pedigree_rows = []
 
 for _, row in df_race.iterrows():
     pedigree = get_pedigree(
-        row.get("血統登録番号", "")
+        row.get("血統登録番号", ""),
+        race_surface=race_surface,
+        race_distance=race_distance,
+        going=default_baba,
+        venue_code=race_meta.get("venue_code", "")
     )
     pedigree_rows.append(pedigree)
 
@@ -651,35 +671,14 @@ df_race = pd.concat(
 )
 
 
-# 血統適性スコアを簡易算出する関数（ロードカナロアなどの代表血統補正含む）
-def calc_bloodline_suitability(row, race_surf, race_dist):
-    sire = str(row.get("父", ""))
-    score = 50.0
-    confidence = "中"
-
-    # 例：ロードカナロア産駒などの特長を反映する場合のロジック拡張ポイント
-    if "ロードカナロア" in sire:
-        if race_surf == "芝" and race_dist <= 2000:
-            score = 65.0
-            confidence = "高"
-    elif "ディープインパクト" in sire or "ハーツクライ" in sire:
-        if race_surf == "芝":
-            score = 60.0
-            confidence = "中"
-    elif "ロード" in sire or "キングカメハメハ" in sire:
-        score = 58.0
-        confidence = "中"
-
-    return {
-        "score": score,
-        "confidence": confidence
-    }
-
-# 各馬に血統適性を付与
-df_race["血統適性"] = df_race.apply(
-    lambda r: calc_bloodline_suitability(r, race_surface, race_distance),
-    axis=1
-)
+# 血統適性はJRA-VANの産駒実績からAPIで算出済み。
+# API取得に失敗した馬だけ50点・低信頼でフォールバックする。
+if "血統適性" not in df_race.columns:
+    df_race["血統適性"] = [{"score": 50.0, "confidence": "低"} for _ in range(len(df_race))]
+else:
+    df_race["血統適性"] = df_race["血統適性"].apply(
+        lambda x: x if isinstance(x, dict) else {"score": 50.0, "confidence": "低"}
+    )
 
 
 # =========================================================
@@ -3113,7 +3112,13 @@ def geo_auto_race_context(race_summary, race_detail):
 
     def _fetch_pedigree(item):
         idx, target = item
-        return idx, get_pedigree(target)
+        return idx, get_pedigree(
+            target,
+            race_surface=race_surface,
+            race_distance=race_distance,
+            going=default_baba,
+            venue_code=meta.get("venue_code", "")
+        )
 
     with ThreadPoolExecutor(max_workers=min(8, max(1, len(pedigree_targets)))) as executor:
         futures = [executor.submit(_fetch_pedigree, item) for item in enumerate(pedigree_targets)]
@@ -3122,7 +3127,12 @@ def geo_auto_race_context(race_summary, race_detail):
             pedigree_rows[idx] = pedigree
 
     df = pd.concat([df, pd.DataFrame(pedigree_rows, index=df.index)], axis=1)
-    df["血統適性"] = df.apply(lambda r: calc_bloodline_suitability(r, race_surface, race_distance), axis=1)
+    if "血統適性" not in df.columns:
+        df["血統適性"] = [{"score": 50.0, "confidence": "低"} for _ in range(len(df))]
+    else:
+        df["血統適性"] = df["血統適性"].apply(
+            lambda x: x if isinstance(x, dict) else {"score": 50.0, "confidence": "低"}
+        )
 
     straight_lengths = {
         "芝": {"新潟":659.9,"東京":525.9,"阪神":473.6,"中京":412.5,"京都":403.9,"中山":310.0,"小倉":293.0,"函館":262.1,"福島":292.0,"札幌":266.1},
