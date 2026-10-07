@@ -30,6 +30,17 @@ def api_get(path, timeout=20):
         return None
 
 
+def api_post(path, timeout=30):
+    try:
+        url = API_BASE.rstrip("/") + path
+        r = requests.post(url, timeout=timeout)
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        st.error(f"JRA-VAN APIとの通信に失敗しました。\n{e}")
+        return None
+
+
 st.set_page_config(
     page_title="本格競馬展開シミュレーター（JRA-VAN版）",
     layout="wide",
@@ -2978,31 +2989,34 @@ if st.button(
     )
 
     if geo_result is not None:
-        # 現在サイドバーで選択しているレースを必ず使用
-        current_race_id = str(race_id or "").strip()
+        current_race_id = (
+            st.session_state.get("current_race_id")
+            or st.session_state.get("race_id")
+        )
 
         if not current_race_id:
             try:
                 if "df_race" in globals() and "レースID" in df_race.columns:
                     ids = df_race["レースID"].dropna().astype(str)
                     if len(ids) > 0:
-                        current_race_id = ids.iloc[0].strip()
+                        current_race_id = ids.iloc[0]
             except Exception:
                 pass
 
-        # 現在選択中のレース情報を作成
-        current_race_info = {
-            "date": selected_race_summary.get("date", selected_race_summary.get("kaisai_date", "")),
-            "venue": selected_race_summary.get("venue", selected_race_summary.get("place", "")),
-            "race_no": selected_race_summary.get("race_no", selected_race_summary.get("race_bango", "")),
-            "name": selected_race_summary.get("name", selected_race_summary.get("kyosomei_hondai", race_name)),
-        }
+        if current_race_id:
+            current_race_id = str(current_race_id).strip()
 
-        # 空欄は詳細レース情報から補完
-        current_race_info["date"] = current_race_info.get("date") or race_meta.get("date", race_meta.get("kaisai_date", ""))
-        current_race_info["venue"] = current_race_info.get("venue") or race_place
-        current_race_info["race_no"] = current_race_info.get("race_no") or race_meta.get("race_no", race_meta.get("race_bango", ""))
-        current_race_info["name"] = current_race_info.get("name") or race_name
+        current_race_info = st.session_state.get("race_info", {})
+        if not current_race_info:
+            try:
+                current_race_info = {
+                    "date": selected_race.get("date"),
+                    "venue": selected_race.get("venue"),
+                    "race_no": selected_race.get("race_no"),
+                    "name": selected_race.get("name"),
+                }
+            except Exception:
+                current_race_info = {}
 
         if current_race_id:
             st.session_state["current_race_id"] = current_race_id
@@ -3039,11 +3053,49 @@ else:
 
 st.markdown("<h2>🎯 Geo自動馬券検証</h2>", unsafe_allow_html=True)
 
+# ---------------------------------------------------------
+# Geo保存データ管理
+# ---------------------------------------------------------
+st.markdown("### 🛠️ Geoデータ管理")
+st.caption("保存済みの予想データをリセットしたり、全保存レースを一括で再集計できます。")
+
+manage_c1, manage_c2, manage_c3 = st.columns([1.2, 1.2, 2.6])
+
+with manage_c1:
+    if st.button("📊 全レース一括集計", key="geo_aggregate_all", use_container_width=True):
+        aggregate_data = api_get("/prediction/bet_verification?limit=2000", timeout=60)
+        if aggregate_data and aggregate_data.get("ok"):
+            st.session_state["geo_aggregate_message"] = (
+                f"全{aggregate_data.get('対象予想数', 0)}Rを集計しました。 "
+                f"払戻確認済み {aggregate_data.get('払戻確認済みレース数', 0)}R / "
+                f"着順確認済み {aggregate_data.get('着順確認済みレース数', 0)}R"
+            )
+        st.rerun()
+
+with manage_c2:
+    reset_confirm = st.checkbox("リセットを確認", key="geo_reset_confirm")
+    if st.button("🗑️ 保存データをリセット", key="geo_reset_all", use_container_width=True):
+        if not reset_confirm:
+            st.warning("先に「リセットを確認」にチェックを入れてください。")
+        else:
+            reset_data = api_post("/prediction/reset", timeout=30)
+            if reset_data and reset_data.get("ok"):
+                st.session_state["geo_aggregate_message"] = (
+                    f"保存データをリセットしました。予想 {reset_data.get('deleted_predictions', 0)}R / "
+                    f"結果 {reset_data.get('deleted_results', 0)}件を削除。"
+                )
+                st.session_state["geo_reset_confirm"] = False
+                st.rerun()
+
+with manage_c3:
+    if st.session_state.get("geo_aggregate_message"):
+        st.success(st.session_state["geo_aggregate_message"])
+
 # 採点ボードは廃止し、自動馬券検証へ一本化
 st.markdown("### 🎯 Geo自動馬券検証")
 st.caption("◎○▲から11点を自動生成し、JRA-VANのharaimodoshiと照合します。各点100円で計算します。")
 
-auto_data = api_get("/prediction/bet_verification?limit=500")
+auto_data = api_get("/prediction/bet_verification?limit=2000", timeout=60)
 
 if auto_data and auto_data.get("ok"):
     overall = auto_data.get("overall", {})
