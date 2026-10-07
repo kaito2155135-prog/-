@@ -2978,34 +2978,31 @@ if st.button(
     )
 
     if geo_result is not None:
-        current_race_id = (
-            st.session_state.get("current_race_id")
-            or st.session_state.get("race_id")
-        )
+        # 現在サイドバーで選択しているレースを必ず使用
+        current_race_id = str(race_id or "").strip()
 
         if not current_race_id:
             try:
                 if "df_race" in globals() and "レースID" in df_race.columns:
                     ids = df_race["レースID"].dropna().astype(str)
                     if len(ids) > 0:
-                        current_race_id = ids.iloc[0]
+                        current_race_id = ids.iloc[0].strip()
             except Exception:
                 pass
 
-        if current_race_id:
-            current_race_id = str(current_race_id).strip()
+        # 現在選択中のレース情報を作成
+        current_race_info = {
+            "date": selected_race_summary.get("date", selected_race_summary.get("kaisai_date", "")),
+            "venue": selected_race_summary.get("venue", selected_race_summary.get("place", "")),
+            "race_no": selected_race_summary.get("race_no", selected_race_summary.get("race_bango", "")),
+            "name": selected_race_summary.get("name", selected_race_summary.get("kyosomei_hondai", race_name)),
+        }
 
-        current_race_info = st.session_state.get("race_info", {})
-        if not current_race_info:
-            try:
-                current_race_info = {
-                    "date": selected_race.get("date"),
-                    "venue": selected_race.get("venue"),
-                    "race_no": selected_race.get("race_no"),
-                    "name": selected_race.get("name"),
-                }
-            except Exception:
-                current_race_info = {}
+        # 空欄は詳細レース情報から補完
+        current_race_info["date"] = current_race_info.get("date") or race_meta.get("date", race_meta.get("kaisai_date", ""))
+        current_race_info["venue"] = current_race_info.get("venue") or race_place
+        current_race_info["race_no"] = current_race_info.get("race_no") or race_meta.get("race_no", race_meta.get("race_bango", ""))
+        current_race_info["name"] = current_race_info.get("name") or race_name
 
         if current_race_id:
             st.session_state["current_race_id"] = current_race_id
