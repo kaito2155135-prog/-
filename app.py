@@ -972,23 +972,37 @@ def build_master_data_from_jv(df_current):
 
     total = len(df_current)
 
-    for i, horse_name in enumerate(
-        df_current["馬名"].tolist()
-    ):
-        history = load_horse_history(
-            normalize_horse_name(horse_name)
-        )
+    # 過去走も1頭ずつ直列取得すると時間がかかるため8並列。
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        for h in history:
-            all_history.append(h)
+    horse_names = [
+        normalize_horse_name(x)
+        for x in df_current["馬名"].tolist()
+    ]
 
-        progress.progress(
-            (i + 1) / max(total, 1),
-            text=(
-                f"過去走取得中 "
-                f"{i + 1}/{total}頭: {horse_name}"
+    def _fetch_history(item):
+        i, horse_name = item
+        return i, horse_name, load_horse_history(horse_name)
+
+    histories = [None] * total
+    completed = 0
+
+    with ThreadPoolExecutor(max_workers=min(8, max(1, total))) as executor:
+        futures = [executor.submit(_fetch_history, item) for item in enumerate(horse_names)]
+        for future in as_completed(futures):
+            i, horse_name, history = future.result()
+            histories[i] = history or []
+            completed += 1
+            progress.progress(
+                completed / max(total, 1),
+                text=(
+                    f"過去走取得中 {completed}/{total}頭: {horse_name}"
+                )
             )
-        )
+
+    for history in histories:
+        for h in history or []:
+            all_history.append(h)
 
     progress.empty()
 
@@ -3087,7 +3101,26 @@ def geo_auto_race_context(race_summary, race_detail):
     df["馬名"] = df["馬名"].apply(normalize_horse_name)
     df["馬名_clean"] = df["馬名"].apply(normalize_horse_name)
 
-    pedigree_rows = [get_pedigree(row.get("血統登録番号", "")) for _, row in df.iterrows()]
+    # 血統取得は1頭ずつ直列に待つと開催日全レースで非常に時間がかかるため、
+    # 複数頭を並列取得する。API/DBへの負荷を抑えるため8並列。
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    pedigree_targets = [
+        str(row.get("血統登録番号", "") or "").strip()
+        for _, row in df.iterrows()
+    ]
+    pedigree_rows = [None] * len(pedigree_targets)
+
+    def _fetch_pedigree(item):
+        idx, target = item
+        return idx, get_pedigree(target)
+
+    with ThreadPoolExecutor(max_workers=min(8, max(1, len(pedigree_targets)))) as executor:
+        futures = [executor.submit(_fetch_pedigree, item) for item in enumerate(pedigree_targets)]
+        for future in as_completed(futures):
+            idx, pedigree = future.result()
+            pedigree_rows[idx] = pedigree
+
     df = pd.concat([df, pd.DataFrame(pedigree_rows, index=df.index)], axis=1)
     df["血統適性"] = df.apply(lambda r: calc_bloodline_suitability(r, race_surface, race_distance), axis=1)
 
