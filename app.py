@@ -10,7 +10,7 @@ import requests
 # 基本設定
 # =========================================================
 
-API_BASE = "https://medications-specialist-mil-former.trycloudflare.com"
+API_BASE = "https://restore-complex-joined-put.trycloudflare.com"
 
 
 def normalize_horse_name(name):
@@ -560,7 +560,7 @@ df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
 # =========================================================
 
 @st.cache_data(ttl=3600)
-def get_pedigree(ketto_toroku_bango, race_surface="", race_distance="", going="", venue_code=""):
+def get_pedigree(ketto_toroku_bango):
     ketto_toroku_bango = str(
         ketto_toroku_bango
     ).strip()
@@ -576,53 +576,45 @@ def get_pedigree(ketto_toroku_bango, race_surface="", race_distance="", going=""
     try:
         url = (
             API_BASE.rstrip("/")
-            + f"/geo/bloodline-aptitude/{ketto_toroku_bango}"
+            + f"/geo/pedigree/{ketto_toroku_bango}"
         )
-
-        params = {
-            "surface": race_surface or "",
-            "distance": race_distance or "",
-            "going": going or "",
-            "venue": venue_code or "",
-        }
 
         r = requests.get(
             url,
-            params=params,
-            timeout=30
+            timeout=20
         )
 
         r.raise_for_status()
 
         data = r.json()
 
-        # 血統実績APIは father / mother、従来APIは parent1 / parent2 を返すため
-        # 両方に対応する。
-        parent1 = (
-            data.get("parent1")
-            or data.get("father")
-            or {}
-        )
+        parent1 = data.get(
+            "parent1",
+            {}
+        ) or {}
 
-        parent2 = (
-            data.get("parent2")
-            or data.get("mother")
-            or {}
-        )
-
-        bloodline_score = data.get("bloodline_score") or {
-            "score": 50.0,
-            "confidence": "低",
-            "grade": "B",
-            "note": "血統実績データなし"
-        }
+        parent2 = data.get(
+            "parent2",
+            {}
+        ) or {}
 
         return {
-            "父": parent1.get("bamei") or parent1.get("name") or "",
-            "母": parent2.get("bamei") or parent2.get("name") or "",
-            "父血統登録番号": parent1.get("ketto_toroku_bango") or parent1.get("id") or "",
-            "母血統登録番号": parent2.get("ketto_toroku_bango") or parent2.get("id") or "",
-            "血統適性": bloodline_score,
+            "父": parent1.get(
+                "bamei",
+                ""
+            ),
+            "母": parent2.get(
+                "bamei",
+                ""
+            ),
+            "父血統登録番号": parent1.get(
+                "ketto_toroku_bango",
+                ""
+            ),
+            "母血統登録番号": parent2.get(
+                "ketto_toroku_bango",
+                ""
+            ),
         }
 
     except Exception as e:
@@ -631,105 +623,7 @@ def get_pedigree(ketto_toroku_bango, race_surface="", race_distance="", going=""
             "母": "",
             "父血統登録番号": "",
             "母血統登録番号": "",
-            "血統適性": {"score": 50.0, "confidence": "低", "grade": "C", "note": "血統API取得失敗"},
         }
-
-
-@st.cache_data(ttl=3600)
-def get_pedigree_bulk(targets, race_surface="", race_distance="", going="", venue_code=""):
-    """複数頭の血統適性を1回のAPI呼び出しで取得。開催日全レース用。"""
-    clean_targets = []
-    for x in targets or []:
-        x = str(x or "").strip()
-        if x:
-            clean_targets.append(x)
-    clean_targets = list(dict.fromkeys(clean_targets))
-    if not clean_targets:
-        return {}
-    try:
-        r = requests.post(
-            API_BASE.rstrip("/") + "/geo/bloodline-aptitude-bulk",
-            json={
-                "ketto_toroku_bangos": clean_targets,
-                "surface": race_surface or "",
-                "distance": race_distance or "",
-                "going": going or "",
-                "venue": venue_code or "",
-            },
-            timeout=120,
-        )
-        r.raise_for_status()
-        data = r.json()
-        if data.get("ok"):
-            raw_results = data.get("results", {}) or {}
-            if raw_results:
-                # 一括APIは father/mother 形式、既存のGeo側は 父/母 形式なのでここで統一する。
-                results = {}
-                for target, item in raw_results.items():
-                    item = item or {}
-                    father = item.get("father") or {}
-                    mother = item.get("mother") or {}
-                    bloodline_score = item.get("bloodline_score")
-                    if not isinstance(bloodline_score, dict):
-                        bloodline_score = {
-                            "score": float(bloodline_score) if bloodline_score is not None else 50.0,
-                            "confidence": "低",
-                            "grade": "C",
-                        }
-                    results[str(target).strip()] = {
-                        "父": father.get("name") or father.get("bamei") or "",
-                        "母": mother.get("name") or mother.get("bamei") or "",
-                        "父血統登録番号": father.get("hanshoku_toroku_bango") or father.get("ketto_toroku_bango") or father.get("id") or "",
-                        "母血統登録番号": mother.get("hanshoku_toroku_bango") or mother.get("ketto_toroku_bango") or mother.get("id") or "",
-                        "血統適性": bloodline_score,
-                    }
-                return results
-
-        # 一括APIが古いFlaskのまま/404/一括SQL失敗でも全レースを止めない。
-        # 従来APIを最大8並列でフォールバックする。
-        def _fallback(target):
-            try:
-                return target, get_pedigree(
-                    target,
-                    race_surface=race_surface,
-                    race_distance=race_distance,
-                    going=going,
-                    venue_code=venue_code,
-                )
-            except Exception:
-                return target, {}
-
-        results = {}
-        with ThreadPoolExecutor(max_workers=min(8, max(1, len(clean_targets)))) as ex:
-            futures = [ex.submit(_fallback, target) for target in clean_targets]
-            for future in as_completed(futures):
-                target, result = future.result()
-                if result:
-                    results[target] = result
-        return results
-
-    except Exception:
-        # HTTPエラー時も同じフォールバックを実行
-        def _fallback(target):
-            try:
-                return target, get_pedigree(
-                    target,
-                    race_surface=race_surface,
-                    race_distance=race_distance,
-                    going=going,
-                    venue_code=venue_code,
-                )
-            except Exception:
-                return target, {}
-
-        results = {}
-        with ThreadPoolExecutor(max_workers=min(8, max(1, len(clean_targets)))) as ex:
-            futures = [ex.submit(_fallback, target) for target in clean_targets]
-            for future in as_completed(futures):
-                target, result = future.result()
-                if result:
-                    results[target] = result
-        return results
 
 
 # 各馬の父・母を取得
@@ -737,11 +631,7 @@ pedigree_rows = []
 
 for _, row in df_race.iterrows():
     pedigree = get_pedigree(
-        row.get("血統登録番号", ""),
-        race_surface=race_surface,
-        race_distance=race_distance,
-        going=default_baba,
-        venue_code=race_meta.get("venue_code", "")
+        row.get("血統登録番号", "")
     )
     pedigree_rows.append(pedigree)
 
@@ -761,14 +651,35 @@ df_race = pd.concat(
 )
 
 
-# 血統適性はJRA-VANの産駒実績からAPIで算出済み。
-# API取得に失敗した馬だけ50点・低信頼でフォールバックする。
-if "血統適性" not in df_race.columns:
-    df_race["血統適性"] = [{"score": 50.0, "confidence": "低"} for _ in range(len(df_race))]
-else:
-    df_race["血統適性"] = df_race["血統適性"].apply(
-        lambda x: x if isinstance(x, dict) else {"score": 50.0, "confidence": "低"}
-    )
+# 血統適性スコアを簡易算出する関数（ロードカナロアなどの代表血統補正含む）
+def calc_bloodline_suitability(row, race_surf, race_dist):
+    sire = str(row.get("父", ""))
+    score = 50.0
+    confidence = "中"
+
+    # 例：ロードカナロア産駒などの特長を反映する場合のロジック拡張ポイント
+    if "ロードカナロア" in sire:
+        if race_surf == "芝" and race_dist <= 2000:
+            score = 65.0
+            confidence = "高"
+    elif "ディープインパクト" in sire or "ハーツクライ" in sire:
+        if race_surf == "芝":
+            score = 60.0
+            confidence = "中"
+    elif "ロード" in sire or "キングカメハメハ" in sire:
+        score = 58.0
+        confidence = "中"
+
+    return {
+        "score": score,
+        "confidence": confidence
+    }
+
+# 各馬に血統適性を付与
+df_race["血統適性"] = df_race.apply(
+    lambda r: calc_bloodline_suitability(r, race_surface, race_distance),
+    axis=1
+)
 
 
 # =========================================================
@@ -1026,7 +937,7 @@ def format_time(seconds):
 # JRA-VAN → 既存master_data形式
 # =========================================================
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=300)
 def load_horse_history(horse_name):
     encoded_name = requests.utils.quote(
         horse_name,
@@ -1061,37 +972,23 @@ def build_master_data_from_jv(df_current):
 
     total = len(df_current)
 
-    # 過去走も1頭ずつ直列取得すると時間がかかるため8並列。
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    for i, horse_name in enumerate(
+        df_current["馬名"].tolist()
+    ):
+        history = load_horse_history(
+            normalize_horse_name(horse_name)
+        )
 
-    horse_names = [
-        normalize_horse_name(x)
-        for x in df_current["馬名"].tolist()
-    ]
-
-    def _fetch_history(item):
-        i, horse_name = item
-        return i, horse_name, load_horse_history(horse_name)
-
-    histories = [None] * total
-    completed = 0
-
-    with ThreadPoolExecutor(max_workers=min(12, max(1, total))) as executor:
-        futures = [executor.submit(_fetch_history, item) for item in enumerate(horse_names)]
-        for future in as_completed(futures):
-            i, horse_name, history = future.result()
-            histories[i] = history or []
-            completed += 1
-            progress.progress(
-                completed / max(total, 1),
-                text=(
-                    f"過去走取得中 {completed}/{total}頭: {horse_name}"
-                )
-            )
-
-    for history in histories:
-        for h in history or []:
+        for h in history:
             all_history.append(h)
+
+        progress.progress(
+            (i + 1) / max(total, 1),
+            text=(
+                f"過去走取得中 "
+                f"{i + 1}/{total}頭: {horse_name}"
+            )
+        )
 
     progress.empty()
 
@@ -2734,6 +2631,37 @@ def save_geo_prediction(
 # レース全体を分析して最終判断
 # ============================================================
 
+
+
+def apply_geo_learning_adjustments(df, pace, bias, condition, venue):
+    """確定済み結果から学習した条件別補正を現在の全馬へ適用する。"""
+    if df is None or df.empty:
+        return df
+    try:
+        horses=[]
+        for _, row in df.iterrows():
+            try: score=float(row.get("ジオ評価", row.get("統合指数", 0)) or 0)
+            except Exception: score=0.0
+            horses.append({"umaban": str(row.get("馬番", "")).replace(".0", ""), "score": score})
+        response=requests.post(
+            f"{API_BASE.rstrip('/')}/geo/learning/adjustment",
+            json={"pace": pace, "bias": bias, "condition": condition, "venue": venue, "horses": horses},
+            timeout=10
+        )
+        if response.status_code != 200:
+            return df
+        data=response.json()
+        if not data.get("ok"):
+            return df
+        adj_map={str(x.get("umaban", "")): float(x.get("adjustment", 0) or 0) for x in data.get("adjustments", [])}
+        for idx in df.index:
+            key=str(df.loc[idx].get("馬番", "")).replace(".0", "")
+            df.loc[idx, "学習補正"] = adj_map.get(key, 0.0)
+            df.loc[idx, "ジオ評価"] = float(df.loc[idx, "ジオ評価"]) + adj_map.get(key, 0.0)
+        return df
+    except Exception:
+        return df
+
 def run_geo_prediction(
     df_sim,
     pace,
@@ -2840,9 +2768,8 @@ def run_geo_prediction(
             except (TypeError, ValueError):
                 bloodline_score = 50.0
 
-            bloodline_bonus = (bloodline_score - 50.0) / 6.25
-            # 血統適性はジオ評価へ実効で最大±8点まで反映
-            bloodline_bonus = max(-8.0, min(8.0, bloodline_bonus))
+            bloodline_bonus = (bloodline_score - 50.0) / 10.0
+            bloodline_bonus = max(-4.0, min(4.0, bloodline_bonus))
 
             confidence_factor = {
                 "高": 1.0,
@@ -2858,6 +2785,12 @@ def run_geo_prediction(
         geo_score = score + bonus - penalty + bloodline_bonus
         df.loc[idx, "ジオ評価"] = geo_score
         reasons[horse] = point
+
+    # 過去の確定結果から学習した補正を、印を決める前に適用する。
+    df = apply_geo_learning_adjustments(
+        df, pace, bias, condition,
+        str(df["場所"].iloc[0]) if "場所" in df.columns and len(df) else ""
+    )
 
     df = df.sort_values(
         "ジオ評価",
@@ -3082,51 +3015,50 @@ if st.button(
     )
 
     if geo_result is not None:
-        # 現在サイドバーで選択しているレースを必ず使用
-        current_race_id = str(race_id or "").strip()
+        current_race_id = (
+            st.session_state.get("current_race_id")
+            or st.session_state.get("race_id")
+        )
 
         if not current_race_id:
             try:
                 if "df_race" in globals() and "レースID" in df_race.columns:
                     ids = df_race["レースID"].dropna().astype(str)
                     if len(ids) > 0:
-                        current_race_id = ids.iloc[0].strip()
+                        current_race_id = ids.iloc[0]
             except Exception:
                 pass
 
-        # 現在選択中のレース情報を作成
-        current_race_info = {
-            "date": selected_race_summary.get("date", selected_race_summary.get("kaisai_date", "")),
-            "venue": selected_race_summary.get("venue", selected_race_summary.get("place", "")),
-            "race_no": selected_race_summary.get("race_no", selected_race_summary.get("race_bango", "")),
-            "name": selected_race_summary.get("name", selected_race_summary.get("kyosomei_hondai", race_name)),
-        }
+        if current_race_id:
+            current_race_id = str(current_race_id).strip()
 
-        # 空欄は詳細レース情報から補完
-        current_race_info["date"] = current_race_info.get("date") or race_meta.get("date", race_meta.get("kaisai_date", ""))
-        current_race_info["venue"] = current_race_info.get("venue") or race_place
-        current_race_info["race_no"] = current_race_info.get("race_no") or race_meta.get("race_no", race_meta.get("race_bango", ""))
-        current_race_info["name"] = current_race_info.get("name") or race_name
+        current_race_info = st.session_state.get("race_info", {})
+        if not current_race_info:
+            try:
+                current_race_info = {
+                    "date": selected_race.get("date"),
+                    "venue": selected_race.get("venue"),
+                    "race_no": selected_race.get("race_no"),
+                    "name": selected_race.get("name"),
+                }
+            except Exception:
+                current_race_info = {}
 
         if current_race_id:
             st.session_state["current_race_id"] = current_race_id
+            saved = save_geo_prediction(
+                race_id=current_race_id,
+                geo=geo_result,
+                pace=selected_pace,
+                bias=selected_bias,
+                condition=selected_condition,
+                race_info=current_race_info
+            )
 
-            # ----------------------------------------------------
-            # 個別予想は「手動分析」として画面表示のみ。
-            # 全自動予想の保存データには書き込まない。
-            #
-            # これにより、開催日全レース自動予想で固定した
-            # ◎○▲が、レース開催中の個別分析によって
-            # 上書きされることを完全に防ぐ。
-            # ----------------------------------------------------
-            st.info(
-                "👤 個別予想モード：この予想は画面表示のみで保存しません。"
-                "全自動予想の◎○▲・馬券検証には影響しません。"
-            )
+            if saved:
+                st.success("💾 ジオの予想をSQLiteへ自動保存しました")
         else:
-            st.warning(
-                "⚠️ race_idが取得できないため、個別予想を表示します。"
-            )
+            st.warning("⚠️ race_idが取得できないため、ジオ予想は表示しますが保存できませんでした。")
 
     st.session_state["geo_prediction"] = geo_result
 
@@ -3141,305 +3073,6 @@ else:
     )
 
 # =========================================================
-# ============================================================
-# 🏇 開催日全レース自動予想
-# ============================================================
-
-def geo_auto_race_context(race_summary, race_detail):
-    if isinstance(race_detail, dict) and isinstance(race_detail.get("race"), dict):
-        meta = race_detail["race"]
-    else:
-        meta = race_detail or {}
-    horses = race_detail.get("horses", []) if isinstance(race_detail, dict) else []
-    if not horses:
-        return None
-
-    race_id = str(race_summary.get("race_id", race_summary.get("id", race_summary.get("race_code", ""))) or "").strip()
-    race_name = meta.get("name", meta.get("kyosomei_hondai", race_summary.get("name", "")))
-    race_place = str(meta.get("venue", meta.get("place", meta.get("場所", race_summary.get("venue", race_summary.get("place", "不明")))))).strip()
-    try:
-        race_distance = int(float(meta.get("distance", meta.get("kyori", race_summary.get("distance", 1600)))))
-    except Exception:
-        race_distance = 1600
-
-    race_surface = surface_from_race(meta)
-    race_class = detect_class(race_name, str(meta.get("grade_code", "")).strip(), condition_code=meta.get("condition_code", ""))
-    surface_condition_code = meta.get("shiba_babajotai_code") if race_surface == "芝" else meta.get("dirt_babajotai_code")
-    default_baba = condition_from_code(surface_condition_code)
-
-    rows = []
-    for h in horses:
-        rows.append({
-            "枠番": h.get("枠番", h.get("wakuban", 1)),
-            "馬番": h.get("馬番", h.get("umaban", 1)),
-            "馬名": h.get("馬名", h.get("bamei", "")),
-            "血統登録番号": h.get("血統登録番号", h.get("ketto_toroku_bango", "")),
-            "オッズ": format_odds(h.get("オッズ", h.get("odds"))),
-            "人気": h.get("人気", h.get("ninki")),
-            "脚質": style_from_value(h.get("脚質", h.get("kyakushitsu_hantei", h.get("kyakushitsu", 3)))),
-            "得意馬場": "指定なし",
-            "場所": race_place,
-            "距離": race_distance,
-            "芝・ダ": race_surface,
-            "クラス": race_class,
-            "馬場状態": default_baba,
-            "当日の馬場": default_baba,
-        })
-
-    df = pd.DataFrame(rows)
-    df["レースID"] = race_id
-    df["馬名"] = df["馬名"].apply(normalize_horse_name)
-    df["馬名_clean"] = df["馬名"].apply(normalize_horse_name)
-
-    # 開催日全レースでは、馬ごとにHTTP/APIを叩くと非常に遅い。
-    # 1レース分を一括送信し、API側で父母産駒実績をまとめて集計する。
-    pedigree_targets = [
-        str(row.get("血統登録番号", "") or "").strip()
-        for _, row in df.iterrows()
-    ]
-    # 血統は1頭ずつ取得せず、1レース1回の一括取得。
-    # API側では父母産駒実績を親単位でキャッシュするため、2R目以降は大幅に高速化する。
-    bulk_map = get_pedigree_bulk(
-        pedigree_targets,
-        race_surface=race_surface,
-        race_distance=race_distance,
-        going=default_baba,
-        venue_code=meta.get("venue_code", "")
-    )
-    pedigree_rows = [
-        bulk_map.get(str(target).strip(), {
-            "父": "", "母": "",
-            "父血統登録番号": "", "母血統登録番号": "",
-            "血統適性": {"score": 50.0, "confidence": "低", "grade": "C", "note": "血統API取得失敗"}
-        })
-        for target in pedigree_targets
-    ]
-    df = pd.concat([df, pd.DataFrame(pedigree_rows, index=df.index)], axis=1)
-
-    if "血統適性" not in df.columns:
-        df["血統適性"] = [{"score": 50.0, "confidence": "低"} for _ in range(len(df))]
-    else:
-        df["血統適性"] = df["血統適性"].apply(
-            lambda x: x if isinstance(x, dict) else {"score": 50.0, "confidence": "低"}
-        )
-
-    straight_lengths = {
-        "芝": {"新潟":659.9,"東京":525.9,"阪神":473.6,"中京":412.5,"京都":403.9,"中山":310.0,"小倉":293.0,"函館":262.1,"福島":292.0,"札幌":266.1},
-        "ダ": {"新潟":353.9,"東京":501.6,"阪神":352.7,"中京":410.7,"京都":329.1,"中山":308.0,"小倉":291.0,"函館":260.1,"福島":295.7,"札幌":264.3},
-    }
-    toughness = {"中山":1.10,"札幌":1.15,"函館":1.20,"阪神":1.00,"福島":1.10,"京都":1.00,"中京":1.05,"小倉":1.05,"東京":0.95,"新潟":0.90}
-    surface_key = "ダ" if "ダ" in race_surface else "芝"
-    straight_len = next((v for k,v in straight_lengths[surface_key].items() if k in race_place), 400.0)
-    course_toughness = next((v for k,v in toughness.items() if k in race_place), 1.10)
-
-    if race_distance <= 1400:
-        race_category = "短距離"
-    elif race_distance <= 1800:
-        race_category = "マイル"
-    elif race_distance <= 2200:
-        race_category = "中距離"
-    else:
-        race_category = "長距離"
-
-    return {
-        "race_id": race_id, "race_name": race_name, "race_place": race_place,
-        "race_distance": race_distance, "race_surface": race_surface,
-        "race_class": race_class, "default_baba": default_baba, "df_race": df,
-        "race_category": race_category, "straight_len": straight_len,
-        "course_toughness": course_toughness,
-        "race_info": {
-            "date": race_summary.get("date", race_summary.get("kaisai_date", "")),
-            "venue": race_place,
-            "race_no": race_summary.get("race_no", race_summary.get("race_bango", "")),
-            "name": race_name,
-        },
-    }
-
-
-def geo_auto_detect_pace(df):
-    styles = df.get("脚質", pd.Series(dtype=str)).astype(str)
-    front = int(styles.isin(["逃げ"]).sum())
-    stalker = int(styles.isin(["先行"]).sum())
-    if front >= 4:
-        return "H（ハイ）"
-    if front <= 1 and stalker >= 4:
-        return "M（ミドル）"
-    if front <= 1:
-        return "S（スロー）"
-    return "M（ミドル）"
-
-
-if st.button("🏇 開催日全レース自動予想", key="geo_all_race_auto_predict", type="primary", use_container_width=True):
-    # 払い戻し・結果確定とは完全分離した「予想だけ」の一括処理
-    def _normalize_date(value):
-        return "".join(ch for ch in str(value or "") if ch.isdigit())[:8]
-
-    target_date_raw = selected_race_summary.get("date", selected_race_summary.get("kaisai_date", ""))
-    target_date = _normalize_date(target_date_raw)
-
-    # 開始時に最新のレース一覧を取得（古いキャッシュに依存しない）
-    fresh = api_get("/races/latest?days=7", timeout=30)
-    if isinstance(fresh, dict):
-        source_races = fresh.get("races", [])
-    elif isinstance(fresh, list):
-        source_races = fresh
-    else:
-        source_races = race_list
-
-    day_races = [
-        r for r in source_races
-        if _normalize_date(r.get("date", r.get("kaisai_date", ""))) == target_date
-    ]
-
-    # race_id重複を除去
-    unique = {}
-    for r in day_races:
-        rid = str(r.get("race_id", r.get("id", r.get("race_code", ""))) or "").strip()
-        if rid:
-            unique[rid] = r
-    day_races = list(unique.values())
-
-    def _race_sort_key(x):
-        place = str(x.get("place", x.get("venue", "")))
-        raw_no = str(x.get("race_no", x.get("race_bango", "0"))).replace("R", "").strip()
-        return (place, int(raw_no) if raw_no.isdigit() else 0)
-
-    day_races.sort(key=_race_sort_key)
-
-    if not day_races:
-        st.error(f"⚠️ {target_date_raw} の開催レースを取得できませんでした。")
-    else:
-        # 既存予想だけ確認。払い戻しDBはここでは見ない。
-        saved_ids_data = api_get("/geo/prediction_ids?limit=10000", timeout=30)
-        saved_ids = set()
-        if isinstance(saved_ids_data, dict) and saved_ids_data.get("ok"):
-            saved_ids = {
-                str(x.get("race_id", "")).strip()
-                for x in saved_ids_data.get("predictions", [])
-                if str(x.get("race_id", "")).strip()
-            }
-
-        pending = []
-        already_saved = []
-        for item in day_races:
-            rid = str(item.get("race_id", item.get("id", item.get("race_code", ""))) or "").strip()
-            if not rid:
-                continue
-            if rid in saved_ids:
-                already_saved.append(item)
-            else:
-                pending.append(item)
-
-        st.info(f"📅 {target_date_raw} の開催日全{len(day_races)}Rを確認。未予想 {len(pending)}R / 保存済み {len(already_saved)}R")
-
-        if not pending:
-            st.success("✅ この開催日の予想はすべて保存済みです。")
-        else:
-            progress = st.progress(0, text=f"全レース自動予想を開始… 0/{len(pending)}R")
-            success_count = 0
-            skip_count = 0
-            error_count = 0
-            errors = []
-
-            for idx, race_summary in enumerate(pending, start=1):
-                rid = str(race_summary.get("race_id", race_summary.get("id", race_summary.get("race_code", ""))) or "").strip()
-                label = race_display_name(race_summary)
-                progress.progress((idx - 1) / max(len(pending), 1), text=f"🧠 {idx}/{len(pending)}R {label}：血統・過去走を取得中…")
-
-                try:
-                    # ① レース詳細取得
-                    detail = api_get(f"/race/{rid}", timeout=30)
-                    if not detail:
-                        skip_count += 1
-                        errors.append(f"{label}: レース詳細取得失敗")
-                        continue
-
-                    # ② 出走馬→血統→血統適性を、このレース専用に構築
-                    context = geo_auto_race_context(race_summary, detail)
-                    if context is None:
-                        skip_count += 1
-                        errors.append(f"{label}: 出走馬データなし")
-                        continue
-
-                    df_auto = context["df_race"]
-                    if len(df_auto) < 3:
-                        skip_count += 1
-                        errors.append(f"{label}: 出走馬3頭未満")
-                        continue
-
-                    # 血統が全部空なら、血統を取得できていないので予想しない
-                    missing_pedigree = sum(
-                        1 for _, h in df_auto.iterrows()
-                        if not (
-                            str(h.get("父", "") or "").strip()
-                            or str(h.get("母", "") or "").strip()
-                            or str(h.get("父血統登録番号", "") or "").strip()
-                            or str(h.get("母血統登録番号", "") or "").strip()
-                        )
-                    )
-                    if missing_pedigree == len(df_auto):
-                        skip_count += 1
-                        errors.append(f"{label}: 血統データを取得できなかったため中止")
-                        continue
-
-                    # ③ 自動ペース・馬場
-                    auto_pace = geo_auto_detect_pace(df_auto)
-                    auto_bias = "フラット"
-                    auto_condition = context["default_baba"]
-
-                    # ④ 過去走取得→統合シミュレーション
-                    master_data = build_master_data_from_jv(df_auto)
-                    if master_data.empty:
-                        skip_count += 1
-                        errors.append(f"{label}: 過去走データなし")
-                        continue
-
-                    df_sim = run_integrated_simulation(
-                        df_auto, auto_pace, auto_bias, auto_condition, master_data,
-                        context["race_category"], context["straight_len"], context["race_place"],
-                        context["race_surface"], context["course_toughness"], context["race_class"],
-                        df_base_master, df_f3_master,
-                    )
-
-                    # ⑤ ジオ予想
-                    geo = run_geo_prediction(df_sim, auto_pace, auto_bias, auto_condition)
-                    if geo is None:
-                        skip_count += 1
-                        errors.append(f"{label}: ジオ予想生成失敗")
-                        continue
-
-                    # ⑥ ◎○▲保存 → 保存後は必ず次のRへ
-                    saved_ok = save_geo_prediction(
-                        race_id=rid, geo=geo, pace=auto_pace, bias=auto_bias,
-                        condition=auto_condition, race_info=context["race_info"]
-                    )
-                    if saved_ok:
-                        verify = api_get(f"/geo/prediction/{rid}", timeout=15)
-                        if isinstance(verify, dict) and verify.get("ok"):
-                            success_count += 1
-                        else:
-                            error_count += 1
-                            errors.append(f"{label}: 保存APIは成功したがDB保存確認に失敗")
-                    else:
-                        error_count += 1
-                        errors.append(f"{label}: SQLite保存失敗")
-
-                except Exception as e:
-                    # 1Rの失敗で全体を止めない
-                    error_count += 1
-                    errors.append(f"{label}: {type(e).__name__}: {e}")
-                    continue
-
-                progress.progress(idx / max(len(pending), 1), text=f"✅ {idx}/{len(pending)}R 完了。次のレースへ…")
-
-            progress.progress(1.0, text="🏁 開催日全レース自動予想 完了")
-            st.success(f"🏁 自動予想完了：新規保存 {success_count}R / スキップ {skip_count}R / エラー {error_count}R / 保存済み {len(already_saved)}R")
-            if errors:
-                with st.expander("⚠️ スキップ・エラー詳細"):
-                    for message in errors:
-                        st.write("・" + message)
-
-
 # =========================================================
 # Geo自動馬券検証に成績管理を一本化
 # =========================================================
@@ -3447,42 +3080,6 @@ if st.button("🏇 開催日全レース自動予想", key="geo_all_race_auto_pr
 st.markdown("<h2>🎯 Geo自動馬券検証</h2>", unsafe_allow_html=True)
 
 # 採点ボードは廃止し、自動馬券検証へ一本化
-st.markdown("### 🎯 保存データ管理")
-
-reset_confirm = st.checkbox(
-    "保存済みのGeo予想・結果をすべて削除する",
-    key="geo_reset_confirm"
-)
-
-if st.button(
-    "🗑️ 保存データをリセット",
-    key="geo_reset_button",
-    disabled=not reset_confirm,
-    use_container_width=True
-):
-    try:
-        response = requests.post(
-            f"{API_BASE.rstrip('/')}/prediction/reset",
-            timeout=20
-        )
-        result = response.json()
-        if response.status_code == 200 and result.get("ok"):
-            st.success(
-                f"✅ 保存データをリセットしました。"
-                f" 予想{result.get('deleted_predictions', 0)}R / "
-                f"結果{result.get('deleted_results', 0)}件を削除。"
-            )
-            st.session_state.pop("geo_prediction", None)
-            st.session_state.pop("df_simulated", None)
-            st.session_state.pop("master_data_jv", None)
-            st.session_state["sim_executed"] = False
-        else:
-            st.error(f"❌ リセット失敗: {result.get('error', response.text)}")
-    except Exception as e:
-        st.error(f"❌ リセット通信エラー: {e}")
-
-st.markdown("---")
-
 st.markdown("### 🎯 Geo自動馬券検証")
 st.caption("◎○▲から11点を自動生成し、JRA-VANのharaimodoshiと照合します。各点100円で計算します。")
 
