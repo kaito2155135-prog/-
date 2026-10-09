@@ -10,7 +10,7 @@ import requests
 # 基本設定
 # =========================================================
 
-API_BASE = "https://medications-specialist-mil-former.trycloudflare.com"
+API_BASE = os.environ.get("JRA_VAN_API_BASE", "https://medications-specialist-mil-former.trycloudflare.com").strip().rstrip("/")
 
 
 def normalize_horse_name(name):
@@ -2823,24 +2823,27 @@ def get_horse_field_quality(ketto_toroku_bango, asof_date, limit=6):
             "asof": str(asof_date),
             "latest_race_date": str(valid[0][2].get("kaisai_nen", "")) + str(valid[0][2].get("kaisai_gappi", "")),
         }
-    except Exception:
-        return None
+    except Exception as e:
+        return {"score": None, "label": "API取得失敗", "races_used": 0,
+                "asof": str(asof_date), "error": f"{type(e).__name__}: {e}"}
 
 
 def enrich_with_field_quality(df, asof_date):
-    """各出走馬のメンバーレベルを並列取得。障害時も通常予想を止めない。"""
+    """各出走馬のメンバーレベルを並列取得。失敗理由も画面で確認できる。"""
     if df is None or df.empty:
         return df
     out = df.copy()
     out["メンバーレベル"] = None
     out["メンバーレベル判定"] = "判定材料不足"
     out["メンバーレベル使用レース数"] = 0
+    out["メンバーレベル取得状況"] = "未取得"
     targets = []
     for idx, row in out.iterrows():
         horse_id = str(row.get("血統登録番号", row.get("ketto_toroku_bango", "")) or "").strip()
         if horse_id:
             targets.append((idx, horse_id))
     if not targets:
+        out["メンバーレベル取得状況"] = "血統登録番号なし"
         return out
     from concurrent.futures import ThreadPoolExecutor, as_completed
     # APIへの負荷を抑えつつ複数頭を並列取得。結果は登録番号単位でキャッシュ。
@@ -2856,10 +2859,29 @@ def enrich_with_field_quality(df, asof_date):
             except Exception:
                 result = None
             if not isinstance(result, dict):
+                out.loc[idx, "メンバーレベル取得状況"] = "応答なし"
                 continue
             out.loc[idx, "メンバーレベル"] = result.get("score")
             out.loc[idx, "メンバーレベル判定"] = result.get("label", "判定材料不足")
             out.loc[idx, "メンバーレベル使用レース数"] = int(result.get("races_used", 0) or 0)
+            if result.get("error"):
+                out.loc[idx, "メンバーレベル取得状況"] = result["error"][:180]
+            elif result.get("score") is not None:
+                out.loc[idx, "メンバーレベル取得状況"] = "取得成功"
+            else:
+                out.loc[idx, "メンバーレベル取得状況"] = "API応答あり・有効スコアなし"
+    try:
+        st.session_state["geo_field_quality_diagnostics"] = {
+            "api_base": API_BASE,
+            "asof_date": str(asof_date),
+            "horses_total": len(out),
+            "horses_with_id": len(targets),
+            "scores_ok": int(pd.to_numeric(out["メンバーレベル"], errors="coerce").notna().sum()),
+            "status_counts": out["メンバーレベル取得状況"].value_counts(dropna=False).to_dict(),
+            "samples": out[[c for c in ["馬名", "血統登録番号", "メンバーレベル", "メンバーレベル判定", "メンバーレベル取得状況"] if c in out.columns]].head(8).to_dict("records"),
+        }
+    except Exception:
+        pass
     return out
 
 
@@ -3149,6 +3171,20 @@ def display_geo_prediction(geo):
                 st.markdown("**評価理由**")
                 for reason in horse_reasons[:4]:
                     st.write(f"・{reason}")
+
+    with st.expander("🧪 メンバーレベル取得診断", expanded=False):
+        diag = st.session_state.get("geo_field_quality_diagnostics")
+        if not diag:
+            st.info("診断情報がありません。レース予想を実行してください。")
+        else:
+            st.write(f"API URL: `{diag.get('api_base', '')}`")
+            st.write(f"対象日: {diag.get('asof_date', '')}")
+            st.write(f"出走馬: {diag.get('horses_total', 0)}頭 / 血統登録番号あり: {diag.get('horses_with_id', 0)}頭 / スコア取得成功: {diag.get('scores_ok', 0)}頭")
+            st.write("取得状況の内訳")
+            st.json(diag.get("status_counts", {}))
+            if diag.get("samples"):
+                st.dataframe(pd.DataFrame(diag["samples"]), use_container_width=True, hide_index=True)
+            st.caption("接続エラーなら、APIサーバー起動時に表示される最新のtrycloudflare.com URLを JRA_VAN_API_BASE に設定し、アプリを再起動してください。")
 
     st.markdown("### 🎯 ジオの結論")
     st.success(f"{geo['decision']} ｜ 自信度 **{geo['confidence']}%**")
