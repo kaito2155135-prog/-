@@ -2774,7 +2774,7 @@ def apply_geo_learning_adjustment(df, pace, bias, condition, venue=""):
 # ============================================================
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def get_horse_field_quality(ketto_toroku_bango, asof_date, limit=6):
+def get_horse_field_quality(ketto_toroku_bango, asof_date, limit=3):
     """指定日までに判明している過去レースのメンバーレベルを取得。
 
     field-quality APIが利用できない場合はNoneを返し、従来予想を維持する。
@@ -2787,7 +2787,7 @@ def get_horse_field_quality(ketto_toroku_bango, asof_date, limit=6):
         response = requests.get(
             f"{API_BASE.rstrip('/')}/geo/field-quality/debug/{quote(horse_id, safe='')}",
             params={"asof": str(asof_date), "limit": int(limit)},
-            timeout=45,
+            timeout=(10, 90),
         )
         response.raise_for_status()
         payload = response.json()
@@ -2847,9 +2847,9 @@ def enrich_with_field_quality(df, asof_date):
         return out
     from concurrent.futures import ThreadPoolExecutor, as_completed
     # APIへの負荷を抑えつつ複数頭を並列取得。結果は登録番号単位でキャッシュ。
-    with ThreadPoolExecutor(max_workers=min(4, len(targets))) as pool:
+    with ThreadPoolExecutor(max_workers=min(2, len(targets))) as pool:
         futures = {
-            pool.submit(get_horse_field_quality, horse_id, asof_date, 6): idx
+            pool.submit(get_horse_field_quality, horse_id, asof_date, 3): idx
             for idx, horse_id in targets
         }
         for future in as_completed(futures):
