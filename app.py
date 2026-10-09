@@ -2770,22 +2770,123 @@ def apply_geo_learning_adjustment(df, pace, bias, condition, venue=""):
 
 
 # ============================================================
-# 🧠 ジオ STEP2
-# レース全体を分析して最終判断
+# メンバーレベル（過去レースの相手馬が、その後どれだけ走ったか）
 # ============================================================
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def get_horse_field_quality(ketto_toroku_bango, asof_date, limit=6):
+    """指定日までに判明している過去レースのメンバーレベルを取得。
+
+    field-quality APIが利用できない場合はNoneを返し、従来予想を維持する。
+    """
+    horse_id = str(ketto_toroku_bango or "").strip()
+    if not horse_id:
+        return None
+    try:
+        from urllib.parse import quote
+        response = requests.get(
+            f"{API_BASE.rstrip('/')}/geo/field-quality/debug/{quote(horse_id, safe='')}",
+            params={"asof": str(asof_date), "limit": int(limit)},
+            timeout=45,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if not payload.get("ok"):
+            return None
+        runs = payload.get("runs", []) or []
+        # 取得された過去走のうち、スコアが算出できている直近最大3レースを平均。
+        valid = []
+        for run in runs:
+            fq = run.get("field_quality") or {}
+            value = fq.get("score")
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                continue
+            if 0 <= value <= 100:
+                valid.append((value, fq, run))
+            if len(valid) >= 3:
+                break
+        if not valid:
+            return {
+                "score": None,
+                "label": "判定材料不足",
+                "races_used": 0,
+                "asof": str(asof_date),
+            }
+        score = round(sum(x[0] for x in valid) / len(valid), 1)
+        label = "強め" if score >= 65 else "標準" if score >= 45 else "弱め"
+        return {
+            "score": score,
+            "label": label,
+            "races_used": len(valid),
+            "asof": str(asof_date),
+            "latest_race_date": str(valid[0][2].get("kaisai_nen", "")) + str(valid[0][2].get("kaisai_gappi", "")),
+        }
+    except Exception:
+        return None
+
+
+def enrich_with_field_quality(df, asof_date):
+    """各出走馬のメンバーレベルを並列取得。障害時も通常予想を止めない。"""
+    if df is None or df.empty:
+        return df
+    out = df.copy()
+    out["メンバーレベル"] = None
+    out["メンバーレベル判定"] = "判定材料不足"
+    out["メンバーレベル使用レース数"] = 0
+    targets = []
+    for idx, row in out.iterrows():
+        horse_id = str(row.get("血統登録番号", row.get("ketto_toroku_bango", "")) or "").strip()
+        if horse_id:
+            targets.append((idx, horse_id))
+    if not targets:
+        return out
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    # APIへの負荷を抑えつつ複数頭を並列取得。結果は登録番号単位でキャッシュ。
+    with ThreadPoolExecutor(max_workers=min(4, len(targets))) as pool:
+        futures = {
+            pool.submit(get_horse_field_quality, horse_id, asof_date, 6): idx
+            for idx, horse_id in targets
+        }
+        for future in as_completed(futures):
+            idx = futures[future]
+            try:
+                result = future.result()
+            except Exception:
+                result = None
+            if not isinstance(result, dict):
+                continue
+            out.loc[idx, "メンバーレベル"] = result.get("score")
+            out.loc[idx, "メンバーレベル判定"] = result.get("label", "判定材料不足")
+            out.loc[idx, "メンバーレベル使用レース数"] = int(result.get("races_used", 0) or 0)
+    return out
+
 
 def run_geo_prediction(
     df_sim,
     pace,
     bias,
     condition,
-    venue=""
+    venue="",
+    asof_date=None,
 ):
 
     df = df_sim.copy()
 
     if df.empty:
         return None
+
+    # 予想対象レース日までに判明している情報だけでメンバーレベルを評価する。
+    # 日付が不明な場合は当日の日付を使い、未来の結果を参照しない。
+    if not asof_date:
+        asof_date = pd.Timestamp.now().strftime("%Y-%m-%d")
+    else:
+        try:
+            asof_date = pd.to_datetime(str(asof_date), errors="raise").strftime("%Y-%m-%d")
+        except Exception:
+            asof_date = pd.Timestamp.now().strftime("%Y-%m-%d")
+    df = enrich_with_field_quality(df, asof_date)
 
     df["統合指数"] = pd.to_numeric(
         df["統合指数"],
@@ -2895,8 +2996,21 @@ def run_geo_prediction(
             bloodline_bonus *= confidence_factor
             if bloodline_bonus != 0:
                 point.append(f"血統適性補正({bloodline_score}pt)")
-        
-        geo_score = score + bonus - penalty + bloodline_bonus
+
+        # メンバーレベルは補助材料として最大±4点。データ不足は加点・減点しない。
+        member_bonus = 0.0
+        member_value = row.get("メンバーレベル")
+        try:
+            member_value = float(member_value)
+            if np.isfinite(member_value):
+                member_bonus = max(-4.0, min(4.0, (member_value - 50.0) / 12.5))
+                point.append(
+                    f"メンバーレベル{member_value:.1f}点（{row.get('メンバーレベル判定', '判定材料不足')}・{int(row.get('メンバーレベル使用レース数', 0) or 0)}レース）"
+                )
+        except (TypeError, ValueError):
+            member_bonus = 0.0
+
+        geo_score = score + bonus - penalty + bloodline_bonus + member_bonus
         df.loc[idx, "ジオ評価"] = geo_score
         reasons[horse] = point
 
@@ -3022,6 +3136,19 @@ def display_geo_prediction(geo):
             st.write(f"統合指数：{horse['統合指数']:.1f}")
             st.write(f"オッズ：{horse['オッズ']:.1f}")
             st.write(f"脚質：{horse.get('脚質', '')}")
+            member_score = horse.get("メンバーレベル")
+            try:
+                if pd.notna(member_score):
+                    st.write(f"メンバーレベル：**{float(member_score):.1f}点**（{horse.get('メンバーレベル判定', '判定材料不足')}）")
+                else:
+                    st.write("メンバーレベル：判定材料不足（補正なし）")
+            except (TypeError, ValueError):
+                st.write("メンバーレベル：判定材料不足（補正なし）")
+            horse_reasons = (geo.get("reasons", {}) or {}).get(str(horse.get("馬名", "")), [])
+            if horse_reasons:
+                st.markdown("**評価理由**")
+                for reason in horse_reasons[:4]:
+                    st.write(f"・{reason}")
 
     st.markdown("### 🎯 ジオの結論")
     st.success(f"{geo['decision']} ｜ 自信度 **{geo['confidence']}%**")
@@ -3050,6 +3177,8 @@ def display_geo_prediction(geo):
             "予測走破タイム",
             "オッズ",
             "脚質",
+            "メンバーレベル",
+            "メンバーレベル判定",
         ]
         show_cols = [c for c in show_cols if c in geo["df_geo"].columns]
         st.dataframe(
@@ -3133,6 +3262,7 @@ if st.button(
         selected_bias,
         selected_condition,
         venue=race_place,
+        asof_date=(selected_race_summary.get("date") or selected_race_summary.get("kaisai_date") or race_meta.get("date") or race_meta.get("kaisai_date")),
     )
 
     if geo_result is not None:
