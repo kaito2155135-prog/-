@@ -4,13 +4,13 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import requests
-from concurrent.futures import ThreadPoolExecutor, as_completed
+
 
 # =========================================================
 # 基本設定
 # =========================================================
 
-API_BASE = os.environ.get("JRA_VAN_API_BASE", "https://medications-specialist-mil-former.trycloudflare.com").strip().rstrip("/")
+API_BASE = "https://medications-specialist-mil-former.trycloudflare.com"
 
 
 def normalize_horse_name(name):
@@ -2770,145 +2770,22 @@ def apply_geo_learning_adjustment(df, pace, bias, condition, venue=""):
 
 
 # ============================================================
-# メンバーレベル（過去レースの相手馬が、その後どれだけ走ったか）
+# 🧠 ジオ STEP2
+# レース全体を分析して最終判断
 # ============================================================
-
-@st.cache_data(ttl=1800, show_spinner=False)
-def get_horse_field_quality(ketto_toroku_bango, asof_date, limit=3):
-    """指定日までに判明している過去レースのメンバーレベルを取得。
-
-    field-quality APIが利用できない場合はNoneを返し、従来予想を維持する。
-    """
-    horse_id = str(ketto_toroku_bango or "").strip()
-    if not horse_id:
-        return None
-    try:
-        from urllib.parse import quote
-        response = requests.get(
-            f"{API_BASE.rstrip('/')}/geo/field-quality/debug/{quote(horse_id, safe='')}",
-            params={"asof": str(asof_date), "limit": int(limit)},
-            timeout=(10, 90),
-        )
-        response.raise_for_status()
-        payload = response.json()
-        if not payload.get("ok"):
-            return None
-        runs = payload.get("runs", []) or []
-        # 取得された過去走のうち、スコアが算出できている直近最大3レースを平均。
-        valid = []
-        for run in runs:
-            fq = run.get("field_quality") or {}
-            value = fq.get("score")
-            try:
-                value = float(value)
-            except (TypeError, ValueError):
-                continue
-            if 0 <= value <= 100:
-                valid.append((value, fq, run))
-            if len(valid) >= 3:
-                break
-        if not valid:
-            return {
-                "score": None,
-                "label": "判定材料不足",
-                "races_used": 0,
-                "asof": str(asof_date),
-            }
-        score = round(sum(x[0] for x in valid) / len(valid), 1)
-        label = "強め" if score >= 65 else "標準" if score >= 45 else "弱め"
-        return {
-            "score": score,
-            "label": label,
-            "races_used": len(valid),
-            "asof": str(asof_date),
-            "latest_race_date": str(valid[0][2].get("kaisai_nen", "")) + str(valid[0][2].get("kaisai_gappi", "")),
-        }
-    except Exception as e:
-        return {"score": None, "label": "API取得失敗", "races_used": 0,
-                "asof": str(asof_date), "error": f"{type(e).__name__}: {e}"}
-
-
-def enrich_with_field_quality(df, asof_date):
-    """各出走馬のメンバーレベルを並列取得。失敗理由も画面で確認できる。"""
-    if df is None or df.empty:
-        return df
-    out = df.copy()
-    out["メンバーレベル"] = None
-    out["メンバーレベル判定"] = "判定材料不足"
-    out["メンバーレベル使用レース数"] = 0
-    out["メンバーレベル取得状況"] = "未取得"
-    targets = []
-    for idx, row in out.iterrows():
-        horse_id = str(row.get("血統登録番号", row.get("ketto_toroku_bango", "")) or "").strip()
-        if horse_id:
-            targets.append((idx, horse_id))
-    if not targets:
-        out["メンバーレベル取得状況"] = "血統登録番号なし"
-        return out
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    # APIへの負荷を抑えつつ複数頭を並列取得。結果は登録番号単位でキャッシュ。
-    with ThreadPoolExecutor(max_workers=min(2, len(targets))) as pool:
-        futures = {
-            pool.submit(get_horse_field_quality, horse_id, asof_date, 3): idx
-            for idx, horse_id in targets
-        }
-        for future in as_completed(futures):
-            idx = futures[future]
-            try:
-                result = future.result()
-            except Exception:
-                result = None
-            if not isinstance(result, dict):
-                out.loc[idx, "メンバーレベル取得状況"] = "応答なし"
-                continue
-            out.loc[idx, "メンバーレベル"] = result.get("score")
-            out.loc[idx, "メンバーレベル判定"] = result.get("label", "判定材料不足")
-            out.loc[idx, "メンバーレベル使用レース数"] = int(result.get("races_used", 0) or 0)
-            if result.get("error"):
-                out.loc[idx, "メンバーレベル取得状況"] = result["error"][:180]
-            elif result.get("score") is not None:
-                out.loc[idx, "メンバーレベル取得状況"] = "取得成功"
-            else:
-                out.loc[idx, "メンバーレベル取得状況"] = "API応答あり・有効スコアなし"
-    try:
-        st.session_state["geo_field_quality_diagnostics"] = {
-            "api_base": API_BASE,
-            "asof_date": str(asof_date),
-            "horses_total": len(out),
-            "horses_with_id": len(targets),
-            "scores_ok": int(pd.to_numeric(out["メンバーレベル"], errors="coerce").notna().sum()),
-            "status_counts": out["メンバーレベル取得状況"].value_counts(dropna=False).to_dict(),
-            "samples": out[[c for c in ["馬名", "血統登録番号", "メンバーレベル", "メンバーレベル判定", "メンバーレベル取得状況"] if c in out.columns]].head(8).to_dict("records"),
-        }
-    except Exception:
-        pass
-    return out
-
 
 def run_geo_prediction(
     df_sim,
     pace,
     bias,
     condition,
-    venue="",
-    asof_date=None,
+    venue=""
 ):
 
     df = df_sim.copy()
 
     if df.empty:
         return None
-
-    # 予想対象レース日までに判明している情報だけでメンバーレベルを評価する。
-    # 日付が不明な場合は当日の日付を使い、未来の結果を参照しない。
-    if not asof_date:
-        asof_date = pd.Timestamp.now().strftime("%Y-%m-%d")
-    else:
-        try:
-            asof_date = pd.to_datetime(str(asof_date), errors="raise").strftime("%Y-%m-%d")
-        except Exception:
-            asof_date = pd.Timestamp.now().strftime("%Y-%m-%d")
-    df = enrich_with_field_quality(df, asof_date)
 
     df["統合指数"] = pd.to_numeric(
         df["統合指数"],
@@ -3018,21 +2895,8 @@ def run_geo_prediction(
             bloodline_bonus *= confidence_factor
             if bloodline_bonus != 0:
                 point.append(f"血統適性補正({bloodline_score}pt)")
-
-        # メンバーレベルは補助材料として最大±4点。データ不足は加点・減点しない。
-        member_bonus = 0.0
-        member_value = row.get("メンバーレベル")
-        try:
-            member_value = float(member_value)
-            if np.isfinite(member_value):
-                member_bonus = max(-4.0, min(4.0, (member_value - 50.0) / 12.5))
-                point.append(
-                    f"メンバーレベル{member_value:.1f}点（{row.get('メンバーレベル判定', '判定材料不足')}・{int(row.get('メンバーレベル使用レース数', 0) or 0)}レース）"
-                )
-        except (TypeError, ValueError):
-            member_bonus = 0.0
-
-        geo_score = score + bonus - penalty + bloodline_bonus + member_bonus
+        
+        geo_score = score + bonus - penalty + bloodline_bonus
         df.loc[idx, "ジオ評価"] = geo_score
         reasons[horse] = point
 
@@ -3158,33 +3022,6 @@ def display_geo_prediction(geo):
             st.write(f"統合指数：{horse['統合指数']:.1f}")
             st.write(f"オッズ：{horse['オッズ']:.1f}")
             st.write(f"脚質：{horse.get('脚質', '')}")
-            member_score = horse.get("メンバーレベル")
-            try:
-                if pd.notna(member_score):
-                    st.write(f"メンバーレベル：**{float(member_score):.1f}点**（{horse.get('メンバーレベル判定', '判定材料不足')}）")
-                else:
-                    st.write("メンバーレベル：判定材料不足（補正なし）")
-            except (TypeError, ValueError):
-                st.write("メンバーレベル：判定材料不足（補正なし）")
-            horse_reasons = (geo.get("reasons", {}) or {}).get(str(horse.get("馬名", "")), [])
-            if horse_reasons:
-                st.markdown("**評価理由**")
-                for reason in horse_reasons[:4]:
-                    st.write(f"・{reason}")
-
-    with st.expander("🧪 メンバーレベル取得診断", expanded=False):
-        diag = st.session_state.get("geo_field_quality_diagnostics")
-        if not diag:
-            st.info("診断情報がありません。レース予想を実行してください。")
-        else:
-            st.write(f"API URL: `{diag.get('api_base', '')}`")
-            st.write(f"対象日: {diag.get('asof_date', '')}")
-            st.write(f"出走馬: {diag.get('horses_total', 0)}頭 / 血統登録番号あり: {diag.get('horses_with_id', 0)}頭 / スコア取得成功: {diag.get('scores_ok', 0)}頭")
-            st.write("取得状況の内訳")
-            st.json(diag.get("status_counts", {}))
-            if diag.get("samples"):
-                st.dataframe(pd.DataFrame(diag["samples"]), use_container_width=True, hide_index=True)
-            st.caption("接続エラーなら、APIサーバー起動時に表示される最新のtrycloudflare.com URLを JRA_VAN_API_BASE に設定し、アプリを再起動してください。")
 
     st.markdown("### 🎯 ジオの結論")
     st.success(f"{geo['decision']} ｜ 自信度 **{geo['confidence']}%**")
@@ -3213,8 +3050,6 @@ def display_geo_prediction(geo):
             "予測走破タイム",
             "オッズ",
             "脚質",
-            "メンバーレベル",
-            "メンバーレベル判定",
         ]
         show_cols = [c for c in show_cols if c in geo["df_geo"].columns]
         st.dataframe(
@@ -3298,7 +3133,6 @@ if st.button(
         selected_bias,
         selected_condition,
         venue=race_place,
-        asof_date=(selected_race_summary.get("date") or selected_race_summary.get("kaisai_date") or race_meta.get("date") or race_meta.get("kaisai_date")),
     )
 
     if geo_result is not None:
@@ -3753,6 +3587,115 @@ if auto_data and auto_data.get("ok"):
             "3着以内": x.get("3着以内", 0),
         })
     st.dataframe(pd.DataFrame(mark_rows), use_container_width=True, hide_index=True)
+
+    # -------------------------------------------------
+    # 日別・月別の収支と本命（◎）の勝率・複勝率
+    # 馬券収支は払戻データ確認済みレース、印の成績は着順確定済みレースを対象
+    # -------------------------------------------------
+    st.markdown("#### 📅 日別・月別成績")
+    st.caption("馬券収支は払戻確認済みレースを集計。本命◎の勝率・複勝率は、実着順が確認できたレースを対象に計算します。")
+
+    def _geo_date_text(value):
+        value = str(value or "").strip()
+        if not value:
+            return ""
+        # APIの日付表記をYYYY-MM-DDに統一
+        parsed = pd.to_datetime(value, errors="coerce")
+        if pd.isna(parsed):
+            digits = "".join(ch for ch in value if ch.isdigit())
+            if len(digits) >= 8:
+                parsed = pd.to_datetime(digits[:8], format="%Y%m%d", errors="coerce")
+        return "" if pd.isna(parsed) else parsed.strftime("%Y-%m-%d")
+
+    # 払戻確認済みのレース行から日別・月別の投資／払戻／収支を作る
+    period_rows = []
+    for race in races:
+        date_text = _geo_date_text(race.get("race_date"))
+        if not date_text:
+            continue
+        bets = race.get("verification", {}).get("bets", [])
+        investment = sum(int(b.get("投資", 0) or 0) for b in bets)
+        payout_value = sum(int(b.get("払戻", 0) or 0) for b in bets)
+        period_rows.append({
+            "日付": date_text,
+            "月": date_text[:7],
+            "投資": investment,
+            "払戻": payout_value,
+            "収支": payout_value - investment,
+        })
+
+    # 着順確認済みの予想履歴をAPIから取得。払戻未登録レースも予想精度に含める。
+    mark_period_rows = []
+    try:
+        history_data = api_get("/geo/history?limit=500")
+    except Exception:
+        history_data = []
+    if isinstance(history_data, list):
+        for history in history_data:
+            date_text = _geo_date_text(history.get("race_date"))
+            if not date_text:
+                continue
+            actuals = []
+            for key in ("actual_1", "actual_2", "actual_3"):
+                value = str(history.get(key) or "").strip()
+                try:
+                    value = str(int(float(value))) if value else ""
+                except (TypeError, ValueError):
+                    value = value.lstrip("0")
+                actuals.append(value)
+            if not any(actuals):
+                continue  # 結果未確定は勝率・複勝率の分母に入れない
+            honmei = str(history.get("honmei_umaban") or "").strip()
+            try:
+                honmei = str(int(float(honmei)))
+            except (TypeError, ValueError):
+                pass
+            finish_num = 99
+            for pos, actual in enumerate(actuals, start=1):
+                if actual and actual == honmei:
+                    finish_num = pos
+                    break
+            mark_period_rows.append({"日付": date_text, "月": date_text[:7], "勝ち": int(finish_num == 1), "複勝圏": int(finish_num <= 3)})
+
+    def _period_table(period_key, label):
+        money_df = pd.DataFrame(period_rows)
+        marks_df = pd.DataFrame(mark_period_rows)
+        if money_df.empty and marks_df.empty:
+            st.info("日別・月別集計に使える確定データはまだありません。")
+            return
+        keys = set()
+        if not money_df.empty:
+            keys.update(money_df[period_key].dropna().astype(str).tolist())
+        if not marks_df.empty:
+            keys.update(marks_df[period_key].dropna().astype(str).tolist())
+        out = []
+        for key_value in sorted(keys, reverse=True):
+            m = money_df[money_df[period_key] == key_value] if not money_df.empty else pd.DataFrame()
+            q = marks_df[marks_df[period_key] == key_value] if not marks_df.empty else pd.DataFrame()
+            races_n = len(q)
+            wins_n = int(q["勝ち"].sum()) if races_n else 0
+            places_n = int(q["複勝圏"].sum()) if races_n else 0
+            investment = int(m["投資"].sum()) if not m.empty else 0
+            payout_value = int(m["払戻"].sum()) if not m.empty else 0
+            profit = payout_value - investment
+            out.append({
+                label: key_value,
+                "馬券対象R": len(m),
+                "投資": f"{investment:,}円",
+                "払戻": f"{payout_value:,}円",
+                "収支": f"{profit:+,}円",
+                "回収率": f"{payout_value / investment * 100:.1f}%" if investment else "—",
+                "着順確認R": races_n,
+                "◎勝率": f"{wins_n / races_n * 100:.1f}%" if races_n else "—",
+                "◎複勝率": f"{places_n / races_n * 100:.1f}%" if races_n else "—",
+            })
+        st.dataframe(pd.DataFrame(out), use_container_width=True, hide_index=True)
+
+    period_tab_daily, period_tab_monthly = st.tabs(["日別", "月別"])
+    with period_tab_daily:
+        _period_table("日付", "日付")
+    with period_tab_monthly:
+        _period_table("月", "月")
 
     st.markdown("#### 券種別成績")
     type_rows = []
