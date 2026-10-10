@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import requests
-
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # =========================================================
 # 基本設定
