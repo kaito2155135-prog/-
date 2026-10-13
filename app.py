@@ -2875,8 +2875,11 @@ def enrich_with_field_quality(df, asof_date):
         out["メンバーレベル取得状況"] = "血統登録番号なし"
         return out
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    # APIへの負荷を抑えつつ複数頭を並列取得。結果は登録番号単位でキャッシュ。
-    with ThreadPoolExecutor(max_workers=min(2, len(targets))) as pool:
+    # 各馬のAPI処理はDB内で相手馬の後続成績を複数回検索するため、
+    # 2並列だと1頭あたりの処理待ちが積み重なり、出走頭数によって数分かかる。
+    # SQLite/APIへの負荷を考慮して6並列にし、完了順に結果を反映する。
+    # 結果は登録番号・asof日・limit単位でStreamlit側にキャッシュされる。
+    with ThreadPoolExecutor(max_workers=min(6, len(targets))) as pool:
         futures = {
             pool.submit(get_horse_field_quality, horse_id, asof_date, 3): idx
             for idx, horse_id in targets
