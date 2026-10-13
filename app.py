@@ -733,18 +733,25 @@ def get_pedigree_bulk(targets, race_surface="", race_distance="", going="", venu
         return results
 
 
-# 各馬の父・母を取得
-pedigree_rows = []
-
-for _, row in df_race.iterrows():
-    pedigree = get_pedigree(
-        row.get("血統登録番号", ""),
-        race_surface=race_surface,
-        race_distance=race_distance,
-        going=default_baba,
-        venue_code=race_meta.get("venue_code", "")
-    )
-    pedigree_rows.append(pedigree)
+# 各馬の父・母・血統適性を一括取得（API往復を頭数分から1回へ削減）
+pedigree_targets = [
+    str(row.get("血統登録番号", "") or "").strip()
+    for _, row in df_race.iterrows()
+]
+pedigree_map = get_pedigree_bulk(
+    pedigree_targets,
+    race_surface=race_surface,
+    race_distance=race_distance,
+    going=default_baba,
+    venue_code=race_meta.get("venue_code", "")
+)
+pedigree_rows = [
+    pedigree_map.get(target, {
+        "父": "", "母": "", "父血統登録番号": "", "母血統登録番号": "",
+        "血統適性": {"score": 50.0, "confidence": "低", "grade": "C", "note": "血統一括API結果なし"}
+    })
+    for target in pedigree_targets
+]
 
 
 pedigree_df = pd.DataFrame(
