@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # 基本設定
 # =========================================================
 
-API_BASE = os.environ.get("JRA_VAN_API_BASE", "https://medications-specialist-mil-former.trycloudflare.com").strip().rstrip("/")
+API_BASE = os.environ.get("JRA_VAN_API_BASE", "https://simon-hygiene-statewide-serum.trycloudflare.com").strip().rstrip("/")
 
 
 def normalize_horse_name(name):
