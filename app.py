@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # 基本設定
 # =========================================================
 
-API_BASE = os.environ.get("JRA_VAN_API_BASE", "https://simon-hygiene-statewide-serum.trycloudflare.com").strip().rstrip("/")
+API_BASE = os.environ.get("JRA_VAN_API_BASE", "https://medications-specialist-mil-former.trycloudflare.com").strip().rstrip("/")
 
 
 def normalize_horse_name(name):
@@ -3049,7 +3049,11 @@ def run_geo_prediction(
 
             bloodline_bonus *= confidence_factor
             if bloodline_bonus != 0:
-                point.append(f"血統適性補正({bloodline_score}pt)")
+                # 「血統適性スコア」と「ジオ評価へ実際に加える点数」を区別して表示する。
+                point.append(
+                    f"血統適性スコア({bloodline_score:.1f}/100・信頼度{bloodline_confidence})"
+                    f"／実効補正{bloodline_bonus:+.2f}点"
+                )
 
         # メンバーレベルは補助材料として最大±4点。データ不足は加点・減点しない。
         member_bonus = 0.0
