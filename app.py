@@ -2707,7 +2707,35 @@ def save_geo_prediction(
             "decision": geo.get("decision", ""),
             "ticket1": ticket1,
             "ticket2": ticket2,
+            "runners": [],
         }
+
+        # ◎○▲だけでなく全出走馬の予想時点特徴量を送信。着順など未来情報は含めない。
+        runner_df = geo.get("df_geo")
+        if isinstance(runner_df, pd.DataFrame) and not runner_df.empty:
+            excluded = {"着順", "確定着順", "着順予測", "実着順", "払戻", "配当", "結果", "top3", "win"}
+            for rank, (_, runner) in enumerate(runner_df.iterrows(), start=1):
+                features = {}
+                for col, value in runner.items():
+                    if str(col) in excluded or str(col) in {"馬番", "馬名", "ジオ評価"}:
+                        continue
+                    try:
+                        if value is None or pd.isna(value):
+                            continue
+                    except (TypeError, ValueError):
+                        pass
+                    if isinstance(value, (str, int, float, bool)):
+                        features[str(col)] = value
+                    elif isinstance(value, dict):
+                        # 血統適性など辞書型の特徴量も予想時点の値だけ保存
+                        features[str(col)] = {str(k): v for k, v in value.items() if isinstance(v, (str, int, float, bool)) or v is None}
+                payload["runners"].append({
+                    "umaban": get_umaban(runner),
+                    "bamei": get_bamei(runner),
+                    "predicted_rank": rank,
+                    "geo_score": get_score(runner),
+                    "features": features,
+                })
 
         response = requests.post(
             f"{API_BASE}/geo/prediction",
