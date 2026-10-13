@@ -2771,6 +2771,8 @@ def apply_geo_learning_adjustment(df, pace, bias, condition, venue=""):
         return df
     df = df.copy()
     df["学習補正"] = 0.0
+    df["学習一致条件"] = ""
+    df["学習補正内訳"] = ""
     try:
         horses = []
         for _, row in df.iterrows():
@@ -2792,13 +2794,29 @@ def apply_geo_learning_adjustment(df, pace, bias, condition, venue=""):
         for item in data.get("adjustments", []) or []:
             key = str(item.get("umaban", "")).replace(".0", "")
             try:
-                adjustment_map[key] = float(item.get("adjustment", 0) or 0)
+                adjustment = float(item.get("adjustment", 0) or 0)
             except Exception:
-                adjustment_map[key] = 0.0
+                adjustment = 0.0
+            matched = item.get("matched_effects") or []
+            if matched:
+                detail = "、".join(
+                    f"{x.get('feature_key', '?')}({float(x.get('effect', 0) or 0):+.2f}点・n={int(x.get('sample_count', 0) or 0)})"
+                    for x in matched
+                )
+            else:
+                detail = "一致条件なし"
+            adjustment_map[key] = {
+                "adjustment": adjustment,
+                "matched_features": item.get("matched_features") or [],
+                "detail": detail,
+            }
         for idx in df.index:
             key = str(df.loc[idx].get("馬番", "")).replace(".0", "")
-            adjustment = adjustment_map.get(key, 0.0)
+            item = adjustment_map.get(key, {"adjustment": 0.0, "matched_features": [], "detail": "API応答なし"})
+            adjustment = float(item["adjustment"])
             df.loc[idx, "学習補正"] = adjustment
+            df.loc[idx, "学習一致条件"] = "、".join(item["matched_features"]) or "一致条件なし"
+            df.loc[idx, "学習補正内訳"] = item["detail"]
             df.loc[idx, "ジオ評価"] = float(df.loc[idx, "ジオ評価"]) + adjustment
         return df
     except Exception:
@@ -3215,6 +3233,40 @@ def display_geo_prediction(geo):
                 for reason in horse_reasons[:4]:
                     st.write(f"・{reason}")
 
+    with st.expander("🧬 血統・学習補正の根拠", expanded=False):
+        st.caption("血統スコアは父の産駒実績100%で算出。母の産駒実績はスコアに使いません。条件別成績はサンプル数と一緒に確認してください。")
+        diagnostic_rows = []
+        for label, horse in horse_data:
+            if horse is None:
+                continue
+            blood = horse.get("血統適性", {})
+            blood = blood if isinstance(blood, dict) else {}
+            # APIの血統スコアは combined object。条件別内訳は father の中にある。
+            father_diag = blood.get("father", {}) if isinstance(blood.get("father", {}), dict) else {}
+            comps = father_diag.get("components", {}) if isinstance(father_diag.get("components", {}), dict) else {}
+            row = {
+                "印": label,
+                "馬番": str(horse.get("馬番", "")),
+                "馬名": str(horse.get("馬名", "")),
+                "血統スコア": blood.get("score", None),
+                "信頼度": blood.get("confidence", "不明"),
+                "コース一致 出走数": father_diag.get("exact_course_sample", 0),
+                "コース一致 勝率%": father_diag.get("exact_course_win_rate", None),
+                "コース一致 複勝率%": father_diag.get("exact_course_top3_rate", None),
+                "コース＋馬場 出走数": father_diag.get("exact_course_going_sample", 0),
+                "コース＋馬場 勝率%": father_diag.get("exact_course_going_win_rate", None),
+                "コース＋馬場 複勝率%": father_diag.get("exact_course_going_top3_rate", None),
+                "父産駒の芝/ダート出走数": (comps.get("surface") or {}).get("sample", 0),
+                "父産駒の距離帯出走数": (comps.get("distance") or {}).get("sample", 0),
+                "学習補正": horse.get("学習補正", 0),
+                "学習一致条件": horse.get("学習一致条件", "未取得"),
+                "学習補正内訳": horse.get("学習補正内訳", "未取得"),
+            }
+            diagnostic_rows.append(row)
+        if diagnostic_rows:
+            st.dataframe(pd.DataFrame(diagnostic_rows), use_container_width=True, hide_index=True)
+        st.caption("『コース＋馬場』の出走数が少ない場合、信頼度が中・高でも完全一致条件の根拠は薄い可能性があります。ここでは数値を表示し、信頼度判定そのものは今回変更していません。")
+
     with st.expander("🧪 メンバーレベル取得診断", expanded=False):
         diag = st.session_state.get("geo_field_quality_diagnostics")
         if not diag:
@@ -3230,7 +3282,8 @@ def display_geo_prediction(geo):
             st.caption("接続エラーなら、APIサーバー起動時に表示される最新のtrycloudflare.com URLを JRA_VAN_API_BASE に設定し、アプリを再起動してください。")
 
     st.markdown("### 🎯 ジオの結論")
-    st.success(f"{geo['decision']} ｜ 自信度 **{geo['confidence']}%**")
+    st.success(f"{geo['decision']} ｜ ジオ独自の自信度 **{geo['confidence']}%**")
+    st.caption("※この自信度は順位差・オッズ等から算出した内部指標で、馬の実際の勝率や的中確率を示すものではありません。")
 
     st.markdown("### 💭 ジオの考察")
     for text in geo["comment"]:
