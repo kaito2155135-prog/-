@@ -94,6 +94,37 @@ h3 {font-size:1.17rem !important;}
 .geo-overview {border:1px solid #254B67;border-radius:14px;background:linear-gradient(135deg,#0E2538,#0A1727);padding:16px 20px;margin:12px 0;}
 .geo-overview strong {color:#53E9F0;}
 @media (max-width:700px) {[data-testid="stTabs"] button[role="tab"] {font-size:12px;padding:7px 8px;}}
+
+/* GEO AI v13: readable dark command center */
+[data-testid="stSidebarCollapsedControl"] {display:flex !important;visibility:visible !important;}
+html, body, .stApp, [data-testid="stAppViewContainer"] {color:#F3F8FF !important;}
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] label p,
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p,
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stSidebar"] [role="radiogroup"] p,
+[data-testid="stSidebar"] [role="radiogroup"] label,
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h3 {color:#F2F7FF !important;opacity:1 !important;}
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] {opacity:1 !important;}
+[data-testid="stSidebar"] [data-baseweb="select"] > div,
+[data-testid="stSidebar"] [data-baseweb="input"] > div {background:#182C44 !important;border:1px solid #45647E !important;color:#F7FBFF !important;}
+[data-testid="stSidebar"] [data-baseweb="select"] span,
+[data-testid="stSidebar"] [data-baseweb="select"] input {color:#FFFFFF !important;-webkit-text-fill-color:#FFFFFF !important;}
+[data-testid="stSidebar"] [role="radiogroup"] [data-testid="stMarkdownContainer"] p {color:#F1F7FF !important;}
+[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) p {color:#5DF4F0 !important;font-weight:800;}
+[data-testid="stSidebar"] .stButton>button {width:100%;background:linear-gradient(105deg,#008B84,#067EAE) !important;}
+[data-testid="stAppViewContainer"] [data-testid="stWidgetLabel"] p,
+[data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"] p {color:#EAF4FF;}
+[data-testid="stAppViewContainer"] [data-testid="stCaptionContainer"] p {color:#B9D2E5 !important;}
+[data-testid="stMetricLabel"] p {color:#C7DDEC !important;}
+[data-testid="stMetricValue"] {color:#61F0EB !important;}
+[data-testid="stExpander"] summary {color:#F4FAFF !important;font-weight:700;}
+[data-testid="stDataFrame"] {background:#0B1B2B !important;border:1px solid #31556E !important;}
+[data-testid="stDataFrame"] [data-testid="stDataFrameResizable"] {background:#0B1B2B !important;}
+.geo-v13-banner {border:1px solid #1D6677;background:linear-gradient(105deg,#0A263A,#091729);
+padding:14px 18px;border-radius:12px;margin:14px 0 10px;color:#F1FAFF;}
+.geo-v13-banner strong {color:#53EDE8;font-size:17px;}
+.geo-v13-preset {color:#C5E5F1;font-size:12px;margin-top:5px;}
 </style>
     """,
     unsafe_allow_html=True,
@@ -975,42 +1006,21 @@ df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
 # ペース・バイアス・馬場
 # =========================================================
 
-st.markdown("---")
-
-col_p1, col_p2, col_p3 = st.columns(3)
-
-
-with col_p1:
-    selected_pace = st.radio(
-        "ペース想定",
-        ["S（スロー）", "M（ミドル）", "H（ハイ）"],
-        index=1,
-    )
-
-
-with col_p2:
-    selected_bias = st.radio(
-        "トラックバイアス",
-        ["フラット", "内有利", "外有利"],
-        index=0,
-    )
-
-
-with col_p3:
-    baba_default_idx = 0
-
-    if default_baba == "稍重":
-        baba_default_idx = 1
-    elif default_baba == "重":
-        baba_default_idx = 2
-    elif default_baba == "不良":
-        baba_default_idx = 3
-
-    selected_condition = st.selectbox(
-        "当日の馬場状態",
-        ["良", "稍重", "重", "不良"],
-        index=baba_default_idx,
-    )
+st.sidebar.markdown("---")
+st.sidebar.markdown("### ⚙️ 予想設定")
+selected_pace = st.sidebar.radio(
+    "ペース想定", ["S（スロー）", "M（ミドル）", "H（ハイ）"],
+    index=1, key="geo_v13_pace",
+)
+selected_bias = st.sidebar.radio(
+    "トラックバイアス", ["フラット", "内有利", "外有利"],
+    index=0, key="geo_v13_bias",
+)
+baba_default_idx = {"良": 0, "稍重": 1, "重": 2, "不良": 3}.get(default_baba, 0)
+selected_condition = st.sidebar.selectbox(
+    "当日の馬場状態", ["良", "稍重", "重", "不良"],
+    index=baba_default_idx, key="geo_v13_condition",
+)
 
 
 # =========================================================
@@ -2805,7 +2815,7 @@ def apply_geo_learning_adjustment(df, pace, bias, condition, venue=""):
         for idx in df.index:
             key = str(df.loc[idx].get("馬番", "")).replace(".0", "")
             item = adjustment_map.get(key, {"adjustment": 0.0, "matched_features": [], "detail": "API応答なし"})
-            adjustment = max(-5.0, min(5.0, float(item["adjustment"]) * 1.5))
+            adjustment = max(-5.0, min(5.0, float(item["adjustment"]) * 2.0))
             df.loc[idx, "学習補正"] = adjustment
             df.loc[idx, "学習一致条件"] = "、".join(item["matched_features"]) or "一致条件なし"
             df.loc[idx, "学習補正内訳"] = item["detail"]
@@ -2996,13 +3006,7 @@ def run_geo_prediction(
                       "自己学習": 0.0}
 
 
-        if score >= df["統合指数"].quantile(0.8):
-            bonus += 3
-            components["能力順位"] += 3
-            point.append("能力指数が上位")
-        elif score >= df["統合指数"].quantile(0.6):
-            bonus += 1
-            components["能力順位"] += 1
+        # v13: 能力順位ボーナス廃止。統合指数の能力を重複加点しない。
 
         if pace == "S":
             if style in ["逃げ", "先行"]:
@@ -3084,7 +3088,7 @@ def run_geo_prediction(
                 "低": 0.4,
             }.get(bloodline_confidence, 0.5)
 
-            bloodline_bonus = max(-8.0, min(8.0, bloodline_bonus * confidence_factor * 2.0))
+            bloodline_bonus = max(-8.0, min(8.0, bloodline_bonus * confidence_factor * 3.0))
             if bloodline_bonus != 0:
                 # 「血統適性スコア」と「ジオ評価へ実際に加える点数」を区別して表示する。
                 point.append(
@@ -3098,7 +3102,7 @@ def run_geo_prediction(
         try:
             member_value = float(member_value)
             if np.isfinite(member_value):
-                member_bonus = max(-8.0, min(8.0, (member_value - 50.0) / 12.5 * 2.0))
+                member_bonus = max(-8.0, min(8.0, (member_value - 50.0) / 12.5 * 3.0))
                 point.append(
                     f"メンバーレベル{member_value:.1f}点（{row.get('メンバーレベル判定', '判定材料不足')}・{int(row.get('メンバーレベル使用レース数', 0) or 0)}レース）"
                 )
@@ -3222,6 +3226,28 @@ def display_geo_prediction(geo):
             dashboard_df = dashboard_df.sort_values("ジオ評価", ascending=False)
         dashboard_df = dashboard_df.reset_index(drop=True)
         dashboard_df.insert(0, "順位", range(1, len(dashboard_df)+1))
+        st.markdown(
+            '<div class="geo-v13-banner"><strong>🏆 GEO AI 予想結果 ｜ 試験配点 v13</strong>'
+            '<div class="geo-v13-preset">能力順位 0 ｜ 穴馬 0 ｜ 血統 3倍 ｜ メンバーレベル 3倍 ｜ 自己学習 2倍'
+            '（実効補正は各項目の上限あり）</div></div>',
+            unsafe_allow_html=True,
+        )
+        overview = dashboard_df.copy()
+        overview["補正合計"] = pd.to_numeric(overview["ジオ評価"], errors="coerce") - pd.to_numeric(overview["統合指数"], errors="coerce")
+        overview["印"] = ["◎" if i == 0 else "○" if i == 1 else "▲" if i == 2 else "△" if i == 3 else "☆" if i == 4 else "" for i in range(len(overview))]
+        overview_fields = [c for c in ["印", "馬番", "馬名", "統合指数", "補正合計", "ジオ評価", "オッズ"] if c in overview.columns]
+        overview_display = overview[overview_fields].copy()
+        overview_display = overview_display.rename(columns={"ジオ評価":"最終ジオ評価"})
+        for col in ["統合指数","補正合計","最終ジオ評価","オッズ"]:
+            if col in overview_display:
+                overview_display[col] = pd.to_numeric(overview_display[col], errors="coerce").round(3)
+        st.dataframe(
+            overview_display, use_container_width=True, hide_index=True,
+            height=min(570, 48 + 36 * len(overview_display)),
+            column_config={"最終ジオ評価": st.column_config.NumberColumn("最終ジオ評価", format="%.3f"),
+                           "補正合計": st.column_config.NumberColumn("補正合計", format="%+.3f")},
+        )
+        st.caption("※ 印と順位は最終ジオ評価順。勝率ではありません。オッズが未取得なら実際の値を表示せず欠損のままにします。")
         left, right = st.columns([1.1, 1.2], gap="medium")
         with left:
             st.markdown('<div class="geo-panel-title">♛ AI予想順位</div>', unsafe_allow_html=True)
@@ -3291,8 +3317,8 @@ def display_geo_prediction(geo):
             else:
                 st.info("この予想は内訳保存前のデータです。新しいコードで予想を実行すると表示されます。")
 
-        with st.expander("🧪 v12 試験配点と旧配点の比較", expanded=True):
-            st.caption("v12は試験配点を予想に適用中。旧配点は保存された各馬の内訳から比較用に再構成します。オッズを使う旧穴馬加点の判定は予想時のオッズを参照します。")
+        with st.expander("🧪 v13 新配点とv11参考配点の比較", expanded=True):
+            st.caption("v13は試験配点を予想に適用中。v11配点は保存された各馬の内訳から比較用に再構成します。オッズを使う旧穴馬加点の判定は予想時のオッズを参照します。")
             comparisons = []
             threshold80 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.8)
             threshold60 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.6)
@@ -3306,10 +3332,10 @@ def display_geo_prediction(geo):
                 old_ability = 8.0 if idx_score >= threshold80 else (3.0 if idx_score >= threshold60 else 0.0)
                 old_outsider = 8.0 if float(item.get("オッズ", 999)) >= 8 and idx_score >= threshold70 else 0.0
                 old = (trial - float(parts.get("能力順位", 0)) - float(parts.get("穴馬評価", 0))
-                       - float(parts.get("血統補正", 0)) / 2 - float(parts.get("メンバーレベル", 0)) / 2
-                       - float(parts.get("自己学習", 0)) / 3
+                       - float(parts.get("血統補正", 0)) * (2.0 / 3.0) - float(parts.get("メンバーレベル", 0)) * (2.0 / 3.0)
+                       - float(parts.get("自己学習", 0)) / 2
                        + old_ability + old_outsider)
-                # Above subtracts half of doubled pedigree/member and one-third of 1.5x learning.
+                # v13の3倍/3倍/2倍をv11の1倍/1倍/1倍へ参考復元（上限到達時は近似）。
                 comparisons.append({"馬番":item.get("馬番"), "馬名":item.get("馬名"),
                                     "試験配点":round(trial,3),"旧配点の参考再構成":round(old,3)})
             if comparisons:
