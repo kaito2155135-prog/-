@@ -4022,3 +4022,44 @@ if auto_data and auto_data.get("ok"):
         st.info(f"払戻データ未登録: {missing}R。払戻データがDBに入れば自動で検証対象になります。")
 else:
     st.warning("自動馬券検証APIからデータを取得できませんでした。API側の更新後に再読み込みしてください。")
+
+
+# ============================================================
+# Geo v4: 検証・ファクター候補診断（手動起動、予想には未反映）
+# ============================================================
+with st.expander("🧠 ジオ自己学習・メンバーレベル検証 v4", expanded=False):
+    st.caption("既存の予想ロジックは変更せず、保存済みの確定結果を検証します。")
+    if st.button("📊 メンバーレベル有無を比較", key="geo_v4_member_audit"):
+        try:
+            response = requests.get(f"{API_BASE.rstrip('/')}/geo/backtest/member-ablation", timeout=60)
+            data = response.json()
+            if data.get('ok'):
+                st.write("全体", data.get('overall'))
+                st.write("前半70%", data.get('early_70pct'))
+                st.write("後半30%", data.get('late_30pct'))
+                if data.get('races'):
+                    st.dataframe(pd.DataFrame(data['races']), use_container_width=True)
+                for note in data.get('limitations', []): st.caption(note)
+            else:
+                st.error(str(data.get('error', '検証API失敗')))
+        except Exception as e:
+            st.error(f"メンバーレベル検証に失敗: {e}")
+    if st.button("🔎 新ファクター候補を探索", key="geo_v4_discover"):
+        try:
+            response=requests.post(f"{API_BASE.rstrip('/')}/geo/learning/discover", json={}, timeout=90)
+            data=response.json()
+            if not data.get('ok'):
+                st.error(str(data.get('error','探索API失敗')))
+            elif not data.get('ready'):
+                st.info(data.get('message','学習用データが不足しています。'))
+            else:
+                st.write(f"検証レース: {data.get('races')} / 合格候補: {data.get('validated_count')}")
+                st.write('訓練データ基準',data.get('train_baseline'))
+                st.write('後半検証データ基準',data.get('test_baseline'))
+                if data.get('candidates'):
+                    st.dataframe(pd.DataFrame(data['candidates']),use_container_width=True)
+                else:
+                    st.info('現時点で候補はありません。')
+                st.caption('合格候補も本番予想へ自動加点しません。重複検証と前向き検証が必要です。')
+        except Exception as e:
+            st.error(f"ファクター探索に失敗: {e}")
