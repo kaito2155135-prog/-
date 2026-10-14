@@ -1644,6 +1644,7 @@ def run_integrated_simulation(
 
     horse_ability_map = {}
     horse_f3_theory_bonus_map = {}
+    horse_f3_diagnostics_map = {}
     horse_course_fit_map = {}
     horse_soha_theory_map = {}
     horse_predicted_time_map = {}
@@ -1797,6 +1798,7 @@ def run_integrated_simulation(
 
             derived_times = []
             derived_f3s = []
+            f3_history_rows = []
 
             for _, row in group.iterrows():
                 r_course = str(
@@ -2239,6 +2241,22 @@ def run_integrated_simulation(
                         converted_f3
                     )
 
+                    f3_history_rows.append({
+                        "過去競馬場": r_course,
+                        "過去芝ダ": r_surface_keyword,
+                        "過去距離": int(r_dist),
+                        "過去クラス": r_class_keyword,
+                        "過去馬場": r_baba,
+                        "実測上がり3F": float(r_f3_time),
+                        "過去基準3F": float(past_base_f3),
+                        "過去基準差": float(f3_diff),
+                        "クラス補正秒": float(f3_class_adjustment),
+                        "換算上がり3F": float(converted_f3),
+                        "過去基準フォールバック疑い": bool(
+                            abs(float(past_base_f3) - (34.5 if r_surface_keyword == "芝" else 37.0)) < 0.00001
+                        ),
+                    })
+
             soha_score = 0.0
 
             if derived_times:
@@ -2268,6 +2286,9 @@ def run_integrated_simulation(
                 )
 
             f3_score = 0.0
+            f3_val_to_use = None
+            f3_advantage = None
+            f3_raw_score = None
 
             if derived_f3s:
                 sorted_f3s = sorted(
@@ -2285,15 +2306,29 @@ def run_integrated_simulation(
                     - f3_val_to_use
                 )
 
-                f3_score = max(
-                    -3.0,
-                    min(
-                        10.0,
-                        f3_advantage
-                        * 2.5
-                        * f3_weight_factor
-                    )
+                f3_raw_score = (
+                    f3_advantage * 2.5 * f3_weight_factor
                 )
+                f3_score = max(-3.0, min(10.0, f3_raw_score))
+            horse_f3_diagnostics_map[h_name] = {
+                "対象基準3F": float(target_base_f3),
+                "対象競馬場": str(place_name),
+                "対象芝ダ": str(surface_keyword),
+                "対象距離": int(target_distance),
+                "対象クラス": str(target_base_class),
+                "対象馬場": str(condition),
+                "対象基準フォールバック疑い": bool(
+                    abs(float(target_base_f3) - (34.5 if surface_keyword == "芝" else 37.0)) < 0.00001
+                ),
+                "有効過去走数": len(derived_f3s),
+                "換算3F中央値": f3_val_to_use,
+                "基準との差（秒）": f3_advantage,
+                "3F重み係数": float(f3_weight_factor),
+                "制限前の3F点": f3_raw_score,
+                "制限後の3F点": float(f3_score),
+                "下限-3に到達": bool(f3_raw_score is not None and f3_raw_score <= -3.0),
+                "過去走詳細": f3_history_rows,
+            }
 
             if straight_length < 320:
                 combined_score = (
@@ -2504,6 +2539,14 @@ def run_integrated_simulation(
 
     res_df["統合指数"] = scored_horses
     res_df["統合指数内訳"] = index_breakdowns
+    res_df["上がり3F診断"] = [
+        horse_f3_diagnostics_map.get(str(name), {
+            "有効過去走数": 0, "制限前の3F点": None,
+            "制限後の3F点": 0.0, "過去走詳細": [],
+            "診断": "該当する過去走データがありません",
+        })
+        for name in res_df["馬名_clean"]
+    ]
     res_df["ライジングスター"] = rising_star_flags
     res_df["脚質"] = inferred_styles
 
@@ -2791,6 +2834,7 @@ def apply_geo_learning_adjustment(df, pace, bias, condition, venue=""):
         response.raise_for_status()
         data = response.json()
         if not data.get("ok"):
+            st.warning(f"自己学習APIがエラーを返しました: {data.get('error', '詳細なし')}")
             return df
         adjustment_map = {}
         for item in data.get("adjustments", []) or []:
@@ -2826,7 +2870,8 @@ def apply_geo_learning_adjustment(df, pace, bias, condition, venue=""):
                 df.at[idx, "最終評価内訳"] = details
             df.loc[idx, "ジオ評価"] = float(df.loc[idx, "ジオ評価"]) + adjustment
         return df
-    except Exception:
+    except Exception as exc:
+        st.warning(f"自己学習補正の取得に失敗したため0点で続行: {type(exc).__name__}: {exc}")
         return df
 
 
@@ -3316,6 +3361,46 @@ def display_geo_prediction(geo):
                 st.caption("走破タイムと上がり3Fはコース適性にも含まれています。二重評価の可能性は今後の検証対象です。")
             else:
                 st.info("この予想は内訳保存前のデータです。新しいコードで予想を実行すると表示されます。")
+
+        with st.expander("🔬 上がり3F診断｜全頭−3点の原因確認", expanded=True):
+            st.caption("予想時に実際に使った値を表示します。診断のみで、予想点数やDB保存処理は変更していません。")
+            all_f3_rows = []
+            for _, horse in dashboard_df.iterrows():
+                diag = horse.get("上がり3F診断")
+                if not isinstance(diag, dict):
+                    continue
+                all_f3_rows.append({
+                    "馬番": horse.get("馬番"),
+                    "馬名": horse.get("馬名"),
+                    "有効過去走": diag.get("有効過去走数", 0),
+                    "対象基準3F": diag.get("対象基準3F"),
+                    "換算3F中央値": diag.get("換算3F中央値"),
+                    "基準差（秒）": diag.get("基準との差（秒）"),
+                    "制限前": diag.get("制限前の3F点"),
+                    "実際の加減点": diag.get("制限後の3F点"),
+                    "下限到達": diag.get("下限-3に到達", False),
+                    "対象基準の固定値疑い": diag.get("対象基準フォールバック疑い", False),
+                })
+            if all_f3_rows:
+                all_f3_df = pd.DataFrame(all_f3_rows)
+                st.dataframe(all_f3_df, use_container_width=True, hide_index=True)
+                at_floor = int(all_f3_df["下限到達"].fillna(False).sum())
+                valid = int((pd.to_numeric(all_f3_df["有効過去走"], errors="coerce") > 0).sum())
+                st.caption(f"過去走あり {valid}/{len(all_f3_df)}頭 ｜ −3点下限に到達 {at_floor}頭")
+                if valid and at_floor == valid:
+                    st.warning("有効過去走のある全馬が−3点の下限に張り付いています。基準値の対応と上がりタイムの単位を確認してください。")
+                st.info("「固定値疑い」は34.5秒（芝）/37.0秒（ダート）と一致した目印であり、Excelから同じ値を取得した場合も含みます。フォールバック確定ではありません。")
+                chosen_f3_diag = chosen.get("上がり3F診断")
+                if isinstance(chosen_f3_diag, dict):
+                    st.markdown(f"**選択馬：{chosen.get('馬名', '—')} の過去走別診断**")
+                    st.json({k: v for k, v in chosen_f3_diag.items() if k != "過去走詳細"}, expanded=False)
+                    history = chosen_f3_diag.get("過去走詳細", [])
+                    if history:
+                        st.dataframe(pd.DataFrame(history), use_container_width=True, hide_index=True)
+                    else:
+                        st.info("この馬は診断可能な上がり3F過去走がありません。")
+            else:
+                st.info("診断値がまだありません。新しいコードで予想を実行すると表示されます。")
 
         with st.expander("🧪 v13 新配点とv11参考配点の比較", expanded=True):
             st.caption("v13は試験配点を予想に適用中。v11配点は保存された各馬の内訳から比較用に再構成します。オッズを使う旧穴馬加点の判定は予想時のオッズを参照します。")
@@ -4075,6 +4160,31 @@ if auto_data and auto_data.get("ok"):
     # ============================================================
     # GEO AI SELF-LEARNING MONITOR (read only)
     # ============================================================
+    with st.expander("🩺 自己学習が0点になる原因を診断", expanded=False):
+        st.caption("診断は読み取り専用です。学習ルールの作成・有効化や過去結果の変更は行いません。")
+        if st.button("🔍 自己学習の状態を診断", key="geo_v13_learning_zero_diagnosis"):
+            try:
+                status_response = requests.get(f"{API_BASE.rstrip('/')}/geo/learning/status", timeout=15)
+                status_response.raise_for_status()
+                status_data = status_response.json()
+                if not status_data.get("ok"):
+                    st.error(f"学習ステータスAPIがエラーを返しました: {status_data.get('error', '詳細なし')}")
+                else:
+                    a, b, c, d = st.columns(4)
+                    a.metric("学習ルール総数", status_data.get("profiles", 0))
+                    b.metric("有効ルール", status_data.get("active", 0))
+                    c.metric("予想補正に使用可能", status_data.get("usable_active", 0))
+                    d.metric("確定済み結果", status_data.get("settled_races", 0))
+                    st.caption(f"ルール有効化の基準サンプル数: {status_data.get('active_sample', '不明')}")
+                    if int(status_data.get("usable_active") or 0) == 0:
+                        st.warning("予想補正に使える有効ルールが0件です。現状のAPIでは自己学習補正は原則0点になります。2倍にしても0点のままです。")
+                    else:
+                        st.info("使用可能なルールがあります。今回のレース条件に一致しないか、APIへの送信内容が異なる可能性があります。")
+                    with st.expander("API応答の詳細"):
+                        st.json(status_data)
+            except Exception as exc:
+                st.error(f"学習ステータス取得に失敗: {type(exc).__name__}: {exc}")
+                st.info("APIが起動しているか、app.pyのAPI_BASEが現在のトンネルURLと一致するか確認してください。")
     with st.expander("🧠 GEO自己学習モニター｜保存・検証・新ファクター", expanded=False):
         st.caption("予想・結果データの蓄積状況を確認します。新ファクターの本番自動採用はまだ実装されていません。")
         if st.button("📡 学習状況を更新", key="geo_premium_monitor_refresh"):
