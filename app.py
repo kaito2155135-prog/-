@@ -305,7 +305,7 @@ def condition_from_code(value):
     }
 
     try:
-        return mapping.get(int(value), "良")
+        return mapping.get(int(value), "不明")
     except Exception:
         text = str(value)
 
@@ -313,7 +313,7 @@ def condition_from_code(value):
             if x in text:
                 return x
 
-        return "良"
+        return "不明"
 
 
 def surface_from_race(race):
@@ -1223,13 +1223,7 @@ def build_master_data_from_jv(df_current):
             condition_code=h.get("condition_code", "")
         )
 
-        baba = h.get(
-            "馬場状態",
-            h.get(
-                "馬場",
-                ""
-            )
-        )
+        baba = h.get("馬場状態") or h.get("馬場") or ""
 
         if not baba:
             track_code = str(
@@ -1800,7 +1794,7 @@ def run_integrated_simulation(
                         "馬場状態",
                         row.get(
                             "馬場",
-                            "良"
+                            "不明"
                         )
                     )
                 ).strip()
@@ -1956,10 +1950,10 @@ def run_integrated_simulation(
                                     "重",
                                     "不良"
                                 ]
-                                else "良"
+                                else None
                             )
 
-                            if b_col in m_match.columns:
+                            if b_col is not None and b_col in m_match.columns:
                                 past_base_time = pd.to_numeric(
                                     m_match.iloc[0][b_col],
                                     errors="coerce"
@@ -3269,7 +3263,7 @@ def display_geo_prediction(geo):
                 st.caption(f"過去走あり {valid}/{len(all_f3_df)}頭 ｜ −3点下限に到達 {at_floor}頭")
                 if valid and at_floor == valid:
                     st.warning("有効過去走のある全馬が−3点の下限に張り付いています。基準値の対応と上がりタイムの単位を確認してください。")
-                st.info("v14：上がり3F基準はExcelの競馬場・芝ダート・距離・クラス・馬場状態を厳密照合。未登録条件は3F評価から除外します。")
+                st.info("v15：過去馬場状態をAPIの芝/ダート別実データから取得。上がり3F基準はExcelの競馬場・芝ダート・距離・クラス・馬場状態を厳密照合。未登録条件は3F評価から除外します。")
                 chosen_f3_diag = chosen.get("上がり3F診断")
                 if isinstance(chosen_f3_diag, dict):
                     st.markdown(f"**選択馬：{chosen.get('馬名', '—')} の過去走別診断**")
