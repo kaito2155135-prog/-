@@ -1581,6 +1581,16 @@ def run_integrated_simulation(
                 / 1000.0
             ) * 59.0
 
+    # 対象基準の参照元（Excelでクラス一致 / クラスを外した代替 / 概算）
+    target_soha_source = "概算（Excel該当なし）"
+    target_soha_matched_class = "—"
+    if base_master_df is not None and 'match_target' in locals() and not match_target.empty:
+        target_soha_matched_class = str(match_target.iloc[0].get("クラス", "不明"))
+        if target_base_class in target_soha_matched_class:
+            target_soha_source = "Excel・クラス一致"
+        else:
+            target_soha_source = "Excel・別クラス代替"
+
     target_base_f3 = geo_f3_master_lookup(
         f3_master_df, place_name, surface_keyword,
         target_distance, target_base_class, condition
@@ -1688,6 +1698,9 @@ def run_integrated_simulation(
 
             style_map[horse_name] = base_style
             
+        # v20: 走破タイムのクラス・基準タイム採用履歴（診断表示用）
+        horse_soha_class_diagnostics = {}
+
         class_rank_map = {
             "新馬": 1,
             "未勝利": 1,
@@ -1761,6 +1774,7 @@ def run_integrated_simulation(
                 False
             )
 
+            soha_class_rows = []
             derived_times = []
             derived_f3s = []
             f3_history_rows = []
@@ -1896,6 +1910,8 @@ def run_integrated_simulation(
                         * past_course_multiplier
                     )
 
+                    past_soha_source = "概算（Excel該当なし）"
+                    past_soha_matched_class = "—"
                     past_base_time = 0.0
 
                     if base_master_df is not None:
@@ -1956,6 +1972,12 @@ def run_integrated_simulation(
                             ]
 
                         if not m_match.empty:
+                            past_soha_matched_class = str(m_match.iloc[0].get("クラス", "不明"))
+                            past_soha_source = (
+                                "Excel・クラス一致"
+                                if r_class_keyword in past_soha_matched_class
+                                else "Excel・別クラス代替"
+                            )
                             b_col = (
                                 r_baba
                                 if r_baba in [
@@ -1977,6 +1999,7 @@ def run_integrated_simulation(
                         pd.isna(past_base_time)
                         or past_base_time <= 0
                     ):
+                        past_soha_source = "概算（Excel値なし）"
                         past_base_time = (
                             r_dist
                             / 1000.0
@@ -2051,16 +2074,11 @@ def run_integrated_simulation(
                             current_distance -= segment
                             remaining -= segment
 
-                    if is_rising:
-                        class_level_penalty = 0.0
-                    else:
-                        class_level_penalty = (
-                            0.20
-                            if class_diff > 0
-                            else -0.20
-                            if class_diff < 0
-                            else 0.0
-                        )
+                    # v20: 1階級につき±0.2秒（例：1勝→3勝は+0.4秒）。
+                    # 既存の連勝中(is_rising)の例外処理は維持。
+                    class_level_penalty = (
+                        0.0 if is_rising else 0.20 * class_diff
+                    )
 
                     time_diff = (
                         past_base_time
@@ -2084,6 +2102,24 @@ def run_integrated_simulation(
                         derived_times.append(
                             converted_time
                         )
+                        soha_class_rows.append({
+                            "過去競馬場": r_course,
+                            "過去距離": r_dist,
+                            "過去クラス": r_class,
+                            "過去クラス階級": past_c_rank,
+                            "今回クラス": target_cls,
+                            "今回クラス階級": target_c_rank,
+                            "階級差": class_diff,
+                            "クラス補正秒": round(float(class_level_penalty), 3),
+                            "連勝補正秒": -0.2 if is_rising else 0.0,
+                            "過去基準採用クラス": past_soha_matched_class,
+                            "過去基準参照元": past_soha_source,
+                            "過去基準タイム": round(float(past_base_time), 3),
+                            "今回基準採用クラス": target_soha_matched_class,
+                            "今回基準参照元": target_soha_source,
+                            "今回基準タイム": round(float(target_base_seconds), 3),
+                            "換算走破タイム": round(float(converted_time), 3),
+                        })
                             
                 if (
                     not pd.isna(r_f3_time)
@@ -2189,6 +2225,14 @@ def run_integrated_simulation(
                         time_advantage * 3.0
                     )
                 )
+
+            horse_soha_class_diagnostics[h_name] = {
+                "対象クラス": target_cls,
+                "対象基準採用クラス": target_soha_matched_class,
+                "対象基準参照元": target_soha_source,
+                "有効過去走数": len(soha_class_rows),
+                "過去走詳細": soha_class_rows,
+            }
 
             f3_score = 0.0
             f3_val_to_use = None
@@ -2518,6 +2562,14 @@ def run_integrated_simulation(
     res_df["初挑戦能力材料"] = [first_surface_input_map.get(str(name), {}) for name in res_df["馬名_clean"]]
     res_df["統合指数"] = scored_horses
     res_df["統合指数内訳"] = index_breakdowns
+    res_df["走破タイムクラス診断"] = [
+        horse_soha_class_diagnostics.get(str(name), {
+            "対象クラス": target_cls, "有効過去走数": 0, "過去走詳細": [],
+            "対象基準参照元": target_soha_source,
+            "対象基準採用クラス": target_soha_matched_class,
+        })
+        for name in res_df["馬名_clean"]
+    ]
     res_df["上がり3F診断"] = [
         horse_f3_diagnostics_map.get(str(name), {
             "有効過去走数": 0, "制限前の3F点": None,
@@ -3400,6 +3452,22 @@ def display_geo_prediction(geo):
                 st.caption("走破タイムと上がり3Fはコース適性にも含まれています。二重評価の可能性は今後の検証対象です。")
             else:
                 st.info("この予想は内訳保存前のデータです。新しいコードで予想を実行すると表示されます。")
+
+        with st.expander("⏱️ 走破タイム｜クラス別基準・階級差診断（v20）", expanded=False):
+            st.caption("階級差×0.2秒を走破タイムに反映。プラスは今回が格上、マイナスは格下。連勝中の既存例外では階級差補正0秒です。")
+            _soha_rows = []
+            for _, _horse in dashboard_df.iterrows():
+                _diag = _horse.get("走破タイムクラス診断")
+                if not isinstance(_diag, dict):
+                    continue
+                for _past in _diag.get("過去走詳細", []):
+                    if isinstance(_past, dict):
+                        _soha_rows.append({"馬番": _horse.get("馬番"), "馬名": _horse.get("馬名"), **_past})
+            if _soha_rows:
+                st.dataframe(pd.DataFrame(_soha_rows), use_container_width=True, hide_index=True)
+            else:
+                st.info("走破タイムに使える過去走がありません。")
+            st.warning("『Excel・別クラス代替』『概算』の行は、クラス一致の基準タイムではありません。基準タイムによるクラス差と追加の階級差補正が重複する可能性もあるため、検証が必要です。")
 
         with st.expander("🔬 上がり3F診断｜単位補正後の計算確認", expanded=True):
             st.caption("上がり3Fの332→33.2秒などの単位補正を予想計算に適用しています。ここでは補正後の計算値を確認できます。")
