@@ -157,7 +157,7 @@ def load_base_data_excel():
         st.error("馬場別基準タイムのExcelが見つかりません")
         return None, None
 
-    excel_filename = xlsx_files[0]
+    excel_filename = sorted(xlsx_files, key=lambda f: ("(2)" not in f, f))[0]
 
     try:
         xls = pd.ExcelFile(excel_filename)
@@ -208,6 +208,38 @@ if df_f3_master is not None and "距離" in df_f3_master.columns:
         .str.extract(r"(\d+)")[0],
         errors="coerce",
     )
+
+
+def geo_soha_excel_class(race_class):
+    """走破タイムExcelの6クラスに正規化。重賞・LはOPを使う。"""
+    import re
+    c = str(race_class).strip().upper().replace("クラス", "").replace(" ", "")
+    if c in ("G1", "G2", "G3", "GI", "GII", "GIII", "L", "OP", "オープン", "リステッド"):
+        return "OP"
+    if "新馬" in c: return "新馬"
+    if "未勝利" in c: return "未勝利"
+    m = re.search(r"([123])勝", c)
+    if m: return m.group(1) + "勝"
+    return None
+
+
+def geo_soha_master_lookup(master, course, surface, distance, race_class, baba):
+    """走破タイムExcelを競馬場・芝ダ・距離・6区分クラス・馬場で厳密検索。"""
+    c = geo_soha_excel_class(race_class)
+    b = str(baba).strip()
+    surf = "ダート" if "ダ" in str(surface) else "芝"
+    if master is None or master.empty or c is None or b not in ("良", "稍重", "重", "不良"):
+        return None, c
+    match = master.loc[
+        master["競馬場"].astype(str).str.strip().eq(str(course).strip())
+        & master["芝/ダート"].astype(str).str.strip().replace({"ダ":"ダート"}).eq(surf)
+        & pd.to_numeric(master["距離_num"], errors="coerce").eq(float(distance))
+        & master["クラス"].astype(str).str.strip().eq(c)
+    ]
+    if match.empty: return None, c
+    value = pd.to_numeric(match.iloc[0][b], errors="coerce")
+    if pd.isna(value) or float(value) <= 0: return None, c
+    return float(value), c
 
 
 def geo_f3_master_lookup(master, course, surface, distance, race_class, baba):
@@ -1474,122 +1506,19 @@ def run_integrated_simulation(
         else "芝"
     )
 
-    target_base_seconds = 0.0
-
-    target_base_class = (
-        "OP"
-        if target_cls in ["G1", "G2", "G3", "L", "OP"]
-        else str(target_cls).strip().replace("クラス", "")
+    target_base_seconds, target_base_class = geo_soha_master_lookup(
+        base_master_df, place_name, surface, target_distance, target_cls, condition
     )
-    
-
-    if base_master_df is not None:
-        match_target = base_master_df[
-            (
-                base_master_df["競馬場"]
-                .astype(str)
-                .str.contains(
-                    place_name,
-                    na=False
-                )
-            )
-            &
-            (
-                base_master_df["芝/ダート"]
-                ==
-                (
-                    "ダ"
-                    if "ダ" in surface
-                    else "芝"
-                )
-            )
-            &
-            (
-                base_master_df["距離_num"]
-                ==
-                target_distance
-            )
-            &
-            (
-                base_master_df["クラス"]
-                .astype(str)
-                .str.contains(
-                    target_base_class,
-                    na=False
-                )
-            )
-        ]
-
-        if match_target.empty:
-            match_target = base_master_df[
-                (
-                    base_master_df["競馬場"]
-                    .astype(str)
-                    .str.contains(
-                        place_name,
-                        na=False
-                    )
-                )
-                &
-                (
-                    base_master_df["芝/ダート"]
-                    ==
-                    (
-                        "ダ"
-                        if "ダ" in surface
-                        else "芝"
-                    )
-                )
-                &
-                (
-                    base_master_df["距離_num"]
-                    ==
-                    target_distance
-                )
-            ]
-
-        if not match_target.empty:
-            baba_col = (
-                condition
-                if condition in [
-                    "良",
-                    "稍重",
-                    "重",
-                    "不良"
-                ]
-                else "良"
-            )
-
-            if baba_col in match_target.columns:
-                target_base_seconds = pd.to_numeric(
-                    match_target.iloc[0][baba_col],
-                    errors="coerce"
-                )
-
-    if (
-        pd.isna(target_base_seconds)
-        or target_base_seconds <= 0
-    ):
-        if "ダ" in surface:
-            target_base_seconds = (
-                target_distance
-                / 1000.0
-            ) * 62.5
-        else:
-            target_base_seconds = (
-                target_distance
-                / 1000.0
-            ) * 59.0
-
-    # 対象基準の参照元（Excelでクラス一致 / クラスを外した代替 / 概算）
-    target_soha_source = "概算（Excel該当なし）"
-    target_soha_matched_class = "—"
-    if base_master_df is not None and 'match_target' in locals() and not match_target.empty:
-        target_soha_matched_class = str(match_target.iloc[0].get("クラス", "不明"))
-        if target_base_class in target_soha_matched_class:
-            target_soha_source = "Excel・クラス一致"
-        else:
-            target_soha_source = "Excel・別クラス代替"
+    target_soha_matched_class = target_base_class or "—"
+    target_soha_source = (
+        "Excel・クラス一致（重賞/LはOP）"
+        if target_base_seconds is not None else "Excel・該当条件なし（走破タイム評価対象外）"
+    )
+    # Excelにない条件では架空の基準タイムを使わない。
+    # 他の予測処理で数値が必要なため、欠損フラグを別途保持する。
+    target_soha_missing = target_base_seconds is None
+    if target_soha_missing:
+        target_base_seconds = 0.0
 
     target_base_f3 = geo_f3_master_lookup(
         f3_master_df, place_name, surface_keyword,
@@ -1910,104 +1839,16 @@ def run_integrated_simulation(
                         * past_course_multiplier
                     )
 
-                    past_soha_source = "概算（Excel該当なし）"
-                    past_soha_matched_class = "—"
-                    past_base_time = 0.0
-
-                    if base_master_df is not None:
-                        m_match = base_master_df[
-                            (
-                                base_master_df["競馬場"]
-                                .astype(str)
-                                .str.contains(
-                                    r_course,
-                                    na=False
-                                )
-                            )
-                            &
-                            (
-                                base_master_df["芝/ダート"]
-                                ==
-                                r_surface_short
-                            )
-                            &
-                            (
-                                base_master_df["距離_num"]
-                                ==
-                                r_dist
-                            )
-                            &
-                            (
-                                base_master_df["クラス"]
-                                .astype(str)
-                                .str.contains(
-                                    r_class_keyword,
-                                    na=False
-                                )
-                            )
-                        ]
-
-                        if m_match.empty:
-                            m_match = base_master_df[
-                                (
-                                    base_master_df["競馬場"]
-                                    .astype(str)
-                                    .str.contains(
-                                        r_course,
-                                        na=False
-                                    )
-                                )
-                                &
-                                (
-                                    base_master_df["芝/ダート"]
-                                    ==
-                                    r_surface_short
-                                )
-                                &
-                                (
-                                    base_master_df["距離_num"]
-                                    ==
-                                    r_dist
-                                )
-                            ]
-
-                        if not m_match.empty:
-                            past_soha_matched_class = str(m_match.iloc[0].get("クラス", "不明"))
-                            past_soha_source = (
-                                "Excel・クラス一致"
-                                if r_class_keyword in past_soha_matched_class
-                                else "Excel・別クラス代替"
-                            )
-                            b_col = (
-                                r_baba
-                                if r_baba in [
-                                    "良",
-                                    "稍重",
-                                    "重",
-                                    "不良"
-                                ]
-                                else None
-                            )
-
-                            if b_col is not None and b_col in m_match.columns:
-                                past_base_time = pd.to_numeric(
-                                    m_match.iloc[0][b_col],
-                                    errors="coerce"
-                                )
-
-                    if (
-                        pd.isna(past_base_time)
-                        or past_base_time <= 0
-                    ):
-                        past_soha_source = "概算（Excel値なし）"
-                        past_base_time = (
-                            r_dist
-                            / 1000.0
-                        ) * (
-                            62.5
-                            if r_surface_short == "ダ"
-                            else 59.0
-                        )
+                    past_base_time, past_soha_matched_class = geo_soha_master_lookup(
+                        base_master_df, r_course, r_surface_short, r_dist,
+                        r_class, r_baba
+                    )
+                    past_soha_source = (
+                        "Excel・クラス一致（重賞/LはOP）"
+                        if past_base_time is not None else "Excel・該当条件なし（評価除外）"
+                    )
+                    if past_base_time is None or target_soha_missing:
+                        continue
 
                     distance_diff = (
                         target_distance - r_dist
@@ -2199,8 +2040,7 @@ def run_integrated_simulation(
                     })
 
             soha_score = 0.0
-
-            if derived_times:
+            if derived_times and not target_soha_missing:
                 sorted_times = sorted(
                     derived_times
                 )
