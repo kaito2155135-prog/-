@@ -2883,7 +2883,7 @@ def get_horse_field_quality(ketto_toroku_bango, asof_date, limit=3):
 
 
 def enrich_with_field_quality(df, asof_date):
-    """各出走馬のメンバーレベルを並列取得。失敗理由も画面で確認できる。"""
+    """v3: 全出走馬を一度のAPIリクエストで取得。取得失敗と材料不足を区別。"""
     if df is None or df.empty:
         return df
     out = df.copy()
@@ -2893,52 +2893,48 @@ def enrich_with_field_quality(df, asof_date):
     out["メンバーレベル取得状況"] = "未取得"
     targets = []
     for idx, row in out.iterrows():
-        horse_id = str(row.get("血統登録番号", row.get("ketto_toroku_bango", "")) or "").strip()
-        if horse_id:
-            targets.append((idx, horse_id))
-    if not targets:
-        out["メンバーレベル取得状況"] = "血統登録番号なし"
-        return out
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    # 各馬のAPI処理はDB内で相手馬の後続成績を複数回検索するため、
-    # 2並列だと1頭あたりの処理待ちが積み重なり、出走頭数によって数分かかる。
-    # SQLite/APIへの負荷を考慮して6並列にし、完了順に結果を反映する。
-    # 結果は登録番号・asof日・limit単位でStreamlit側にキャッシュされる。
-    with ThreadPoolExecutor(max_workers=min(6, len(targets))) as pool:
-        futures = {
-            pool.submit(get_horse_field_quality, horse_id, asof_date, 3): idx
-            for idx, horse_id in targets
-        }
-        for future in as_completed(futures):
-            idx = futures[future]
-            try:
-                result = future.result()
-            except Exception:
-                result = None
-            if not isinstance(result, dict):
-                out.loc[idx, "メンバーレベル取得状況"] = "応答なし"
-                continue
-            out.loc[idx, "メンバーレベル"] = result.get("score")
-            out.loc[idx, "メンバーレベル判定"] = result.get("label", "判定材料不足")
-            out.loc[idx, "メンバーレベル使用レース数"] = int(result.get("races_used", 0) or 0)
-            if result.get("error"):
-                out.loc[idx, "メンバーレベル取得状況"] = result["error"][:180]
-            elif result.get("score") is not None:
-                out.loc[idx, "メンバーレベル取得状況"] = "取得成功"
-            else:
-                out.loc[idx, "メンバーレベル取得状況"] = "API応答あり・有効スコアなし"
-    try:
-        st.session_state["geo_field_quality_diagnostics"] = {
-            "api_base": API_BASE,
-            "asof_date": str(asof_date),
-            "horses_total": len(out),
-            "horses_with_id": len(targets),
-            "scores_ok": int(pd.to_numeric(out["メンバーレベル"], errors="coerce").notna().sum()),
-            "status_counts": out["メンバーレベル取得状況"].value_counts(dropna=False).to_dict(),
-            "samples": out[[c for c in ["馬名", "血統登録番号", "メンバーレベル", "メンバーレベル判定", "メンバーレベル取得状況"] if c in out.columns]].head(8).to_dict("records"),
-        }
-    except Exception:
-        pass
+        hid = str(row.get("血統登録番号", row.get("ketto_toroku_bango", "")) or "").strip()
+        if hid:
+            targets.append((idx, hid))
+    if targets:
+        try:
+            response = requests.post(
+                f"{API_BASE.rstrip('/')}/geo/field-quality/batch",
+                json={"horse_ids": list(dict.fromkeys(hid for _, hid in targets)),
+                      "asof": str(asof_date), "limit": 3},
+                timeout=(10, 90),
+            )
+            response.raise_for_status()
+            payload = response.json()
+            if not payload.get('ok'):
+                raise ValueError(payload.get('error', 'API応答異常'))
+            results = payload.get('results') or {}
+            for idx, hid in targets:
+                result = results.get(hid) or {}
+                score = result.get('score')
+                out.at[idx, 'メンバーレベル'] = score
+                out.at[idx, 'メンバーレベル判定'] = result.get('label', '判定材料不足')
+                out.at[idx, 'メンバーレベル使用レース数'] = int(result.get('races_used', 0) or 0)
+                out.at[idx, 'メンバーレベル取得状況'] = ('取得成功' if score is not None else '判定材料不足')
+            elapsed = payload.get('elapsed_seconds')
+        except Exception as exc:
+            error = f'{type(exc).__name__}: {exc}'[:180]
+            for idx, _ in targets:
+                out.at[idx, 'メンバーレベル判定'] = 'API取得失敗'
+                out.at[idx, 'メンバーレベル取得状況'] = error
+            elapsed = None
+    else:
+        out['メンバーレベル取得状況'] = '血統登録番号なし'
+        elapsed = None
+    st.session_state['geo_field_quality_diagnostics'] = {
+        'api_base': API_BASE, 'asof_date': str(asof_date),
+        'horses_total': len(out), 'horses_with_id': len(targets),
+        'scores_ok': int(pd.to_numeric(out['メンバーレベル'], errors='coerce').notna().sum()),
+        'elapsed_seconds': elapsed,
+        'status_counts': out['メンバーレベル取得状況'].value_counts(dropna=False).to_dict(),
+        'samples': out[[c for c in ['馬名', '血統登録番号', 'メンバーレベル',
+                   'メンバーレベル判定', 'メンバーレベル取得状況'] if c in out.columns]].head(8).to_dict('records'),
+    }
     return out
 
 
@@ -3275,6 +3271,7 @@ def display_geo_prediction(geo):
             st.write(f"API URL: `{diag.get('api_base', '')}`")
             st.write(f"対象日: {diag.get('asof_date', '')}")
             st.write(f"出走馬: {diag.get('horses_total', 0)}頭 / 血統登録番号あり: {diag.get('horses_with_id', 0)}頭 / スコア取得成功: {diag.get('scores_ok', 0)}頭")
+            st.write(f"一括API処理時間: {diag.get('elapsed_seconds', '不明')} 秒")
             st.write("取得状況の内訳")
             st.json(diag.get("status_counts", {}))
             if diag.get("samples"):
