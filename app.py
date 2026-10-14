@@ -1,4 +1,5 @@
 import os
+import html
 import unicodedata
 import numpy as np
 import pandas as pd
@@ -40,49 +41,54 @@ st.set_page_config(
 
 st.markdown(
     """
-    <style>
-    .main { background-color: #0b0b0b; color: #ffffff; }
-
-    h1, h2, h3 {
-        color: #f1c40f !important;
-        font-family: sans-serif;
-    }
-
-    .stButton>button {
-        background: linear-gradient(to bottom, #d4af37, #aa820a);
-        color: #ffffff;
-        font-weight: bold;
-        border: 1px solid #ffd700;
-        border-radius: 6px;
-        width: 100%;
-        padding: 10px;
-        font-size: 16px;
-    }
-
-    .stButton>button:hover {
-        background: linear-gradient(to bottom, #e6c547, #c1960d);
-        border-color: #ffffff;
-    }
-
-    .race-info-box {
-        background-color: #1a1a1a;
-        border: 1px solid #d4af37;
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-        color: #ffffff;
-        text-align: center;
-    }
-    </style>
+<style>
+:root { --geo-bg:#080F1D; --geo-panel:#121F32; --geo-edge:#293B52; --geo-cyan:#4DE2DA; --geo-gold:#DCC18A; --geo-text:#E9F2FB; }
+.stApp, [data-testid="stAppViewContainer"] {background: radial-gradient(ellipse at 80% 0%,#152E43 0%,#080F1D 54%) !important; color:var(--geo-text);}
+[data-testid="stHeader"] {background:transparent;}
+[data-testid="stSidebar"] {background:linear-gradient(180deg,#101D2D,#0A1423) !important; border-right:1px solid var(--geo-edge);}
+[data-testid="stSidebar"] * {color:#E4EDF6;}
+.block-container {padding-top:1.8rem;max-width:1550px;}
+h1,h2,h3 {color:#E9F2FB !important;letter-spacing:.015em;}
+h2 {font-size:1.55rem !important;}
+h3 {font-size:1.17rem !important;}
+[data-testid="stMarkdownContainer"] p {line-height:1.65;}
+.stButton>button {background:linear-gradient(115deg,#137B82,#0C596D) !important;color:#F4FFFF !important;font-weight:700 !important;border:1px solid #42BFC5 !important;border-radius:11px !important;padding:.62rem 1.1rem !important;min-height:44px;box-shadow:0 6px 22px #04141E60;transition:transform .16s,box-shadow .16s;}
+.stButton>button:hover {background:linear-gradient(115deg,#1898A2,#117388) !important;box-shadow:0 7px 28px #21C4D244;transform:translateY(-1px);}
+[data-testid="stMetric"], [data-testid="stExpander"], [data-testid="stDataFrame"], [data-testid="stAlert"] {border-radius:12px !important;}
+[data-testid="stExpander"] {border:1px solid #2A3E55 !important;background:#101D2C99;}
+[data-testid="stMetric"] {background:#122237;border:1px solid #2A4058;padding:14px;border-radius:12px;}
+[data-testid="stDataFrame"] {border:1px solid #2B3E53;}
+[data-testid="stSelectbox"]>div>div {border-radius:10px;}
+.geo-hero {padding:24px 28px;margin:0 0 22px;border:1px solid #28445B;border-radius:18px;background:linear-gradient(110deg,#132B3D 0%,#101B30 58%,#172339 100%);position:relative;overflow:hidden;}
+.geo-hero:after {content:"";position:absolute;width:220px;height:220px;right:-70px;top:-120px;border-radius:50%;border:1px solid #4DE2DA50;box-shadow:0 0 0 32px #4DE2DA08,0 0 0 70px #4DE2DA08;pointer-events:none;}
+.geo-eyebrow {font-size:11px;font-weight:800;letter-spacing:.21em;color:#4DE2DA;margin-bottom:6px;}
+.geo-name {font-size:clamp(30px,4vw,48px);font-weight:850;letter-spacing:.05em;line-height:1.15;color:#F6FBFF;}
+.geo-name span {color:#4DE2DA;}
+.geo-tag {font-size:13px;color:#A6BDD1;margin-top:9px;}
+.race-info-box {border:1px solid #2B455A;border-radius:15px;background:linear-gradient(120deg,#14283B,#111E31);padding:20px 24px;margin:12px 0 22px;color:#E8F3FF;}
+.geo-section-label {color:#4DE2DA;font-size:11px;font-weight:800;letter-spacing:.14em;margin-bottom:12px;}
+.geo-race-title {font-size:23px;font-weight:800;color:#F3F8FF;margin-bottom:15px;}
+.geo-pills {display:flex;flex-wrap:wrap;gap:9px;}
+.geo-pill {border:1px solid #355168;background:#1A3044;color:#DCECF9;border-radius:9px;padding:8px 12px;font-size:13px;}
+.geo-pill b {color:#7EE7E0;}
+.geo-horse-card {background:linear-gradient(155deg,#142A3E,#101C2C);border:1px solid #2D4960;border-radius:14px;padding:17px 18px;margin:0 0 12px;min-height:205px;}
+.geo-horse-label {color:#4DE2DA;font-size:13px;font-weight:800;letter-spacing:.05em;}
+.geo-horse-name {color:#F6FBFF;font-size:20px;font-weight:800;margin:10px 0;}
+.geo-horse-number {color:#9EB7C9;font-size:13px;}
+.geo-score {font-size:30px;color:#4DE2DA;font-weight:800;}
+.geo-horse-meta {font-size:12px;color:#A7BCCF;line-height:1.8;}
+@media(max-width:700px) {.geo-hero {padding:19px 18px}.race-info-box{padding:17px}.geo-race-title{font-size:19px}.geo-pill{font-size:12px}}
+</style>
     """,
     unsafe_allow_html=True,
 )
 
-
 st.markdown(
-    "<h2 style='text-align: center; color: #f1c40f;'>"
-    "本格競馬展開シミュレーター（JRA-VAN完全連携版）"
-    "</h2>",
+    """<div class="geo-hero">
+<div class="geo-eyebrow">GEO INTELLIGENCE SYSTEM · JRA-VAN</div>
+<div class="geo-name">GEO <span>AI</span></div>
+<div class="geo-tag">RACING INTELLIGENCE / 展開予測・血統解析・自己学習</div>
+</div>""",
     unsafe_allow_html=True,
 )
 
@@ -857,33 +863,15 @@ st.sidebar.info(
 
 
 st.markdown(
-    f"""
-    <div class="race-info-box">
-        <h3 style="margin: 0; color: #f1c40f;">
-            📌 JRA-VAN読み込み済みレース
-        </h3>
-
-        <p style="font-size: 18px; margin: 5px 0 0 0;">
-            <b>競馬場:</b> {race_place}
-            (直線: {straight_len}m)
-            &nbsp;|&nbsp;
-
-            <b>馬場種別:</b> {race_surface}
-            &nbsp;|&nbsp;
-
-            <b>距離:</b> {race_distance}m
-            &nbsp;|&nbsp;
-
-            <b>クラス:</b> {race_class}
-            &nbsp;|&nbsp;
-
-            <b>馬場状態:</b> {default_baba}
-            &nbsp;|&nbsp;
-
-            <b>出走頭数:</b> {len(df_race)}頭
-        </p>
-    </div>
-    """,
+    f"""<div class="race-info-box">
+<div class="geo-section-label">RACE INTELLIGENCE / JRA-VAN DATA CONNECTED</div>
+<div class="geo-race-title">{html.escape(str(race_place))} · {html.escape(str(race_class))} · {html.escape(str(race_distance))}m</div>
+<div class="geo-pills">
+<span class="geo-pill"><b>COURSE</b> {html.escape(str(race_surface))}</span>
+<span class="geo-pill"><b>TRACK</b> {html.escape(str(default_baba))}</span>
+<span class="geo-pill"><b>RUNNERS</b> {len(df_race)}頭</span>
+<span class="geo-pill"><b>STRAIGHT</b> {straight_len}m</span>
+</div></div>""",
     unsafe_allow_html=True,
 )
 
@@ -3223,15 +3211,19 @@ def display_geo_prediction(geo):
                 st.info(f"{label}\n\n該当なし")
                 continue
 
-            st.markdown(f"### {label}")
-            st.markdown(f"## {horse['馬番']}番")
-            st.markdown(f"### {horse['馬名']}")
-            st.write(f"父：{horse.get('父', '不明')}")
-            st.write(f"母：{horse.get('母', '不明')}")
-            st.write(f"ジオ評価：**{horse['ジオ評価']:.1f}**")
-            st.write(f"統合指数：{horse['統合指数']:.1f}")
-            st.write(f"オッズ：{horse['オッズ']:.1f}")
-            st.write(f"脚質：{horse.get('脚質', '')}")
+            st.markdown(
+                f"""<div class="geo-horse-card">
+<div class="geo-horse-label">{html.escape(label)} / AI RANKING</div>
+<div class="geo-horse-name">{html.escape(str(horse['馬名']))}</div>
+<div class="geo-horse-number">HORSE NO. {html.escape(str(horse['馬番']))}</div>
+<div class="geo-score">{float(horse['ジオ評価']):.1f}</div>
+<div class="geo-horse-meta">統合指数 {float(horse['統合指数']):.1f}　/　オッズ {float(horse['オッズ']):.1f}<br>
+脚質 {html.escape(str(horse.get('脚質', '')))}<br>
+父 {html.escape(str(horse.get('父', '不明')))}<br>
+母 {html.escape(str(horse.get('母', '不明')))}</div>
+</div>""",
+                unsafe_allow_html=True,
+            )
             member_score = horse.get("メンバーレベル")
             try:
                 if pd.notna(member_score):
