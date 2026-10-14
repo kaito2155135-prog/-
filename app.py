@@ -174,9 +174,9 @@ def load_base_data_excel():
         df_f3 = (
             pd.read_excel(
                 excel_filename,
-                sheet_name="基準上がり3F"
+                sheet_name="馬場別基準上がり3Fタイム"
             )
-            if "基準上がり3F" in xls.sheet_names
+            if "馬場別基準上がり3Fタイム" in xls.sheet_names
             else None
         )
 
@@ -188,6 +188,8 @@ def load_base_data_excel():
 
 
 df_base_master, df_f3_master = load_base_data_excel()
+if df_f3_master is None:
+    st.error("Excelの『馬場別基準上がり3Fタイム』シートが見つかりません。上がり3F評価は基準なしとして扱います。")
 
 
 if df_base_master is not None and "距離" in df_base_master.columns:
@@ -206,6 +208,35 @@ if df_f3_master is not None and "距離" in df_f3_master.columns:
         .str.extract(r"(\d+)")[0],
         errors="coerce",
     )
+
+
+def geo_f3_master_lookup(master, course, surface, distance, race_class, baba):
+    """Excelの競馬場・芝ダ・距離・クラス・馬場に完全一致する上がり3F基準。"""
+    if master is None or master.empty:
+        return None
+    course = str(course).strip()
+    surface = "ダート" if "ダ" in str(surface) else "芝"
+    race_class = str(race_class).strip().replace("クラス", "")
+    # G1/G2/G3/LはOP区分にまとめる（Excelの分類に準拠）
+    if race_class.upper() in ("G1", "G2", "G3", "GI", "GII", "GIII", "L", "OP", "オープン"):
+        race_class = "OP"
+    if race_class in ("1勝C", "2勝C", "3勝C"):
+        race_class = race_class[:2]
+    baba = str(baba).strip()
+    if baba not in ("良", "稍重", "重", "不良"):
+        return None
+    matches = master.loc[
+        master["競馬場"].astype(str).str.strip().eq(course)
+        & master["芝/ダート"].astype(str).str.strip().eq(surface)
+        & pd.to_numeric(master["距離_num"], errors="coerce").eq(float(distance))
+        & master["クラス"].astype(str).str.strip().eq(race_class)
+    ]
+    if matches.empty:
+        return None
+    value = pd.to_numeric(matches.iloc[0][baba], errors="coerce")
+    if pd.isna(value) or not (20.0 <= float(value) <= 60.0):
+        return None
+    return float(value)
 
 
 # =========================================================
@@ -1544,92 +1575,14 @@ def run_integrated_simulation(
                 / 1000.0
             ) * 59.0
 
-    target_base_f3 = 0.0
-
-    if f3_master_df is not None:
-        match_f3 = f3_master_df[
-            (
-                f3_master_df["競馬場"]
-                .astype(str)
-                .str.contains(
-                    place_name,
-                    na=False
-                )
-            )
-            &
-            (
-                f3_master_df["芝/ダート"]
-                ==
-                surface_keyword
-            )
-            &
-            (
-                f3_master_df["距離_num"]
-                ==
-                target_distance
-            )
-            &
-            (
-                f3_master_df["クラス"]
-                .astype(str)
-                .str.contains(
-                    target_base_class,
-                    na=False
-                )
-            )
-        ]
-
-        if match_f3.empty:
-            match_f3 = f3_master_df[
-                (
-                    f3_master_df["競馬場"]
-                    .astype(str)
-                    .str.contains(
-                        place_name,
-                        na=False
-                    )
-                )
-                &
-                (
-                    f3_master_df["芝/ダート"]
-                    ==
-                    surface_keyword
-                )
-                &
-                (
-                    f3_master_df["距離_num"]
-                    ==
-                    target_distance
-                )
-            ]
-
-        if not match_f3.empty:
-            baba_col = (
-                condition
-                if condition in [
-                    "良",
-                    "稍重",
-                    "重",
-                    "不良"
-                ]
-                else "良"
-            )
-
-            if baba_col in match_f3.columns:
-                target_base_f3 = pd.to_numeric(
-                    match_f3.iloc[0][baba_col],
-                    errors="coerce"
-                )
-
-    if (
-        pd.isna(target_base_f3)
-        or target_base_f3 <= 0
-    ):
-        target_base_f3 = (
-            34.5
-            if "芝" in surface
-            else 37.0
-        )
+    target_base_f3 = geo_f3_master_lookup(
+        f3_master_df, place_name, surface_keyword,
+        target_distance, target_base_class, condition
+    )
+    target_f3_missing = target_base_f3 is None
+    if target_f3_missing:
+        # 根拠のない34.5/37.0秒を使わない。3F評価のみスキップ。
+        target_base_f3 = 0.0
 
     if "ダ" in surface:
         f3_weight_factor = max(
@@ -1805,6 +1758,7 @@ def run_integrated_simulation(
             derived_times = []
             derived_f3s = []
             f3_history_rows = []
+            f3_skipped_no_excel = 0
 
             for _, row in group.iterrows():
                 r_course = str(
@@ -2127,92 +2081,14 @@ def run_integrated_simulation(
                     not pd.isna(r_f3_time)
                     and r_f3_time > 0
                 ):
-                    past_base_f3 = 0.0
-
-                    if f3_master_df is not None:
-                        f3_match = f3_master_df[
-                            (
-                                f3_master_df["競馬場"]
-                                .astype(str)
-                                .str.contains(
-                                    r_course,
-                                    na=False
-                                )
-                            )
-                            &
-                            (
-                                f3_master_df["芝/ダート"]
-                                ==
-                                r_surface_keyword
-                            )
-                            &
-                            (
-                                f3_master_df["距離_num"]
-                                ==
-                                r_dist
-                            )
-                            &
-                            (
-                                f3_master_df["クラス"]
-                                .astype(str)
-                                .str.contains(
-                                    r_class_keyword,
-                                    na=False
-                                )
-                            )
-                        ]
-
-                        if f3_match.empty:
-                            f3_match = f3_master_df[
-                                (
-                                    f3_master_df["競馬場"]
-                                    .astype(str)
-                                    .str.contains(
-                                        r_course,
-                                        na=False
-                                    )
-                                )
-                                &
-                                (
-                                    f3_master_df["芝/ダート"]
-                                    ==
-                                    r_surface_keyword
-                                )
-                                &
-                                (
-                                    f3_master_df["距離_num"]
-                                    ==
-                                    r_dist
-                                )
-                            ]
-
-                        if not f3_match.empty:
-                            b_col = (
-                                r_baba
-                                if r_baba in [
-                                    "良",
-                                    "稍重",
-                                    "重",
-                                    "不良"
-                                ]
-                                else "良"
-                            )
-
-                            if b_col in f3_match.columns:
-                                past_base_f3 = pd.to_numeric(
-                                    f3_match.iloc[0][b_col],
-                                    errors="coerce"
-                                )
-
-                    if (
-                        pd.isna(past_base_f3)
-                        or past_base_f3 <= 0
-                    ):
-                        past_base_f3 = (
-                            34.5
-                            if r_surface_keyword == "芝"
-                            else 37.0
-                        )
+                    past_base_f3 = geo_f3_master_lookup(
+                        f3_master_df, r_course, r_surface_keyword,
+                        r_dist, r_class_keyword, r_baba
+                    )
+                    if past_base_f3 is None or target_f3_missing:
+                        # 条件に合うExcel基準がない過去走は3F評価に使わない。
+                        f3_skipped_no_excel += 1
+                        continue
 
                     f3_diff = (
                         r_f3_time
@@ -2258,9 +2134,7 @@ def run_integrated_simulation(
                         "過去基準差": float(f3_diff),
                         "クラス補正秒": float(f3_class_adjustment),
                         "換算上がり3F": float(converted_f3),
-                        "過去基準フォールバック疑い": bool(
-                            abs(float(past_base_f3) - (34.5 if r_surface_keyword == "芝" else 37.0)) < 0.00001
-                        ),
+                        "過去基準フォールバック疑い": False,
                     })
 
             soha_score = 0.0
@@ -2296,7 +2170,7 @@ def run_integrated_simulation(
             f3_advantage = None
             f3_raw_score = None
 
-            if derived_f3s:
+            if derived_f3s and not target_f3_missing:
                 sorted_f3s = sorted(
                     derived_f3s
                 )
@@ -2323,10 +2197,10 @@ def run_integrated_simulation(
                 "対象距離": int(target_distance),
                 "対象クラス": str(target_base_class),
                 "対象馬場": str(condition),
-                "対象基準フォールバック疑い": bool(
-                    abs(float(target_base_f3) - (34.5 if surface_keyword == "芝" else 37.0)) < 0.00001
-                ),
+                "対象基準フォールバック疑い": False,
+                "対象基準Excel一致": not target_f3_missing,
                 "有効過去走数": len(derived_f3s),
+                "Excel不一致で除外した過去走": f3_skipped_no_excel,
                 "換算3F中央値": f3_val_to_use,
                 "基準との差（秒）": f3_advantage,
                 "3F重み係数": float(f3_weight_factor),
@@ -3385,7 +3259,7 @@ def display_geo_prediction(geo):
                     "制限前": diag.get("制限前の3F点"),
                     "実際の加減点": diag.get("制限後の3F点"),
                     "下限到達": diag.get("下限-3に到達", False),
-                    "対象基準の固定値疑い": diag.get("対象基準フォールバック疑い", False),
+                    "対象Excel一致": diag.get("対象基準Excel一致", False),
                 })
             if all_f3_rows:
                 all_f3_df = pd.DataFrame(all_f3_rows)
@@ -3395,7 +3269,7 @@ def display_geo_prediction(geo):
                 st.caption(f"過去走あり {valid}/{len(all_f3_df)}頭 ｜ −3点下限に到達 {at_floor}頭")
                 if valid and at_floor == valid:
                     st.warning("有効過去走のある全馬が−3点の下限に張り付いています。基準値の対応と上がりタイムの単位を確認してください。")
-                st.info("「固定値疑い」は34.5秒（芝）/37.0秒（ダート）と一致した目印であり、Excelから同じ値を取得した場合も含みます。フォールバック確定ではありません。")
+                st.info("v14：上がり3F基準はExcelの競馬場・芝ダート・距離・クラス・馬場状態を厳密照合。未登録条件は3F評価から除外します。")
                 chosen_f3_diag = chosen.get("上がり3F診断")
                 if isinstance(chosen_f3_diag, dict):
                     st.markdown(f"**選択馬：{chosen.get('馬名', '—')} の過去走別診断**")
