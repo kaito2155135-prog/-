@@ -1850,70 +1850,9 @@ def run_integrated_simulation(
                     if past_base_time is None or target_soha_missing:
                         continue
 
-                    distance_diff = (
-                        target_distance - r_dist
-                    )
-
-                    if distance_diff > 0:
-                        remaining = distance_diff
-                        current_distance = r_dist
-                        distance_penalty_or_bonus = 0.0
-
-                        while remaining > 0:
-                            if current_distance < 1400:
-                                furlong_weight = 1.15
-                                next_boundary = 1400
-                            elif current_distance < 1800:
-                                furlong_weight = 1.00
-                                next_boundary = 1800
-                            elif current_distance < 2200:
-                                furlong_weight = 0.85
-                                next_boundary = 2200
-                            else:
-                                furlong_weight = 0.70
-                                next_boundary = float("inf")
-
-                            segment = min(
-                                remaining,
-                                next_boundary - current_distance
-                            )
-
-                            distance_penalty_or_bonus += (
-                                segment / 200.0
-                            ) * furlong_weight
-
-                            current_distance += segment
-                            remaining -= segment
-                    else:
-                        remaining = abs(distance_diff)
-                        current_distance = r_dist
-                        distance_penalty_or_bonus = 0.0
-
-                        while remaining > 0:
-                            if current_distance <= 1400:
-                                furlong_weight = 1.15
-                                previous_boundary = 0
-                            elif current_distance <= 1800:
-                                furlong_weight = 1.00
-                                previous_boundary = 1400
-                            elif current_distance <= 2200:
-                                furlong_weight = 0.85
-                                previous_boundary = 1800
-                            else:
-                                furlong_weight = 0.70
-                                previous_boundary = 2200
-
-                            segment = min(
-                                remaining,
-                                current_distance - previous_boundary
-                            )
-
-                            distance_penalty_or_bonus -= (
-                                segment / 200.0
-                            ) * furlong_weight
-
-                            current_distance -= segment
-                            remaining -= segment
+                    # v22: Excelの距離別基準タイムで換算済みのため、
+                    # 追加の距離延長・短縮補正は適用しない。
+                    distance_penalty_or_bonus = 0.0
 
                     # v20: 1階級につき±0.2秒（例：1勝→3勝は+0.4秒）。
                     # 既存の連勝中(is_rising)の例外処理は維持。
@@ -1951,6 +1890,7 @@ def run_integrated_simulation(
                             "今回クラス": target_cls,
                             "今回クラス階級": target_c_rank,
                             "階級差": class_diff,
+                            "追加距離補正秒": 0.0,
                             "クラス補正秒": round(float(class_level_penalty), 3),
                             "連勝補正秒": -0.2 if is_rising else 0.0,
                             "過去基準採用クラス": past_soha_matched_class,
