@@ -436,6 +436,12 @@ race_id = selected_race_summary.get(
 race_id = str(race_id)
 
 st.session_state["current_race_id"] = race_id
+# 別レースの前回シミュレーション結果を新しいレースとして表示しない。
+if st.session_state.get("geo_simulation_race_id") not in (None, race_id):
+    st.session_state.pop("df_simulated", None)
+    st.session_state.pop("master_data_jv", None)
+    st.session_state["sim_executed"] = False
+st.session_state["geo_simulation_race_id"] = race_id
 
 # =========================================================
 # 選択レース詳細
@@ -3587,12 +3593,17 @@ if st.button(
                 "⚠️ race_idが取得できないため、個別予想を表示します。"
             )
 
-    st.session_state["geo_prediction"] = geo_result
+    if geo_result is not None:
+        st.session_state["geo_prediction"] = geo_result
+        st.session_state["geo_prediction_race_id"] = str(race_id)
 
-    if "geo_prediction" in st.session_state:
-        display_geo_prediction(st.session_state["geo_prediction"])
-
-else:
+# Streamlitはselectboxを変更するたびにスクリプトを再実行する。
+# ボタンの押下状態ではなく、保存済みの予想とレースIDを基準に表示を維持する。
+_cached_geo = st.session_state.get("geo_prediction")
+_cached_race_id = st.session_state.get("geo_prediction_race_id")
+if _cached_geo is not None and _cached_race_id == str(race_id):
+    display_geo_prediction(_cached_geo)
+elif not st.session_state.get("sim_executed", False):
     st.info(
         "👆 ペース・バイアス等を設定して、"
         "上のボタンを押すとJRA-VANの過去走を取得して"
