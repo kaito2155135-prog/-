@@ -78,6 +78,22 @@ h3 {font-size:1.17rem !important;}
 .geo-score {font-size:30px;color:#4DE2DA;font-weight:800;}
 .geo-horse-meta {font-size:12px;color:#A7BCCF;line-height:1.8;}
 @media(max-width:700px) {.geo-hero {padding:19px 18px}.race-info-box{padding:17px}.geo-race-title{font-size:19px}.geo-pill{font-size:12px}}
+
+/* GEO AI Ultimate v9: desktop command center */
+@media (min-width: 1100px) {
+  [data-testid="stSidebar"] {min-width:255px !important;max-width:285px !important;}
+  .block-container {max-width:1720px;padding-left:2rem;padding-right:2rem;}
+}
+[data-testid="stSidebar"] [data-testid="stSidebarContent"] {background:linear-gradient(180deg,#0b2338,#071323 75%);}
+[data-testid="stTabs"] [data-baseweb="tab-list"] {background:#0B1B2C;border:1px solid #27455C;border-radius:11px;padding:5px;gap:4px;}
+[data-testid="stTabs"] button[role="tab"] {border-radius:8px;color:#A8C5D9;font-weight:650;padding:8px 15px;}
+[data-testid="stTabs"] button[aria-selected="true"] {background:#0A6686;color:#FFFFFF !important;}
+[data-testid="stTabs"] [data-baseweb="tab-highlight"] {display:none;}
+.geo-kicker {color:#DCC18A;letter-spacing:.14em;font-size:12px;font-weight:800;}
+.geo-panel-title {font-size:19px;font-weight:800;color:#F2F8FF;margin:10px 0 12px;}
+.geo-overview {border:1px solid #254B67;border-radius:14px;background:linear-gradient(135deg,#0E2538,#0A1727);padding:16px 20px;margin:12px 0;}
+.geo-overview strong {color:#53E9F0;}
+@media (max-width:700px) {[data-testid="stTabs"] button[role="tab"] {font-size:12px;padding:7px 8px;}}
 </style>
     """,
     unsafe_allow_html=True,
@@ -3196,6 +3212,89 @@ def display_geo_prediction(geo):
         return
 
     st.markdown("---")
+    st.markdown('<div class="geo-kicker">GEO AI / RACE INTELLIGENCE</div>', unsafe_allow_html=True)
+    st.subheader("AI予想コマンドセンター")
+    chart_df = geo.get("df_geo")
+    if isinstance(chart_df, pd.DataFrame) and not chart_df.empty:
+        dashboard_df = chart_df.copy()
+        for field in ["ジオ評価", "統合指数", "オッズ", "メンバーレベル"]:
+            if field in dashboard_df.columns:
+                dashboard_df[field] = pd.to_numeric(dashboard_df[field], errors="coerce")
+        if "ジオ評価" in dashboard_df.columns:
+            dashboard_df = dashboard_df.sort_values("ジオ評価", ascending=False)
+        dashboard_df = dashboard_df.reset_index(drop=True)
+        dashboard_df.insert(0, "順位", range(1, len(dashboard_df)+1))
+        left, right = st.columns([1.1, 1.2], gap="medium")
+        with left:
+            st.markdown('<div class="geo-panel-title">♛ AI予想順位</div>', unsafe_allow_html=True)
+            fields = [c for c in ["順位", "馬番", "馬名", "ジオ評価", "統合指数", "オッズ"] if c in dashboard_df.columns]
+            st.dataframe(dashboard_df[fields], use_container_width=True, hide_index=True, height=410)
+            st.caption("順位はジオ評価によるもの。勝率を表す数値ではありません。")
+        with right:
+            st.markdown('<div class="geo-panel-title">◆ 馬別インテリジェンス</div>', unsafe_allow_html=True)
+            options = list(range(len(dashboard_df)))
+            choice = st.selectbox(
+                "分析対象馬", options,
+                format_func=lambda i: f"{dashboard_df.iloc[i].get('馬番','')}番  {dashboard_df.iloc[i].get('馬名','')}",
+                key="geo_v9_selected_horse",
+            )
+            chosen = dashboard_df.iloc[choice]
+            a,b,c = st.columns(3)
+            a.metric("GEO INDEX", f"{chosen.get('ジオ評価', float('nan')):.1f}" if pd.notna(chosen.get('ジオ評価')) else "—")
+            b.metric("能力指数", f"{chosen.get('統合指数', float('nan')):.1f}" if pd.notna(chosen.get('統合指数')) else "—")
+            member = chosen.get("メンバーレベル")
+            c.metric("メンバーレベル", f"{member:.1f}" if member is not None and pd.notna(member) else "未取得")
+            st.caption(f"脚質：{chosen.get('脚質', '不明')}　父：{chosen.get('父', '不明')}")
+            metrics = {k: float(chosen[k]) for k in ["ジオ評価","統合指数","メンバーレベル"]
+                       if k in chosen.index and pd.notna(chosen[k])}
+            if metrics:
+                try:
+                    import plotly.graph_objects as go
+                    fig = go.Figure(go.Scatterpolar(
+                        r=list(metrics.values()) + [next(iter(metrics.values()))],
+                        theta=list(metrics.keys()) + [next(iter(metrics.keys()))],
+                        fill="toself", line=dict(color="#43DCE7",width=2),
+                        fillcolor="rgba(67,220,231,0.19)",
+                    ))
+                    fig.update_layout(
+                        height=250,margin=dict(l=35,r=35,t=12,b=20),
+                        paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",
+                        font=dict(color="#BBD7E6"),
+                        polar=dict(bgcolor="rgba(0,0,0,0)",
+                            radialaxis=dict(visible=True,range=[0,max(110,max(metrics.values())*1.1)],
+                                            gridcolor="#34546C"),
+                            angularaxis=dict(gridcolor="#34546C")),
+                        showlegend=False,
+                    )
+                    st.plotly_chart(fig,use_container_width=True)
+                    st.caption("レーダーは異なる指数をそのまま比較表示した参考図。尺度の違いに注意。")
+                except ImportError:
+                    st.bar_chart(pd.DataFrame({"指数":metrics}),height=220)
+            else:
+                st.info("指数データがまだありません。")
+        tabs = st.tabs(["📊 指数比較", "🧬 血統・メンバー", "🏇 展開データ"])
+        with tabs[0]:
+            cols = [c for c in ["ジオ評価","統合指数","メンバーレベル"] if c in dashboard_df.columns and dashboard_df[c].notna().any()]
+            if cols:
+                st.bar_chart(dashboard_df.head(10).set_index("馬名")[cols],height=280)
+            else:
+                st.info("比較可能な指数がありません。")
+        with tabs[1]:
+            st.caption("父系の血統適性とメンバーレベルを表示。欠損値は推測で補いません。")
+            blood_cols = [c for c in dashboard_df.columns if "血統" in str(c) or "メンバー" in str(c)]
+            if blood_cols:
+                st.dataframe(dashboard_df[["馬名"]+blood_cols],use_container_width=True,hide_index=True)
+            else:
+                st.info("血統・メンバーレベルの比較列はありません。下の根拠診断で確認してください。")
+        with tabs[2]:
+            st.caption("予想時点の脚質データです。走行位置のアニメーションや未計算の能力値は表示しません。")
+            if "脚質" in dashboard_df.columns:
+                st.dataframe(dashboard_df[[c for c in ["馬番","馬名","脚質","ジオ評価"] if c in dashboard_df.columns]],
+                             use_container_width=True,hide_index=True)
+            else:
+                st.info("脚質データがありません。")
+    else:
+        st.info("レース予想を実行するとAI順位表・馬別分析が表示されます。")
     st.subheader("🧠 ジオの最終判断")
 
     cols = st.columns(3)
