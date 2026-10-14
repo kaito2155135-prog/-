@@ -2805,7 +2805,7 @@ def apply_geo_learning_adjustment(df, pace, bias, condition, venue=""):
         for idx in df.index:
             key = str(df.loc[idx].get("馬番", "")).replace(".0", "")
             item = adjustment_map.get(key, {"adjustment": 0.0, "matched_features": [], "detail": "API応答なし"})
-            adjustment = float(item["adjustment"])
+            adjustment = max(-5.0, min(5.0, float(item["adjustment"]) * 1.5))
             df.loc[idx, "学習補正"] = adjustment
             df.loc[idx, "学習一致条件"] = "、".join(item["matched_features"]) or "一致条件なし"
             df.loc[idx, "学習補正内訳"] = item["detail"]
@@ -2997,12 +2997,12 @@ def run_geo_prediction(
 
 
         if score >= df["統合指数"].quantile(0.8):
-            bonus += 8
-            components["能力順位"] += 8
-            point.append("能力指数が上位")
-        elif score >= df["統合指数"].quantile(0.6):
             bonus += 3
             components["能力順位"] += 3
+            point.append("能力指数が上位")
+        elif score >= df["統合指数"].quantile(0.6):
+            bonus += 1
+            components["能力順位"] += 1
 
         if pace == "S":
             if style in ["逃げ", "先行"]:
@@ -3052,10 +3052,8 @@ def run_geo_prediction(
                 components["馬場バイアス"] += 4
                 point.append("外有利の馬場と脚質が合う")
 
-        if odds >= 8 and score >= df["統合指数"].quantile(0.7):
-            bonus += 8
-            components["穴馬評価"] += 8
-            point.append("人気に対して能力評価が高い穴候補")
+        # v12試験案：穴馬ボーナスは0点。オッズは能力順位の押し上げに使用しない。
+        # 馬券期待値の判定は別系統として今後検証する。
 
         if odds <= 4 and score <= df["統合指数"].quantile(0.4):
             penalty += 7
@@ -3086,7 +3084,7 @@ def run_geo_prediction(
                 "低": 0.4,
             }.get(bloodline_confidence, 0.5)
 
-            bloodline_bonus *= confidence_factor
+            bloodline_bonus = max(-8.0, min(8.0, bloodline_bonus * confidence_factor * 2.0))
             if bloodline_bonus != 0:
                 # 「血統適性スコア」と「ジオ評価へ実際に加える点数」を区別して表示する。
                 point.append(
@@ -3100,7 +3098,7 @@ def run_geo_prediction(
         try:
             member_value = float(member_value)
             if np.isfinite(member_value):
-                member_bonus = max(-4.0, min(4.0, (member_value - 50.0) / 12.5))
+                member_bonus = max(-8.0, min(8.0, (member_value - 50.0) / 12.5 * 2.0))
                 point.append(
                     f"メンバーレベル{member_value:.1f}点（{row.get('メンバーレベル判定', '判定材料不足')}・{int(row.get('メンバーレベル使用レース数', 0) or 0)}レース）"
                 )
@@ -3293,6 +3291,36 @@ def display_geo_prediction(geo):
             else:
                 st.info("この予想は内訳保存前のデータです。新しいコードで予想を実行すると表示されます。")
 
+        with st.expander("🧪 v12 試験配点と旧配点の比較", expanded=True):
+            st.caption("v12は試験配点を予想に適用中。旧配点は保存された各馬の内訳から比較用に再構成します。オッズを使う旧穴馬加点の判定は予想時のオッズを参照します。")
+            comparisons = []
+            threshold80 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.8)
+            threshold60 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.6)
+            threshold70 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.7)
+            for _, item in dashboard_df.iterrows():
+                parts = item.get("最終評価内訳")
+                if not isinstance(parts, dict):
+                    continue
+                trial = float(item["ジオ評価"])
+                idx_score = float(item["統合指数"])
+                old_ability = 8.0 if idx_score >= threshold80 else (3.0 if idx_score >= threshold60 else 0.0)
+                old_outsider = 8.0 if float(item.get("オッズ", 999)) >= 8 and idx_score >= threshold70 else 0.0
+                old = (trial - float(parts.get("能力順位", 0)) - float(parts.get("穴馬評価", 0))
+                       - float(parts.get("血統補正", 0)) / 2 - float(parts.get("メンバーレベル", 0)) / 2
+                       - float(parts.get("自己学習", 0)) / 3
+                       + old_ability + old_outsider)
+                # Above subtracts half of doubled pedigree/member and one-third of 1.5x learning.
+                comparisons.append({"馬番":item.get("馬番"), "馬名":item.get("馬名"),
+                                    "試験配点":round(trial,3),"旧配点の参考再構成":round(old,3)})
+            if comparisons:
+                comp_df = pd.DataFrame(comparisons)
+                comp_df["試験順位"] = comp_df["試験配点"].rank(method="min",ascending=False).astype(int)
+                comp_df["旧参考順位"] = comp_df["旧配点の参考再構成"].rank(method="min",ascending=False).astype(int)
+                st.dataframe(comp_df.sort_values("試験順位"),use_container_width=True,hide_index=True)
+                st.caption("旧配点は再計算した参考値です。補正の上限に達した馬では厳密な旧スコアと異なる可能性があります。")
+            else:
+                st.info("比較できる最終評価内訳がありません。")
+
         with st.expander("🎯 最終ジオ評価の全補正内訳｜配点検証", expanded=True):
             st.caption("統合指数から最終評価まで、実際に適用された加減点。自己学習はAPIから取得した補正値です。")
             details = chosen.get("最終評価内訳")
@@ -3310,7 +3338,7 @@ def display_geo_prediction(geo):
                     st.success("最終ジオ評価と補正内訳の合計が一致しています。")
                 else:
                     st.error(f"補正内訳の合計と最終評価が一致しません（差 {total-actual:+.6f}pt）。")
-                st.caption("現在は配点の表示のみ。画面から配点を変更する機能は未実装です。検証前に重みを変更しないでください。")
+                st.caption("v12試験配点を適用しています。変更前のv11をバックアップし、今週末の予想と結果を比較してください。")
             else:
                 st.info("この予想には最終評価の内訳がありません。新しいコードで予想した場合に表示されます。")
 
