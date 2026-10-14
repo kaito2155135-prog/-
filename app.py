@@ -1257,9 +1257,15 @@ def build_master_data_from_jv(df_current):
             )
         )
 
+        # JRA-VAN上がり3Fは332=33.2秒のような1/10秒単位で届く場合がある。
+        # 既に33.2秒で届くデータを再度10で割らないよう、値域で判定する。
         try:
             f3 = float(f3)
-        except Exception:
+            if 250 <= f3 <= 700:
+                f3 /= 10.0
+            elif not (25.0 <= f3 <= 70.0):
+                f3 = np.nan  # 不正値を計算に使わない
+        except (TypeError, ValueError):
             f3 = np.nan
 
         raw_finish = h.get(
@@ -3362,8 +3368,8 @@ def display_geo_prediction(geo):
             else:
                 st.info("この予想は内訳保存前のデータです。新しいコードで予想を実行すると表示されます。")
 
-        with st.expander("🔬 上がり3F診断｜全頭−3点の原因確認", expanded=True):
-            st.caption("予想時に実際に使った値を表示します。診断のみで、予想点数やDB保存処理は変更していません。")
+        with st.expander("🔬 上がり3F診断｜単位補正後の計算確認", expanded=True):
+            st.caption("上がり3Fの332→33.2秒などの単位補正を予想計算に適用しています。ここでは補正後の計算値を確認できます。")
             all_f3_rows = []
             for _, horse in dashboard_df.iterrows():
                 diag = horse.get("上がり3F診断")
