@@ -2405,7 +2405,7 @@ def run_integrated_simulation(
             "基礎点": 70.0,
             "着順能力": float(ability_bonus),
             "コース適性": float(combined_theory_bonus),
-            "走破タイム": float(soha_theory_bonus) * 1.5,
+            "走破タイム": float(soha_theory_bonus) * 1.2,
             "上がり3F": float(f3_theory_bonus),
             "連勝": 4.0 if is_rising else 0.0,
             "タフネス": 0.0,
