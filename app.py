@@ -2368,6 +2368,7 @@ def run_integrated_simulation(
                     )
 
     scored_horses = []
+    index_breakdowns = []
     rising_star_flags = []
     inferred_styles = []
 
@@ -2446,89 +2447,53 @@ def run_integrated_simulation(
             toughness_val - 1.0
         ) * 4.0
 
-        raw_index = (
-            70.0
-            + ability_bonus
-            + combined_theory_bonus
-            + (
-                soha_theory_bonus
-                * 1.5
-            )
-            + (
-                f3_theory_bonus
-                * 1.0
-            )
-        )
+        # GEO基礎統合指数：実際の加点・減点を予想時点で記録する。
+        # 表示のための再計算ではなく、計算そのものと同じ内訳を保存する。
+        components = {
+            "基礎点": 70.0,
+            "着順能力": float(ability_bonus),
+            "コース適性": float(combined_theory_bonus),
+            "走破タイム": float(soha_theory_bonus) * 1.5,
+            "上がり3F": float(f3_theory_bonus),
+            "連勝": 4.0 if is_rising else 0.0,
+            "タフネス": 0.0,
+            "直線・脚質": 0.0,
+            "ペース": 0.0,
+            "馬場バイアス": 0.0,
+            "得意馬場": 0.0,
+        }
 
-        if is_rising:
-            raw_index += 4.0
-
-        if (
-            toughness_val >= 1.2
-            and kyakushitsu in [
-                "逃げ",
-                "先行"
-            ]
-        ):
-            raw_index += (
-                toughness_effect
-                * 1.5
-            )
+        if toughness_val >= 1.2 and kyakushitsu in ["逃げ", "先行"]:
+            components["タフネス"] = float(toughness_effect) * 1.5
 
         if straight_length < 320:
-            if kyakushitsu in [
-                "逃げ",
-                "先行"
-            ]:
-                raw_index += 5.0
-            elif kyakushitsu in [
-                "差し",
-                "追込"
-            ]:
-                raw_index -= 2.0
+            if kyakushitsu in ["逃げ", "先行"]:
+                components["直線・脚質"] = 5.0
+            elif kyakushitsu in ["差し", "追込"]:
+                components["直線・脚質"] = -2.0
 
-        if (
-            pace == "S（スロー）"
-            and kyakushitsu in [
-                "逃げ",
-                "先行"
-            ]
-        ):
-            raw_index += 3.0
-        elif (
-            pace == "H（ハイ）"
-            and kyakushitsu in [
-                "差し",
-                "追込"
-            ]
-        ):
-            raw_index += (
-                4.5
-                + (
-                    f3_theory_bonus
-                    * 0.5
-                )
-            )
+        if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
+            components["ペース"] = 3.0
+        elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
+            components["ペース"] = 4.5 + float(f3_theory_bonus) * 0.5
 
-        if (
-            bias == "内有利"
-            and wakuban <= 3
-        ):
-            raw_index += 3.0
-        elif (
-            bias == "外有利"
-            and wakuban >= 6
-        ):
-            raw_index += 3.0
+        if bias == "内有利" and wakuban <= 3:
+            components["馬場バイアス"] = 3.0
+        elif bias == "外有利" and wakuban >= 6:
+            components["馬場バイアス"] = 3.0
 
         if tokui_baba == condition:
-            raw_index += 5.0
+            components["得意馬場"] = 5.0
+
+        raw_index = sum(components.values())
+        index_breakdowns.append(components)
 
         scored_horses.append(
             raw_index
         )
 
     res_df["統合指数"] = scored_horses
+    res_df["統合指数内訳"] = index_breakdowns
     res_df["ライジングスター"] = rising_star_flags
     res_df["脚質"] = inferred_styles
 
@@ -3278,6 +3243,27 @@ def display_geo_prediction(geo):
                     st.bar_chart(pd.DataFrame({"指数":metrics}),height=220)
             else:
                 st.info("指数データがまだありません。")
+        with st.expander("🧮 統合指数の計算内訳｜加点・減点の根拠", expanded=True):
+            st.caption("基礎70点から実際に加算・減算された値です。血統・メンバーレベル・学習補正などの最終ジオ評価への補正とは別です。")
+            details = chosen.get("統合指数内訳")
+            if isinstance(details, dict):
+                detail_df = pd.DataFrame([
+                    {"ファクター": name, "加減点": round(float(value), 4)}
+                    for name, value in details.items()
+                ])
+                st.dataframe(detail_df, use_container_width=True, hide_index=True)
+                st.bar_chart(detail_df.set_index("ファクター")[["加減点"]], height=260)
+                total = sum(float(x) for x in details.values())
+                actual = float(chosen["統合指数"])
+                st.metric("内訳合計＝統合指数", f"{total:.4f}pt")
+                if abs(total - actual) > 0.0001:
+                    st.error(f"内訳と統合指数に差があります：{total - actual:+.6f}pt")
+                else:
+                    st.success("統合指数と内訳合計が一致しています")
+                st.caption("走破タイムと上がり3Fはコース適性にも含まれています。二重評価の可能性は今後の検証対象です。")
+            else:
+                st.info("この予想は内訳保存前のデータです。新しいコードで予想を実行すると表示されます。")
+
         tabs = st.tabs(["📊 指数比較", "🧬 血統・メンバー", "🏇 展開データ"])
         with tabs[0]:
             cols = [c for c in ["ジオ評価","統合指数","メンバーレベル"] if c in dashboard_df.columns and dashboard_df[c].notna().any()]
