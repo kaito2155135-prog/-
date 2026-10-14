@@ -1893,6 +1893,12 @@ def run_integrated_simulation(
                             "追加距離補正秒": 0.0,
                             "クラス補正秒": round(float(class_level_penalty), 3),
                             "連勝補正秒": -0.2 if is_rising else 0.0,
+                            "過去走馬場状態": r_baba,
+                            "Excel参照馬場状態": r_baba if r_baba in ("良", "稍重", "重", "不良") else "参照不可",
+                            "過去走馬場状態コード": str(row.get("馬場状態コード", "")),
+                            "過去走芝馬場コード": str(row.get("shiba_babajotai_code", "")),
+                            "過去走ダート馬場コード": str(row.get("dirt_babajotai_code", "")),
+                            "馬場照合結果": "一致" if r_baba in ("良", "稍重", "重", "不良") else "要確認",
                             "過去基準採用クラス": past_soha_matched_class,
                             "過去基準参照元": past_soha_source,
                             "過去基準タイム": round(float(past_base_time), 3),
@@ -3233,8 +3239,8 @@ def display_geo_prediction(geo):
             else:
                 st.info("この予想は内訳保存前のデータです。新しいコードで予想を実行すると表示されます。")
 
-        with st.expander("⏱️ 走破タイム｜クラス別基準・階級差診断（v20）", expanded=False):
-            st.caption("階級差×0.2秒を走破タイムに反映。プラスは今回が格上、マイナスは格下。連勝中の既存例外では階級差補正0秒です。")
+        with st.expander("⏱️ 走破タイム｜馬場状態・クラス別基準診断（v23）", expanded=False):
+            st.caption("過去走の馬場状態とExcel参照列を並べて確認できます。良・稍重・重・不良の厳密参照で、別の馬場列への代替は行いません。")
             _soha_rows = []
             for _, _horse in dashboard_df.iterrows():
                 _diag = _horse.get("走破タイムクラス診断")
@@ -3247,7 +3253,8 @@ def display_geo_prediction(geo):
                 st.dataframe(pd.DataFrame(_soha_rows), use_container_width=True, hide_index=True)
             else:
                 st.info("走破タイムに使える過去走がありません。")
-            st.warning("『Excel・別クラス代替』『概算』の行は、クラス一致の基準タイムではありません。基準タイムによるクラス差と追加の階級差補正が重複する可能性もあるため、検証が必要です。")
+            st.caption("過去走馬場状態コード・芝馬場コード・ダート馬場コードはAPIから受け取った値です。過去走馬場状態とExcel参照馬場状態が一致しているか、実際のJRA-VAN結果と照合してください。")
+            st.warning("クラス別Excel基準と階級差×0.2秒の二重補正については、引き続きバックテストで検証が必要です。")
 
         with st.expander("🔬 上がり3F診断｜単位補正後の計算確認", expanded=True):
             st.caption("上がり3Fの332→33.2秒などの単位補正を予想計算に適用しています。ここでは補正後の計算値を確認できます。")
