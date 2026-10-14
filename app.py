@@ -1086,7 +1086,7 @@ def format_time(seconds):
 # =========================================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def load_horse_history(horse_name):
+def load_horse_history(horse_name, schema_version="v16_grounding"):
     encoded_name = requests.utils.quote(
         horse_name,
         safe=""
@@ -1224,7 +1224,9 @@ def build_master_data_from_jv(df_current):
         )
 
         baba = h.get("馬場状態") or h.get("馬場") or ""
-
+        if str(baba).strip() not in ("良", "稍重", "重", "不良"):
+            baba = ""
+        # 古いキャッシュや一部APIの未設定値は芝/ダート別コードから補完する。
         if not baba:
             track_code = str(
                 h.get("track_code", "")
@@ -1352,8 +1354,12 @@ def build_master_data_from_jv(df_current):
                 "距離": distance,
                 "走破タイム": soha_time,
                 "上がり3Fタイム": f3,
-                "馬場状態": str(baba),
+                "馬場状態": str(baba) if baba else "不明",
                 "芝・ダ": surface,
+                "race_code": str(h.get("race_code") or ""),
+                "馬場状態コード": str(h.get("馬場状態コード") or ""),
+                "shiba_babajotai_code": str(h.get("shiba_babajotai_code") or ""),
+                "dirt_babajotai_code": str(h.get("dirt_babajotai_code") or ""),
                 "略レース名": historical_class,
                 "クラス": historical_class,
                 "着順": finish,
@@ -1377,6 +1383,12 @@ def build_master_data_from_jv(df_current):
     if master_df.empty:
         return master_df
 
+    if "race_code" in master_df.columns:
+        master_df["_valid_f3"] = pd.to_numeric(master_df["上がり3Fタイム"], errors="coerce").gt(0)
+        master_df["_valid_finish"] = pd.to_numeric(master_df["着順"], errors="coerce").ge(1)
+        master_df = (master_df.sort_values(["_valid_finish", "_valid_f3"], ascending=[False, False])
+                     .drop_duplicates(subset=["馬名_clean", "race_code"], keep="first")
+                     .drop(columns=["_valid_f3", "_valid_finish"]))
     if "着順" in master_df.columns:
         master_df = master_df[
             pd.to_numeric(
@@ -1753,6 +1765,8 @@ def run_integrated_simulation(
             derived_f3s = []
             f3_history_rows = []
             f3_skipped_no_excel = 0
+            f3_skipped_reasons = {}
+            f3_rejected_samples = []
 
             for _, row in group.iterrows():
                 r_course = str(
@@ -2080,8 +2094,25 @@ def run_integrated_simulation(
                         r_dist, r_class_keyword, r_baba
                     )
                     if past_base_f3 is None or target_f3_missing:
-                        # 条件に合うExcel基準がない過去走は3F評価に使わない。
+                        # 原因を分離。予想値の代替値への置換はしない。
+                        if target_f3_missing:
+                            reason = "対象レースExcel基準なし"
+                        elif r_baba not in ("良", "稍重", "重", "不良"):
+                            reason = "過去馬場状態が不明"
+                        else:
+                            reason = "過去走Excel条件不一致（競馬場/距離/クラス/馬場）"
+                        f3_skipped_reasons[reason] = f3_skipped_reasons.get(reason, 0) + 1
                         f3_skipped_no_excel += 1
+                        if len(f3_rejected_samples) < 12:
+                            f3_rejected_samples.append({
+                                "除外理由": reason, "race_code": row.get("race_code"),
+                                "競馬場": r_course, "芝ダ": r_surface_keyword,
+                                "距離": r_dist, "クラス": r_class_keyword, "馬場": r_baba,
+                                "馬場コード": row.get("馬場状態コード"),
+                                "芝コード": row.get("shiba_babajotai_code"),
+                                "ダートコード": row.get("dirt_babajotai_code"),
+                                "上がり3F": r_f3_time,
+                            })
                         continue
 
                     f3_diff = (
@@ -2195,6 +2226,8 @@ def run_integrated_simulation(
                 "対象基準Excel一致": not target_f3_missing,
                 "有効過去走数": len(derived_f3s),
                 "Excel不一致で除外した過去走": f3_skipped_no_excel,
+                "除外理由別件数": f3_skipped_reasons,
+                "除外された過去走の例": f3_rejected_samples,
                 "換算3F中央値": f3_val_to_use,
                 "基準との差（秒）": f3_advantage,
                 "3F重み係数": float(f3_weight_factor),
@@ -3247,6 +3280,8 @@ def display_geo_prediction(geo):
                     "馬番": horse.get("馬番"),
                     "馬名": horse.get("馬名"),
                     "有効過去走": diag.get("有効過去走数", 0),
+                    "馬場不明で除外": diag.get("除外理由別件数", {}).get("過去馬場状態が不明", 0),
+                    "Excel条件不一致": diag.get("除外理由別件数", {}).get("過去走Excel条件不一致（競馬場/距離/クラス/馬場）", 0),
                     "対象基準3F": diag.get("対象基準3F"),
                     "換算3F中央値": diag.get("換算3F中央値"),
                     "基準差（秒）": diag.get("基準との差（秒）"),
@@ -3268,6 +3303,10 @@ def display_geo_prediction(geo):
                 if isinstance(chosen_f3_diag, dict):
                     st.markdown(f"**選択馬：{chosen.get('馬名', '—')} の過去走別診断**")
                     st.json({k: v for k, v in chosen_f3_diag.items() if k != "過去走詳細"}, expanded=False)
+                    rejected = chosen_f3_diag.get("除外された過去走の例", [])
+                    if rejected:
+                        st.markdown("**除外された過去走（原因調査用）**")
+                        st.dataframe(pd.DataFrame(rejected), use_container_width=True, hide_index=True)
                     history = chosen_f3_diag.get("過去走詳細", [])
                     if history:
                         st.dataframe(pd.DataFrame(history), use_container_width=True, hide_index=True)
