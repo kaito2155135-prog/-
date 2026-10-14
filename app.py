@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # 基本設定
 # =========================================================
 
-API_BASE = os.environ.get("JRA_VAN_API_BASE", "https://attending-ecological-high-genius.trycloudflare.com").strip().rstrip("/")
+API_BASE = os.environ.get("JRA_VAN_API_BASE", "https://moderator-effort-touring-demo.trycloudflare.com").strip().rstrip("/")
 
 
 def normalize_horse_name(name):
@@ -3283,7 +3283,7 @@ def display_geo_prediction(geo):
 
     st.markdown("### 🎯 ジオの結論")
     st.success(f"{geo['decision']} ｜ ジオ独自の自信度 **{geo['confidence']}%**")
-    st.caption("※この自信度は順位差・オッズ等から算出した内部指標で、馬の実際の勝率や的中確率を示すものではありません。")
+    st.caption("※この自信度はジオ独自の判断指標で、実際の的中確率・勝率ではありません。")
 
     st.markdown("### 💭 ジオの考察")
     for text in geo["comment"]:
