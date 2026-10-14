@@ -4024,6 +4024,32 @@ else:
     st.warning("自動馬券検証APIからデータを取得できませんでした。API側の更新後に再読み込みしてください。")
 
 
+
+# ============================================================
+# Geo v5: 学習データ蓄積・結果照合の診断
+# ============================================================
+with st.expander("🔍 ジオ学習データ診断 v5", expanded=False):
+    st.caption("予想保存・全頭特徴量・結果確定・メンバーレベルの保存状況を調べます。診断は読み取り専用です。")
+    if st.button("📋 学習データの保存状況を確認", key="geo_v5_data_diagnostics"):
+        try:
+            response = requests.get(f"{API_BASE.rstrip('/')}/geo/learning/data-diagnostics", timeout=45)
+            response.raise_for_status()
+            data = response.json()
+            if not data.get('ok'):
+                st.error(str(data.get('error','診断APIエラー')))
+            else:
+                c=data.get('counts',{})
+                st.write("保存・結果照合の集計",c)
+                st.write("学習対象にならない理由",data.get('reasons',{}))
+                if data.get('recent_races'):
+                    st.dataframe(pd.DataFrame(data['recent_races']),use_container_width=True)
+                else:
+                    st.info('保存済み予想がありません。予想保存処理から確認してください。')
+                for note in data.get('notes',[]):
+                    st.caption(note)
+        except Exception as e:
+            st.error(f"学習データ診断の取得に失敗: {e}")
+
 # ============================================================
 # Geo v4: 検証・ファクター候補診断（手動起動、予想には未反映）
 # ============================================================
