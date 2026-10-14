@@ -2350,6 +2350,38 @@ def run_integrated_simulation(
                 "判定理由": _reason,
             }
 
+    # v19: 芝ダ初挑戦の専用評価に使う、異種馬場での過去走能力の代理指数。
+    # 過去の「当時の統合指数」はDBに保存されていないため、着順から代理値を作る。
+    # 将来、過去レースの指数が取得可能になったら差し替えを検討する。
+    first_surface_input_map = {}
+    if master_data is not None and not master_data.empty and "馬名_clean" in master_data.columns:
+        for _name, _runs in master_data.groupby("馬名_clean"):
+            _diag = first_surface_map.get(str(_name), {})
+            if _diag.get("判定") not in ("初芝", "初ダート"):
+                continue
+            _other_runs = _runs.copy()
+            if "芝・ダ" in _other_runs.columns:
+                _surface_values = _other_runs["芝・ダ"].astype(str).str.strip()
+                _other_runs = _other_runs[_surface_values.eq("芝") if surface_keyword == "ダート" else _surface_values.str.contains("ダ", na=False)]
+            if _other_runs.empty:
+                continue
+            _recent = _other_runs.head(6)
+            _finishes = pd.to_numeric(_recent["着順"], errors="coerce") if "着順" in _recent.columns else pd.Series(dtype=float)
+            _finishes = _finishes[(_finishes >= 1) & (_finishes <= 18)]
+            if _finishes.empty:
+                continue
+            _avg_finish = float(_finishes.mean())
+            # 仮説：平均1着→85点、平均6着→70点、平均11着→55点。
+            _proxy_index = 70.0 + max(-15.0, min(15.0, (6.0 - _avg_finish) * 3.0))
+            _distance_col = next((c for c in ("距離", "距離_num") if c in _recent.columns), None)
+            _distances = pd.to_numeric(_recent[_distance_col], errors="coerce") if _distance_col else pd.Series(dtype=float)
+            _distances = _distances[(_distances >= 800) & (_distances <= 4000)]
+            _median_distance = float(_distances.median()) if not _distances.empty else None
+            first_surface_input_map[str(_name)] = {
+                "代理能力指数": _proxy_index, "平均着順": _avg_finish,
+                "能力使用走数": int(len(_finishes)), "異種馬場の中央値距離": _median_distance,
+            }
+
     scored_horses = []
     index_breakdowns = []
     rising_star_flags = []
@@ -2483,6 +2515,7 @@ def run_integrated_simulation(
         for name in res_df["馬名_clean"]
     ]
     res_df["芝ダ経験"] = res_df["芝ダ初挑戦診断"].apply(lambda x: x.get("判定", "要確認"))
+    res_df["初挑戦能力材料"] = [first_surface_input_map.get(str(name), {}) for name in res_df["馬名_clean"]]
     res_df["統合指数"] = scored_horses
     res_df["統合指数内訳"] = index_breakdowns
     res_df["上がり3F診断"] = [
@@ -3100,9 +3133,50 @@ def run_geo_prediction(
         except (TypeError, ValueError):
             member_bonus = 0.0
 
+        # v19: 初芝・初ダートのみ専用評価。既存の血統補正と二重計上しない。
+        _first_diag = row.get("芝ダ初挑戦診断", {})
+        _first_inputs = row.get("初挑戦能力材料", {})
+        if not isinstance(_first_diag, dict):
+            _first_diag = {}
+        if not isinstance(_first_inputs, dict):
+            _first_inputs = {}
+        _first_status = _first_diag.get("判定", "")
+        _first_ability = 0.0
+        _first_condition = 0.0
+        if _first_status in ("初ダート", "初芝"):
+            _past_proxy = _first_inputs.get("代理能力指数")
+            if _past_proxy is not None:
+                _transfer_rate = 0.4 if _first_status == "初ダート" else 0.3
+                _first_ability = max(-6.0, min(6.0, (float(_past_proxy) - 70.0) * _transfer_rate))
+            _old_distance = _first_inputs.get("異種馬場の中央値距離")
+            try:
+                _new_distance = float(row.get("距離"))
+                _distance_diff = abs(_new_distance - float(_old_distance))
+                if _distance_diff <= 200:
+                    _first_condition = 2.0
+                elif _distance_diff <= 400:
+                    _first_condition = 1.0
+                elif _distance_diff <= 600:
+                    _first_condition = 0.0
+                elif _distance_diff <= 800:
+                    _first_condition = -1.0
+                else:
+                    _first_condition = -2.0
+            except (TypeError, ValueError):
+                _first_condition = 0.0
+            # 通常の血統補正（最大±8）を専用補正（最大±5）に置換する。
+            # 血統スコア・信頼度は従来の父産駒評価を使用。
+            bloodline_bonus = max(-5.0, min(5.0, float(bloodline_bonus)))
+            point.append(
+                f"{_first_status}専用：転用能力{_first_ability:+.2f}点"
+                f"（異種馬場の平均着順{_first_inputs.get('平均着順', '不明')}から代理指数算出）、"
+                f"血統{bloodline_bonus:+.2f}点、距離条件{_first_condition:+.2f}点"
+            )
+        components["初挑戦・転用能力"] = float(_first_ability)
+        components["初挑戦・距離条件"] = float(_first_condition)
         components["血統補正"] = float(bloodline_bonus)
         components["メンバーレベル"] = float(member_bonus)
-        geo_score = score + bonus - penalty + bloodline_bonus + member_bonus
+        geo_score = score + bonus - penalty + bloodline_bonus + member_bonus + _first_ability + _first_condition
         df.at[idx, "最終評価内訳"] = components
         df.loc[idx, "ジオ評価"] = geo_score
         reasons[horse] = point
@@ -3223,7 +3297,7 @@ def display_geo_prediction(geo):
             '（実効補正は各項目の上限あり）</div></div>',
             unsafe_allow_html=True,
         )
-        with st.expander("🆕 初芝・初ダート診断（v18・評価点変更なし）", expanded=False):
+        with st.expander("🆕 初芝・初ダート診断（v19・専用評価適用）", expanded=False):
             st.caption("過去走全体の芝・ダート区分から初挑戦を判定。過去走が取れない馬は初挑戦と断定せず『要確認』と表示します。")
             _first_rows = []
             for _, _h in dashboard_df.iterrows():
@@ -3237,9 +3311,11 @@ def display_geo_prediction(geo):
                     "異種過去走": _diag.get("異種過去走", 0),
                     "区分不明": _diag.get("区分不明過去走", 0),
                     "理由": _diag.get("判定理由", ""),
+                    "代理能力指数": (_h.get("初挑戦能力材料") or {}).get("代理能力指数") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
+                    "平均着順": (_h.get("初挑戦能力材料") or {}).get("平均着順") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
                 })
             st.dataframe(pd.DataFrame(_first_rows), use_container_width=True, hide_index=True)
-            st.info("この診断では過去の競走能力を芝⇔ダートへ換算しません。父産駒適性を使う専用補正もまだ加算しません。将来の検証用です。")
+            st.caption("初挑戦馬のみ、異種馬場の直近最大6走の平均着順から代理能力指数を算出。初ダート40%、初芝30%を転用（±6点）。父産駒の既存血統補正を±5点に置換。距離差を±2点で補正。実績馬の計算は維持します。")
         overview = dashboard_df.copy()
         overview["補正合計"] = pd.to_numeric(overview["ジオ評価"], errors="coerce") - pd.to_numeric(overview["統合指数"], errors="coerce")
         overview["印"] = ["◎" if i == 0 else "○" if i == 1 else "▲" if i == 2 else "△" if i == 3 else "☆" if i == 4 else "" for i in range(len(overview))]
