@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # 基本設定
 # =========================================================
 
-API_BASE = os.environ.get("JRA_VAN_API_BASE", " https://dealers-sullivan-floating-aircraft.trycloudflare.com").strip().rstrip("/")
+API_BASE = os.environ.get("JRA_VAN_API_BASE", "https://moderator-effort-touring-demo.trycloudflare.com").strip().rstrip("/")
 
 
 def normalize_horse_name(name):
@@ -2319,6 +2319,37 @@ def run_integrated_simulation(
                         ) * 0.5
                     )
 
+    # v18: 初芝・初ダートを「過去走全体」から判定（予想点数には影響させない）。
+    # データが取得できない馬を初挑戦と誤判定しないよう「要確認」とする。
+    first_surface_map = {}
+    if master_data is not None and not master_data.empty and "馬名_clean" in master_data.columns:
+        for _horse_name, _all_runs in master_data.groupby("馬名_clean"):
+            _surface_series = _all_runs.get("芝・ダ")
+            if _surface_series is None:
+                first_surface_map[str(_horse_name)] = {"判定": "要確認", "同種過去走": 0, "異種過去走": 0, "判定理由": "芝ダ区分なし"}
+                continue
+            _surface_str = _surface_series.astype(str).str.strip()
+            _known = _surface_str.str.contains("芝|ダ", regex=True, na=False)
+            _same = _surface_str.str.contains("ダ", na=False) if surface_keyword == "ダート" else (_surface_str.eq("芝"))
+            _other = _surface_str.eq("芝") if surface_keyword == "ダート" else _surface_str.str.contains("ダ", na=False)
+            _same_count = int((_same & _known).sum())
+            _other_count = int((_other & _known).sum())
+            _unknown_count = int((~_known).sum())
+            if _same_count > 0:
+                _status = "経験あり"
+                _reason = "今回と同じ芝ダ区分の過去走あり"
+            elif _other_count > 0 and _unknown_count == 0:
+                _status = "初ダート" if surface_keyword == "ダート" else "初芝"
+                _reason = "異なる芝ダ区分の過去走のみ"
+            else:
+                _status = "要確認"
+                _reason = "過去走未取得・区分不明・新馬の可能性"
+            first_surface_map[str(_horse_name)] = {
+                "判定": _status, "同種過去走": _same_count,
+                "異種過去走": _other_count, "区分不明過去走": _unknown_count,
+                "判定理由": _reason,
+            }
+
     scored_horses = []
     index_breakdowns = []
     rising_star_flags = []
@@ -2444,6 +2475,14 @@ def run_integrated_simulation(
             raw_index
         )
 
+    res_df["芝ダ初挑戦診断"] = [
+        first_surface_map.get(str(name), {
+            "判定": "要確認", "同種過去走": 0, "異種過去走": 0,
+            "判定理由": "過去走データが取得できません",
+        })
+        for name in res_df["馬名_clean"]
+    ]
+    res_df["芝ダ経験"] = res_df["芝ダ初挑戦診断"].apply(lambda x: x.get("判定", "要確認"))
     res_df["統合指数"] = scored_horses
     res_df["統合指数内訳"] = index_breakdowns
     res_df["上がり3F診断"] = [
@@ -3184,6 +3223,23 @@ def display_geo_prediction(geo):
             '（実効補正は各項目の上限あり）</div></div>',
             unsafe_allow_html=True,
         )
+        with st.expander("🆕 初芝・初ダート診断（v18・評価点変更なし）", expanded=False):
+            st.caption("過去走全体の芝・ダート区分から初挑戦を判定。過去走が取れない馬は初挑戦と断定せず『要確認』と表示します。")
+            _first_rows = []
+            for _, _h in dashboard_df.iterrows():
+                _diag = _h.get("芝ダ初挑戦診断", {})
+                if not isinstance(_diag, dict):
+                    _diag = {}
+                _first_rows.append({
+                    "馬番": _h.get("馬番"), "馬名": _h.get("馬名"),
+                    "今回": _h.get("芝・ダ", "—"), "判定": _diag.get("判定", "要確認"),
+                    "同種過去走": _diag.get("同種過去走", 0),
+                    "異種過去走": _diag.get("異種過去走", 0),
+                    "区分不明": _diag.get("区分不明過去走", 0),
+                    "理由": _diag.get("判定理由", ""),
+                })
+            st.dataframe(pd.DataFrame(_first_rows), use_container_width=True, hide_index=True)
+            st.info("この診断では過去の競走能力を芝⇔ダートへ換算しません。父産駒適性を使う専用補正もまだ加算しません。将来の検証用です。")
         overview = dashboard_df.copy()
         overview["補正合計"] = pd.to_numeric(overview["ジオ評価"], errors="coerce") - pd.to_numeric(overview["統合指数"], errors="coerce")
         overview["印"] = ["◎" if i == 0 else "○" if i == 1 else "▲" if i == 2 else "△" if i == 3 else "☆" if i == 4 else "" for i in range(len(overview))]
