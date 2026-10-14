@@ -2809,6 +2809,11 @@ def apply_geo_learning_adjustment(df, pace, bias, condition, venue=""):
             df.loc[idx, "学習補正"] = adjustment
             df.loc[idx, "学習一致条件"] = "、".join(item["matched_features"]) or "一致条件なし"
             df.loc[idx, "学習補正内訳"] = item["detail"]
+            details = df.at[idx, "最終評価内訳"] if "最終評価内訳" in df.columns else None
+            if isinstance(details, dict):
+                details = dict(details)
+                details["自己学習"] = adjustment
+                df.at[idx, "最終評価内訳"] = details
             df.loc[idx, "ジオ評価"] = float(df.loc[idx, "ジオ評価"]) + adjustment
         return df
     except Exception:
@@ -2973,6 +2978,7 @@ def run_geo_prediction(
     df["ジオ評価"] = df["統合指数"]
 
     reasons = {}
+    df["最終評価内訳"] = pd.Series([None] * len(df), index=df.index, dtype=object)
 
     for idx, row in df.iterrows():
         score = float(row["統合指数"])
@@ -2984,56 +2990,76 @@ def run_geo_prediction(
         point = []
         bonus = 0
         penalty = 0
+        components = {"統合指数": score, "能力順位": 0.0, "展開ペース": 0.0,
+                      "馬場適性": 0.0, "馬場バイアス": 0.0, "穴馬評価": 0.0,
+                      "人気先行減点": 0.0, "血統補正": 0.0, "メンバーレベル": 0.0,
+                      "自己学習": 0.0}
+
 
         if score >= df["統合指数"].quantile(0.8):
             bonus += 8
+            components["能力順位"] += 8
             point.append("能力指数が上位")
         elif score >= df["統合指数"].quantile(0.6):
             bonus += 3
+            components["能力順位"] += 3
 
         if pace == "S":
             if style in ["逃げ", "先行"]:
                 bonus += 7
+                components["展開ペース"] += 7
                 point.append("スローペースなら前有利")
             elif style == "差し":
                 penalty += 4
+                components["展開ペース"] -= 4
             elif style == "追込":
                 penalty += 7
+                components["展開ペース"] -= 7
         elif pace == "M":
             if style in ["先行", "差し"]:
                 bonus += 4
+                components["展開ペース"] += 4
                 point.append("ミドルペースへの適性")
         elif pace == "H":
             if style == "差し":
                 bonus += 7
+                components["展開ペース"] += 7
                 point.append("ハイペースなら差し有利")
             elif style == "追込":
                 bonus += 5
+                components["展開ペース"] += 5
                 point.append("展開が向けば末脚を活かせる")
             elif style == "逃げ":
                 penalty += 6
+                components["展開ペース"] -= 6
 
         if ground and condition in ground:
             bonus += 5
+            components["馬場適性"] += 5
             point.append(f"{condition}馬場への適性")
 
         if bias == "内有利":
             if style in ["逃げ", "先行"]:
                 bonus += 4
+                components["馬場バイアス"] += 4
                 point.append("内有利の馬場と脚質が合う")
             elif style == "追込":
                 penalty += 3
+                components["馬場バイアス"] -= 3
         elif bias == "外有利":
             if style in ["差し", "追込"]:
                 bonus += 4
+                components["馬場バイアス"] += 4
                 point.append("外有利の馬場と脚質が合う")
 
         if odds >= 8 and score >= df["統合指数"].quantile(0.7):
             bonus += 8
+            components["穴馬評価"] += 8
             point.append("人気に対して能力評価が高い穴候補")
 
         if odds <= 4 and score <= df["統合指数"].quantile(0.4):
             penalty += 7
+            components["人気先行減点"] -= 7
             point.append("人気先行の可能性")
 
         # 血統適性による補正
@@ -3081,7 +3107,10 @@ def run_geo_prediction(
         except (TypeError, ValueError):
             member_bonus = 0.0
 
+        components["血統補正"] = float(bloodline_bonus)
+        components["メンバーレベル"] = float(member_bonus)
         geo_score = score + bonus - penalty + bloodline_bonus + member_bonus
+        df.at[idx, "最終評価内訳"] = components
         df.loc[idx, "ジオ評価"] = geo_score
         reasons[horse] = point
 
@@ -3263,6 +3292,27 @@ def display_geo_prediction(geo):
                 st.caption("走破タイムと上がり3Fはコース適性にも含まれています。二重評価の可能性は今後の検証対象です。")
             else:
                 st.info("この予想は内訳保存前のデータです。新しいコードで予想を実行すると表示されます。")
+
+        with st.expander("🎯 最終ジオ評価の全補正内訳｜配点検証", expanded=True):
+            st.caption("統合指数から最終評価まで、実際に適用された加減点。自己学習はAPIから取得した補正値です。")
+            details = chosen.get("最終評価内訳")
+            if isinstance(details, dict):
+                final_df = pd.DataFrame([{"ファクター": key, "加減点": round(float(val), 4)} for key, val in details.items()])
+                st.dataframe(final_df, use_container_width=True, hide_index=True)
+                st.bar_chart(final_df.set_index("ファクター")[["加減点"]].drop(index="統合指数", errors="ignore"), height=290)
+                total = sum(float(v) for v in details.values())
+                actual = float(chosen["ジオ評価"])
+                x, y, z = st.columns(3)
+                x.metric("統合指数", f"{float(chosen['統合指数']):.3f}")
+                y.metric("補正合計", f"{total-float(chosen['統合指数']):+.3f}")
+                z.metric("最終ジオ評価", f"{actual:.3f}")
+                if abs(total-actual) < 0.0001:
+                    st.success("最終ジオ評価と補正内訳の合計が一致しています。")
+                else:
+                    st.error(f"補正内訳の合計と最終評価が一致しません（差 {total-actual:+.6f}pt）。")
+                st.caption("現在は配点の表示のみ。画面から配点を変更する機能は未実装です。検証前に重みを変更しないでください。")
+            else:
+                st.info("この予想には最終評価の内訳がありません。新しいコードで予想した場合に表示されます。")
 
         tabs = st.tabs(["📊 指数比較", "🧬 血統・メンバー", "🏇 展開データ"])
         with tabs[0]:
