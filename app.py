@@ -2732,7 +2732,17 @@ def save_geo_prediction(
                     except (TypeError, ValueError):
                         pass
                     if isinstance(value, (str, int, float, bool)):
+                        try:
+                            import math
+                            if isinstance(value, (int, float)) and not math.isfinite(float(value)):
+                                continue
+                        except (TypeError, ValueError, OverflowError):
+                            continue
                         features[str(col)] = value
+                    elif hasattr(value, "item"):
+                        scalar = value.item()
+                        if isinstance(scalar, (str, int, float, bool)):
+                            features[str(col)] = scalar
                     elif isinstance(value, dict):
                         # 血統適性など辞書型の特徴量も予想時点の値だけ保存
                         features[str(col)] = {str(k): v for k, v in value.items() if isinstance(v, (str, int, float, bool)) or v is None}
@@ -2753,6 +2763,13 @@ def save_geo_prediction(
         if response.status_code == 200:
             result = response.json()
             if result.get("ok"):
+                if result.get("skipped_existing"):
+                    return True  # 既存予想を保護。全頭データを後付けで捏造しない。
+                saved_count = int(result.get("runner_count", -1))
+                expected_count = len(payload["runners"])
+                if saved_count != expected_count:
+                    st.warning(f"⚠️ v6 全頭保存の件数不一致: {saved_count}/{expected_count}")
+                    return False
                 return True
             st.warning(f"⚠️ Geo予想保存失敗: {result.get('error')}")
             return False
@@ -4028,8 +4045,8 @@ else:
 # ============================================================
 # Geo v5: 学習データ蓄積・結果照合の診断
 # ============================================================
-with st.expander("🔍 ジオ学習データ診断 v5", expanded=False):
-    st.caption("予想保存・全頭特徴量・結果確定・メンバーレベルの保存状況を調べます。診断は読み取り専用です。")
+with st.expander("🔍 ジオ学習データ診断 v6", expanded=False):
+    st.caption("新規の全自動予想から全頭特徴量を保存します。過去107件の欠損は復元しません。既存予想・確定結果を上書きせず、診断は読み取り専用です。")
     if st.button("📋 学習データの保存状況を確認", key="geo_v5_data_diagnostics"):
         try:
             response = requests.get(f"{API_BASE.rstrip('/')}/geo/learning/data-diagnostics", timeout=45)
