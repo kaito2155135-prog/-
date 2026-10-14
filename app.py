@@ -3872,6 +3872,100 @@ if auto_data and auto_data.get("ok"):
     # ◎○▲の予想精度
     # レース結果が確定しているものを自動集計
     # -------------------------------------------------
+    # ============================================================
+    # GEO AI SELF-LEARNING MONITOR (read only)
+    # ============================================================
+    with st.expander("🧠 GEO自己学習モニター｜保存・検証・新ファクター", expanded=False):
+        st.caption("予想・結果データの蓄積状況を確認します。新ファクターの本番自動採用はまだ実装されていません。")
+        if st.button("📡 学習状況を更新", key="geo_premium_monitor_refresh"):
+            try:
+                resp = requests.get(f"{API_BASE.rstrip('/')}/geo/learning/data-diagnostics", timeout=45)
+                resp.raise_for_status()
+                payload = resp.json()
+                if not payload.get("ok"):
+                    st.error(str(payload.get("error") or "診断に失敗しました"))
+                else:
+                    counts = payload.get("counts") or {}
+                    cols = st.columns(4)
+                    fields = [
+                        ("保存済み予想", "saved_predictions"),
+                        ("全頭特徴量", "runner_observations"),
+                        ("結果照合済み", "settled_predictions"),
+                        ("メンバー特徴付きR", "races_with_member_feature"),
+                    ]
+                    for col,(label,key) in zip(cols,fields):
+                        col.metric(label, int(counts.get(key) or 0))
+                    st.caption("結果照合済み予想数と、全頭特徴量に着順が紐づいた件数は異なります。")
+                    st.write("学習に使えない理由",payload.get("reasons") or {})
+                    st.info("新ファクター候補の探索は下の「ジオ自己学習・メンバーレベル検証 v4」で実行できます。採用は未実装です。")
+            except Exception as exc:
+                st.error(f"学習モニター取得失敗: {exc}")
+
+    # ============================================================
+    # Geo v5: 学習データ蓄積・結果照合の診断
+    # ============================================================
+    with st.expander("🔍 ジオ学習データ診断 v6", expanded=False):
+        st.caption("新規の全自動予想から全頭特徴量を保存します。過去107件の欠損は復元しません。既存予想・確定結果を上書きせず、診断は読み取り専用です。")
+        if st.button("📋 学習データの保存状況を確認", key="geo_v5_data_diagnostics"):
+            try:
+                response = requests.get(f"{API_BASE.rstrip('/')}/geo/learning/data-diagnostics", timeout=45)
+                response.raise_for_status()
+                data = response.json()
+                if not data.get('ok'):
+                    st.error(str(data.get('error','診断APIエラー')))
+                else:
+                    c=data.get('counts',{})
+                    st.write("保存・結果照合の集計",c)
+                    st.write("学習対象にならない理由",data.get('reasons',{}))
+                    if data.get('recent_races'):
+                        st.dataframe(pd.DataFrame(data['recent_races']),use_container_width=True)
+                    else:
+                        st.info('保存済み予想がありません。予想保存処理から確認してください。')
+                    for note in data.get('notes',[]):
+                        st.caption(note)
+            except Exception as e:
+                st.error(f"学習データ診断の取得に失敗: {e}")
+
+    # ============================================================
+    # Geo v4: 検証・ファクター候補診断（手動起動、予想には未反映）
+    # ============================================================
+    with st.expander("🧠 ジオ自己学習・メンバーレベル検証 v4", expanded=False):
+        st.caption("既存の予想ロジックは変更せず、保存済みの確定結果を検証します。")
+        if st.button("📊 メンバーレベル有無を比較", key="geo_v4_member_audit"):
+            try:
+                response = requests.get(f"{API_BASE.rstrip('/')}/geo/backtest/member-ablation", timeout=60)
+                data = response.json()
+                if data.get('ok'):
+                    st.write("全体", data.get('overall'))
+                    st.write("前半70%", data.get('early_70pct'))
+                    st.write("後半30%", data.get('late_30pct'))
+                    if data.get('races'):
+                        st.dataframe(pd.DataFrame(data['races']), use_container_width=True)
+                    for note in data.get('limitations', []): st.caption(note)
+                else:
+                    st.error(str(data.get('error', '検証API失敗')))
+            except Exception as e:
+                st.error(f"メンバーレベル検証に失敗: {e}")
+        if st.button("🔎 新ファクター候補を探索", key="geo_v4_discover"):
+            try:
+                response=requests.post(f"{API_BASE.rstrip('/')}/geo/learning/discover", json={}, timeout=90)
+                data=response.json()
+                if not data.get('ok'):
+                    st.error(str(data.get('error','探索API失敗')))
+                elif not data.get('ready'):
+                    st.info(data.get('message','学習用データが不足しています。'))
+                else:
+                    st.write(f"検証レース: {data.get('races')} / 合格候補: {data.get('validated_count')}")
+                    st.write('訓練データ基準',data.get('train_baseline'))
+                    st.write('後半検証データ基準',data.get('test_baseline'))
+                    if data.get('candidates'):
+                        st.dataframe(pd.DataFrame(data['candidates']),use_container_width=True)
+                    else:
+                        st.info('現時点で候補はありません。')
+                    st.caption('合格候補も本番予想へ自動加点しません。重複検証と前向き検証が必要です。')
+            except Exception as e:
+                st.error(f"ファクター探索に失敗: {e}")
+
     mark_stats = auto_data.get("mark_stats", {})
     st.markdown("#### 🏇 ジオ印の予想精度")
     st.caption(
@@ -4113,99 +4207,3 @@ if auto_data and auto_data.get("ok"):
         st.info(f"払戻データ未登録: {missing}R。払戻データがDBに入れば自動で検証対象になります。")
 else:
     st.warning("自動馬券検証APIからデータを取得できませんでした。API側の更新後に再読み込みしてください。")
-
-
-
-# ============================================================
-# GEO AI SELF-LEARNING MONITOR (read only)
-# ============================================================
-with st.expander("🧠 GEO自己学習モニター｜保存・検証・新ファクター", expanded=False):
-    st.caption("予想・結果データの蓄積状況を確認します。新ファクターの本番自動採用はまだ実装されていません。")
-    if st.button("📡 学習状況を更新", key="geo_premium_monitor_refresh"):
-        try:
-            resp = requests.get(f"{API_BASE.rstrip('/')}/geo/learning/data-diagnostics", timeout=45)
-            resp.raise_for_status()
-            payload = resp.json()
-            if not payload.get("ok"):
-                st.error(str(payload.get("error") or "診断に失敗しました"))
-            else:
-                counts = payload.get("counts") or {}
-                cols = st.columns(4)
-                fields = [
-                    ("保存済み予想", "saved_predictions"),
-                    ("全頭特徴量", "runner_observations"),
-                    ("結果照合済み", "settled_predictions"),
-                    ("メンバー特徴付きR", "races_with_member_feature"),
-                ]
-                for col,(label,key) in zip(cols,fields):
-                    col.metric(label, int(counts.get(key) or 0))
-                st.caption("結果照合済み予想数と、全頭特徴量に着順が紐づいた件数は異なります。")
-                st.write("学習に使えない理由",payload.get("reasons") or {})
-                st.info("新ファクター候補の探索は下の「ジオ自己学習・メンバーレベル検証 v4」で実行できます。採用は未実装です。")
-        except Exception as exc:
-            st.error(f"学習モニター取得失敗: {exc}")
-
-# ============================================================
-# Geo v5: 学習データ蓄積・結果照合の診断
-# ============================================================
-with st.expander("🔍 ジオ学習データ診断 v6", expanded=False):
-    st.caption("新規の全自動予想から全頭特徴量を保存します。過去107件の欠損は復元しません。既存予想・確定結果を上書きせず、診断は読み取り専用です。")
-    if st.button("📋 学習データの保存状況を確認", key="geo_v5_data_diagnostics"):
-        try:
-            response = requests.get(f"{API_BASE.rstrip('/')}/geo/learning/data-diagnostics", timeout=45)
-            response.raise_for_status()
-            data = response.json()
-            if not data.get('ok'):
-                st.error(str(data.get('error','診断APIエラー')))
-            else:
-                c=data.get('counts',{})
-                st.write("保存・結果照合の集計",c)
-                st.write("学習対象にならない理由",data.get('reasons',{}))
-                if data.get('recent_races'):
-                    st.dataframe(pd.DataFrame(data['recent_races']),use_container_width=True)
-                else:
-                    st.info('保存済み予想がありません。予想保存処理から確認してください。')
-                for note in data.get('notes',[]):
-                    st.caption(note)
-        except Exception as e:
-            st.error(f"学習データ診断の取得に失敗: {e}")
-
-# ============================================================
-# Geo v4: 検証・ファクター候補診断（手動起動、予想には未反映）
-# ============================================================
-with st.expander("🧠 ジオ自己学習・メンバーレベル検証 v4", expanded=False):
-    st.caption("既存の予想ロジックは変更せず、保存済みの確定結果を検証します。")
-    if st.button("📊 メンバーレベル有無を比較", key="geo_v4_member_audit"):
-        try:
-            response = requests.get(f"{API_BASE.rstrip('/')}/geo/backtest/member-ablation", timeout=60)
-            data = response.json()
-            if data.get('ok'):
-                st.write("全体", data.get('overall'))
-                st.write("前半70%", data.get('early_70pct'))
-                st.write("後半30%", data.get('late_30pct'))
-                if data.get('races'):
-                    st.dataframe(pd.DataFrame(data['races']), use_container_width=True)
-                for note in data.get('limitations', []): st.caption(note)
-            else:
-                st.error(str(data.get('error', '検証API失敗')))
-        except Exception as e:
-            st.error(f"メンバーレベル検証に失敗: {e}")
-    if st.button("🔎 新ファクター候補を探索", key="geo_v4_discover"):
-        try:
-            response=requests.post(f"{API_BASE.rstrip('/')}/geo/learning/discover", json={}, timeout=90)
-            data=response.json()
-            if not data.get('ok'):
-                st.error(str(data.get('error','探索API失敗')))
-            elif not data.get('ready'):
-                st.info(data.get('message','学習用データが不足しています。'))
-            else:
-                st.write(f"検証レース: {data.get('races')} / 合格候補: {data.get('validated_count')}")
-                st.write('訓練データ基準',data.get('train_baseline'))
-                st.write('後半検証データ基準',data.get('test_baseline'))
-                if data.get('candidates'):
-                    st.dataframe(pd.DataFrame(data['candidates']),use_container_width=True)
-                else:
-                    st.info('現時点で候補はありません。')
-                st.caption('合格候補も本番予想へ自動加点しません。重複検証と前向き検証が必要です。')
-        except Exception as e:
-            st.error(f"ファクター探索に失敗: {e}")
