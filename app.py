@@ -3239,23 +3239,6 @@ def display_geo_prediction(geo):
             else:
                 st.info("この予想は内訳保存前のデータです。新しいコードで予想を実行すると表示されます。")
 
-        with st.expander("⏱️ 走破タイム｜馬場状態・クラス別基準診断（v23）", expanded=False):
-            st.caption("過去走の馬場状態とExcel参照列を並べて確認できます。良・稍重・重・不良の厳密参照で、別の馬場列への代替は行いません。")
-            _soha_rows = []
-            for _, _horse in dashboard_df.iterrows():
-                _diag = _horse.get("走破タイムクラス診断")
-                if not isinstance(_diag, dict):
-                    continue
-                for _past in _diag.get("過去走詳細", []):
-                    if isinstance(_past, dict):
-                        _soha_rows.append({"馬番": _horse.get("馬番"), "馬名": _horse.get("馬名"), **_past})
-            if _soha_rows:
-                st.dataframe(pd.DataFrame(_soha_rows), use_container_width=True, hide_index=True)
-            else:
-                st.info("走破タイムに使える過去走がありません。")
-            st.caption("過去走馬場状態コード・芝馬場コード・ダート馬場コードはAPIから受け取った値です。過去走馬場状態とExcel参照馬場状態が一致しているか、実際のJRA-VAN結果と照合してください。")
-            st.warning("クラス別Excel基準と階級差×0.2秒の二重補正については、引き続きバックテストで検証が必要です。")
-
         with st.expander("🔬 上がり3F診断｜単位補正後の計算確認", expanded=True):
             st.caption("上がり3Fの332→33.2秒などの単位補正を予想計算に適用しています。ここでは補正後の計算値を確認できます。")
             all_f3_rows = []
