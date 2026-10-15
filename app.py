@@ -3168,9 +3168,8 @@ def display_geo_prediction(geo):
                 st.dataframe(_past[[c for c in _fields if c in _past.columns]], use_container_width=True, hide_index=True)
                 if "着差取得状況" in _past.columns and (_past["着差取得状況"] == "API未対応").any():
                     st.warning("API旧版のキャッシュの可能性があります。両サーバーを再起動して予想を再実行してください。")
-                # 既存の着順能力は、同じ芝/ダートの直近最大6走の平均着順から算出。
-                # 仮案：着順相当値を着差で最大±0.5着だけ動かし、既存式へ入力する。
-                # 着差不明なら従来の着順をそのまま使う。
+                # v27: 着差による相対評価。現行の着順能力そのものは変更しない。
+                # レース全体で平均0点に調整し、一律加点を防ぐ。
                 _cmp = _past.copy()
                 _cmp["_finish"] = pd.to_numeric(_cmp.get("着順"), errors="coerce")
                 _cmp["_gap"] = pd.to_numeric(_cmp.get("勝ち馬とのタイム差秒"), errors="coerce")
@@ -3179,33 +3178,78 @@ def display_geo_prediction(geo):
                 if "芝・ダ" in _cmp.columns:
                     if "ダ" in _surface:
                         _cmp = _cmp[_cmp["芝・ダ"].astype(str).str.contains("ダ", na=False)].copy()
-                    else:
-                        _cmp = _cmp[~_cmp["芝・ダ"].astype(str).str.contains("ダ", na=False)].copy()
+                    elif "芝" in _surface:
+                        _cmp = _cmp[_cmp["芝・ダ"].astype(str).str.contains("芝", na=False)].copy()
                 _sort = [c for c in ("年", "月", "日") if c in _cmp.columns]
                 if _sort:
                     _cmp = _cmp.sort_values(_sort, ascending=False)
                 _cmp["_horse"] = _cmp["馬名"].astype(str).map(normalize_horse_name)
                 _cmp = _cmp.groupby("_horse", sort=False).head(6).copy()
-                _baseline_gap = (_cmp["_finish"] - 1).clip(lower=0) * 0.2
-                _adjust = ((_cmp["_gap"] - _baseline_gap) / 0.5).clip(-0.5, 0.5).fillna(0)
-                _adjust = _adjust.where(_cmp["_finish"] > 1, 0)
-                _cmp["_effective_finish"] = (_cmp["_finish"] + _adjust).clip(lower=1)
+                # 着順別の想定着差は検証用仮説（秒）。短距離/長距離の補正は未実施。
+                # 1着は0点。着差不明も0点。僅差負けはプラス、大差負けはマイナス。
+                def _v27_gap_expected(finish):
+                    if finish <= 1:
+                        return 0.0
+                    if finish <= 3:
+                        return 0.20
+                    if finish <= 6:
+                        return 0.50
+                    if finish <= 10:
+                        return 0.90
+                    return 1.30
+
+                _cmp["_expected_gap"] = _cmp["_finish"].map(_v27_gap_expected)
+                _cmp["_margin_points"] = (
+                    (_cmp["_expected_gap"] - _cmp["_gap"]) * 0.60
+                ).clip(lower=-0.60, upper=0.60).fillna(0.0)
+                _cmp.loc[_cmp["_finish"].eq(1), "_margin_points"] = 0.0
                 _summary = []
-                for _horse, _g in _cmp.groupby("_horse", sort=False):
-                    _avg_old = float(_g["_finish"].mean())
-                    _avg_new = float(_g["_effective_finish"].mean())
-                    _old_score = max(0.0, (15.0 - (_avg_old - 1) * 1.2) * 0.5)
-                    _new_score = max(0.0, (15.0 - (_avg_new - 1) * 1.2) * 0.5)
-                    _summary.append({"馬名": _horse, "対象過去走": len(_g), "着差取得走数": int(_g["_gap"].notna().sum()),
-                                     "従来の着順能力(点)": round(_old_score, 3),
-                                     "着差考慮の仮能力(点)": round(_new_score, 3),
-                                     "仮差分(点)": round(_new_score - _old_score, 3)})
-                st.markdown("**着順能力の比較（直近最大6走・同じ芝/ダート）**")
+                for _, _h in dashboard_df.iterrows():
+                    _horse = normalize_horse_name(str(_h.get("馬名") or ""))
+                    _g = _cmp[_cmp["_horse"].eq(_horse)]
+                    _valid = _g["_gap"].notna() & _g["_finish"].gt(1)
+                    # 直近最大6走の平均。着差不明は0点であり、データ欠損で有利にならない。
+                    _raw = float(_g["_margin_points"].mean()) if len(_g) else 0.0
+                    _breakdown = _h.get("統合指数内訳")
+                    _old = (_breakdown.get("着順能力") if isinstance(_breakdown, dict) else None)
+                    if _old is None:
+                        _old = 0.0
+                    _summary.append({
+                        "馬名": _horse,
+                        "対象過去走": int(len(_g)),
+                        "着差取得走数": int(_g["_gap"].notna().sum()),
+                        "従来の着順能力(点)": float(_old),
+                        "未調整の着差差分(点)": _raw,
+                        "統合指数": float(_h.get("統合指数") or 0),
+                        "最終ジオ評価": float(_h.get("ジオ評価") or 0),
+                        "現在順位": int(_h.get("順位") or 0),
+                    })
                 if _summary:
-                    st.dataframe(pd.DataFrame(_summary), use_container_width=True, hide_index=True)
+                    _result = pd.DataFrame(_summary)
+                    # 比較対象馬の全体平均を引き、相対評価の合計が0点になるようにする。
+                    # 取得0走の馬は補正0点とし、取得済み馬の間だけで平均を調整する。
+                    _eligible = _result["着差取得走数"].gt(0)
+                    _center = float(_result.loc[_eligible, "未調整の着差差分(点)"].mean()) if _eligible.any() else 0.0
+                    _result["仮差分(点)"] = 0.0
+                    _result.loc[_eligible, "仮差分(点)"] = _result.loc[_eligible, "未調整の着差差分(点)"] - _center
+                    _result["着差考慮の仮能力(点)"] = _result["従来の着順能力(点)"] + _result["仮差分(点)"]
+                    _result["仮統合指数"] = _result["統合指数"] + _result["仮差分(点)"]
+                    _result["仮最終ジオ評価"] = _result["最終ジオ評価"] + _result["仮差分(点)"]
+                    _result["仮順位"] = _result["仮最終ジオ評価"].rank(method="min", ascending=False).astype(int)
+                    _result["順位変化"] = _result["現在順位"] - _result["仮順位"]
+                    _display_cols = ["馬名", "対象過去走", "着差取得走数", "従来の着順能力(点)",
+                                     "着差考慮の仮能力(点)", "仮差分(点)", "現在順位", "仮順位", "順位変化",
+                                     "統合指数", "仮統合指数", "最終ジオ評価", "仮最終ジオ評価"]
+                    _view = _result[_display_cols].copy()
+                    for _col in _view.select_dtypes(include="number").columns:
+                        if _col not in ("対象過去走", "着差取得走数", "現在順位", "仮順位", "順位変化"):
+                            _view[_col] = _view[_col].round(3)
+                    st.markdown("**v27 着差による相対能力・予想順位の比較（採用前テスト）**")
+                    st.dataframe(_view, use_container_width=True, hide_index=True)
+                    st.caption("仮式：着順別想定着差（2～3着0.2秒、4～6着0.5秒、7～10着0.9秒、11着以下1.3秒）と実着差の差×0.6点、1走±0.6点。直近最大6走で平均し、着差取得馬の平均補正を差し引く。1着・欠損走は0点。着差取得0走の馬は補正0点。")
+                    st.caption("比較用に現行の着順能力・統合指数・最終ジオ評価へ差分を仮加算して順位を再計算。実際の予想・印・学習データ・DB保存には一切反映しません。着差は走破タイムと情報が重複するため採用は検証後に判断してください。")
                 else:
-                    st.info("比較対象の過去走がありません。")
-                st.caption("仮式：基準着差=0.2秒×(着順−1)、着順相当値の変化=(実着差−基準着差)÷0.5（±0.5着で制限）。1着は補正なし。あくまで比較用の仮設定です。")
+                    st.info("比較対象の出走馬がありません。")
             else:
                 st.info("過去走データがありません。予想を実行してください。")
         overview = dashboard_df.copy()
