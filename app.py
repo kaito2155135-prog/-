@@ -3175,7 +3175,7 @@ def display_geo_prediction(geo):
                 _cmp["_finish"] = pd.to_numeric(_cmp.get("着順"), errors="coerce")
                 _cmp["_gap"] = pd.to_numeric(_cmp.get("勝ち馬とのタイム差秒"), errors="coerce")
                 _cmp = _cmp[_cmp["_finish"].ge(1)].copy()
-                _surface = str(surface)
+                _surface = str(dashboard_df.iloc[0].get("芝・ダ") or "")
                 if "芝・ダ" in _cmp.columns:
                     if "ダ" in _surface:
                         _cmp = _cmp[_cmp["芝・ダ"].astype(str).str.contains("ダ", na=False)].copy()
