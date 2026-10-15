@@ -1389,6 +1389,10 @@ def build_master_data_from_jv(df_current):
                 "馬場状態": str(baba) if baba else "不明",
                 "芝・ダ": surface,
                 "race_code": str(h.get("race_code") or ""),
+                "勝ち馬名": h.get("勝ち馬名"),
+                "勝ち馬走破タイム秒": h.get("勝ち馬走破タイム秒"),
+                "勝ち馬とのタイム差秒": h.get("勝ち馬とのタイム差秒"),
+                "着差取得状況": h.get("着差取得状況", "API未対応"),
                 "馬場状態コード": str(h.get("馬場状態コード") or ""),
                 "shiba_babajotai_code": str(h.get("shiba_babajotai_code") or ""),
                 "dirt_babajotai_code": str(h.get("dirt_babajotai_code") or ""),
@@ -3154,6 +3158,16 @@ def display_geo_prediction(geo):
                 })
             st.dataframe(pd.DataFrame(_first_rows), use_container_width=True, hide_index=True)
             st.caption("初挑戦馬のみ、異種馬場の直近最大6走の平均着順から代理能力指数を算出。初ダート40%、初芝30%を転用（±6点）。父産駒の既存血統補正を±5点に置換。距離差を±2点で補正。実績馬の計算は維持します。")
+        with st.expander("🏁 過去走・勝ち馬とのタイム差（診断のみ）", expanded=False):
+            st.caption("同じレースの1着馬との差。予想点数や自己学習は変更しません。")
+            _past = st.session_state.get("master_data_jv")
+            if isinstance(_past, pd.DataFrame) and not _past.empty:
+                _fields = ["馬名", "年", "月", "日", "場所", "距離", "クラス", "着順", "走破タイム", "勝ち馬名", "勝ち馬走破タイム秒", "勝ち馬とのタイム差秒", "着差取得状況"]
+                st.dataframe(_past[[c for c in _fields if c in _past.columns]], use_container_width=True, hide_index=True)
+                if "着差取得状況" in _past.columns and (_past["着差取得状況"] == "API未対応").any():
+                    st.warning("API旧版のキャッシュの可能性。両サーバーを再起動して予想を再実行してください。")
+            else:
+                st.info("過去走データがありません。予想を実行してください。")
         overview = dashboard_df.copy()
         overview["補正合計"] = pd.to_numeric(overview["ジオ評価"], errors="coerce") - pd.to_numeric(overview["統合指数"], errors="coerce")
         overview["印"] = ["◎" if i == 0 else "○" if i == 1 else "▲" if i == 2 else "△" if i == 3 else "☆" if i == 4 else "" for i in range(len(overview))]
