@@ -3220,7 +3220,7 @@ def display_geo_prediction(geo):
         dashboard_df = dashboard_df.reset_index(drop=True)
         dashboard_df.insert(0, "順位", range(1, len(dashboard_df)+1))
         st.markdown(
-            '<div class="geo-v13-banner"><strong>🏆 GEO AI 予想結果 ｜ 試験配点 v13</strong>'
+            '<div class="geo-v13-banner"><strong>🏆 GEO AI 予想結果 ｜ v28.1</strong>'
             '<div class="geo-v13-preset">能力順位 0 ｜ 穴馬 0 ｜ 血統 3倍 ｜ メンバーレベル 3倍 ｜ 自己学習 2倍'
             '（実効補正は各項目の上限あり）</div></div>',
             unsafe_allow_html=True,
@@ -3274,13 +3274,7 @@ def display_geo_prediction(geo):
                            "補正合計": st.column_config.NumberColumn("補正合計", format="%+.3f")},
         )
         st.caption("※ 印と順位は最終ジオ評価順。勝率ではありません。オッズが未取得なら実際の値を表示せず欠損のままにします。")
-        left, right = st.columns([1.1, 1.2], gap="medium")
-        with left:
-            st.markdown('<div class="geo-panel-title">♛ AI予想順位</div>', unsafe_allow_html=True)
-            fields = [c for c in ["順位", "馬番", "馬名", "ジオ評価", "統合指数", "オッズ"] if c in dashboard_df.columns]
-            st.dataframe(dashboard_df[fields], use_container_width=True, hide_index=True, height=410)
-            st.caption("順位はジオ評価によるもの。勝率を表す数値ではありません。")
-        with right:
+        with st.container():
             st.markdown('<div class="geo-panel-title">◆ 馬別インテリジェンス</div>', unsafe_allow_html=True)
             options = list(range(len(dashboard_df)))
             choice = st.selectbox(
@@ -3322,7 +3316,7 @@ def display_geo_prediction(geo):
                     st.bar_chart(pd.DataFrame({"指数":metrics}),height=220)
             else:
                 st.info("指数データがまだありません。")
-        with st.expander("🧮 統合指数の計算内訳｜加点・減点の根拠", expanded=True):
+        with st.expander("🧮 統合指数の計算内訳｜加点・減点の根拠", expanded=False):
             st.caption("基礎70点から実際に加算・減算された値です。血統・メンバーレベル・学習補正などの最終ジオ評価への補正とは別です。")
             details = chosen.get("統合指数内訳")
             if isinstance(details, dict):
@@ -3343,7 +3337,7 @@ def display_geo_prediction(geo):
             else:
                 st.info("この予想は内訳保存前のデータです。新しいコードで予想を実行すると表示されます。")
 
-        with st.expander("🔬 上がり3F診断｜単位補正後の計算確認", expanded=True):
+        with st.expander("🔬 上がり3F診断｜単位補正後の計算確認", expanded=False):
             st.caption("上がり3Fの332→33.2秒などの単位補正を予想計算に適用しています。ここでは補正後の計算値を確認できます。")
             all_f3_rows = []
             for _, horse in dashboard_df.iterrows():
@@ -3389,37 +3383,7 @@ def display_geo_prediction(geo):
             else:
                 st.info("診断値がまだありません。新しいコードで予想を実行すると表示されます。")
 
-        with st.expander("🧪 v13 新配点とv11参考配点の比較", expanded=True):
-            st.caption("v13は試験配点を予想に適用中。v11配点は保存された各馬の内訳から比較用に再構成します。オッズを使う旧穴馬加点の判定は予想時のオッズを参照します。")
-            comparisons = []
-            threshold80 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.8)
-            threshold60 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.6)
-            threshold70 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.7)
-            for _, item in dashboard_df.iterrows():
-                parts = item.get("最終評価内訳")
-                if not isinstance(parts, dict):
-                    continue
-                trial = float(item["ジオ評価"])
-                idx_score = float(item["統合指数"])
-                old_ability = 8.0 if idx_score >= threshold80 else (3.0 if idx_score >= threshold60 else 0.0)
-                old_outsider = 8.0 if float(item.get("オッズ", 999)) >= 8 and idx_score >= threshold70 else 0.0
-                old = (trial - float(parts.get("能力順位", 0)) - float(parts.get("穴馬評価", 0))
-                       - float(parts.get("血統補正", 0)) * (2.0 / 3.0) - float(parts.get("メンバーレベル", 0)) * (2.0 / 3.0)
-                       - float(parts.get("自己学習", 0)) / 2
-                       + old_ability + old_outsider)
-                # v13の3倍/3倍/2倍をv11の1倍/1倍/1倍へ参考復元（上限到達時は近似）。
-                comparisons.append({"馬番":item.get("馬番"), "馬名":item.get("馬名"),
-                                    "試験配点":round(trial,3),"旧配点の参考再構成":round(old,3)})
-            if comparisons:
-                comp_df = pd.DataFrame(comparisons)
-                comp_df["試験順位"] = comp_df["試験配点"].rank(method="min",ascending=False).astype(int)
-                comp_df["旧参考順位"] = comp_df["旧配点の参考再構成"].rank(method="min",ascending=False).astype(int)
-                st.dataframe(comp_df.sort_values("試験順位"),use_container_width=True,hide_index=True)
-                st.caption("旧配点は再計算した参考値です。補正の上限に達した馬では厳密な旧スコアと異なる可能性があります。")
-            else:
-                st.info("比較できる最終評価内訳がありません。")
-
-        with st.expander("🎯 最終ジオ評価の全補正内訳｜配点検証", expanded=True):
+        with st.expander("🎯 最終ジオ評価の全補正内訳｜配点検証", expanded=False):
             st.caption("統合指数から最終評価まで、実際に適用された加減点。自己学習はAPIから取得した補正値です。")
             details = chosen.get("最終評価内訳")
             if isinstance(details, dict):
@@ -3436,31 +3400,10 @@ def display_geo_prediction(geo):
                     st.success("最終ジオ評価と補正内訳の合計が一致しています。")
                 else:
                     st.error(f"補正内訳の合計と最終評価が一致しません（差 {total-actual:+.6f}pt）。")
-                st.caption("v12試験配点を適用しています。変更前のv11をバックアップし、今週末の予想と結果を比較してください。")
+                st.caption("現在の予想で使用した最終評価の内訳です。")
             else:
                 st.info("この予想には最終評価の内訳がありません。新しいコードで予想した場合に表示されます。")
 
-        tabs = st.tabs(["📊 指数比較", "🧬 血統・メンバー", "🏇 展開データ"])
-        with tabs[0]:
-            cols = [c for c in ["ジオ評価","統合指数","メンバーレベル"] if c in dashboard_df.columns and dashboard_df[c].notna().any()]
-            if cols:
-                st.bar_chart(dashboard_df.head(10).set_index("馬名")[cols],height=280)
-            else:
-                st.info("比較可能な指数がありません。")
-        with tabs[1]:
-            st.caption("父系の血統適性とメンバーレベルを表示。欠損値は推測で補いません。")
-            blood_cols = [c for c in dashboard_df.columns if "血統" in str(c) or "メンバー" in str(c)]
-            if blood_cols:
-                st.dataframe(dashboard_df[["馬名"]+blood_cols],use_container_width=True,hide_index=True)
-            else:
-                st.info("血統・メンバーレベルの比較列はありません。下の根拠診断で確認してください。")
-        with tabs[2]:
-            st.caption("予想時点の脚質データです。走行位置のアニメーションや未計算の能力値は表示しません。")
-            if "脚質" in dashboard_df.columns:
-                st.dataframe(dashboard_df[[c for c in ["馬番","馬名","脚質","ジオ評価"] if c in dashboard_df.columns]],
-                             use_container_width=True,hide_index=True)
-            else:
-                st.info("脚質データがありません。")
     else:
         st.info("レース予想を実行するとAI順位表・馬別分析が表示されます。")
     st.subheader("🧠 ジオの最終判断")
@@ -3504,44 +3447,6 @@ def display_geo_prediction(geo):
                 st.markdown("**評価理由**")
                 for reason in horse_reasons[:4]:
                     st.write(f"・{reason}")
-
-    with st.expander("📊 AI分析ダッシュボード｜全頭指数・血統・メンバーレベル", expanded=True):
-        st.caption("実際の予想計算に使用した値を可視化します。勝率や的中確率を新たに推定するものではありません。")
-        chart_df = geo.get("df_geo")
-        if isinstance(chart_df, pd.DataFrame) and not chart_df.empty and "馬名" in chart_df.columns:
-            chart_df = chart_df.copy()
-            for metric in ["ジオ評価", "統合指数", "メンバーレベル"]:
-                if metric in chart_df.columns:
-                    chart_df[metric] = pd.to_numeric(chart_df[metric], errors="coerce")
-            top = chart_df.sort_values("ジオ評価", ascending=False).head(10) if "ジオ評価" in chart_df.columns else chart_df.head(10)
-            metrics = [c for c in ["ジオ評価", "統合指数", "メンバーレベル"] if c in top.columns and top[c].notna().any()]
-            if metrics:
-                st.markdown("**全頭AI指数ランキング（上位10頭）**")
-                st.bar_chart(top.set_index("馬名")[metrics], height=320)
-            st.markdown("**◎○▲ 血統適性とコース一致サンプル**")
-            pedigree_rows = []
-            for label, h in horse_data:
-                if not isinstance(h, dict): continue
-                blood = h.get("血統適性") or {}
-                if not isinstance(blood, dict): blood = {}
-                father = blood.get("father") or {}
-                if not isinstance(father, dict): father = {}
-                pedigree_rows.append({
-                    "印": label, "馬名": h.get("馬名", ""),
-                    "血統スコア": blood.get("score"),
-                    "信頼度": blood.get("confidence"),
-                    "コース一致出走数": father.get("exact_course_sample"),
-                    "コース一致勝率%": father.get("exact_course_win_rate"),
-                    "コース一致複勝率%": father.get("exact_course_top3_rate"),
-                })
-            if pedigree_rows:
-                pedigree_df = pd.DataFrame(pedigree_rows)
-                st.dataframe(pedigree_df, use_container_width=True, hide_index=True)
-                if pedigree_df["血統スコア"].notna().any():
-                    st.bar_chart(pedigree_df.set_index("馬名")[["血統スコア"]], height=220)
-            st.caption("血統は父の産駒実績に基づきます。完全一致サンプルが少ない場合は過信しないでください。")
-        else:
-            st.info("まだ全頭の予想結果がありません。レースを分析すると表示されます。")
 
     with st.expander("🧬 血統・学習補正の根拠", expanded=False):
         st.caption("血統スコアは父の産駒実績100%で算出。母の産駒実績はスコアに使いません。条件別成績はサンプル数と一緒に確認してください。")
