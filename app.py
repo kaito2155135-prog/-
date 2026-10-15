@@ -1353,9 +1353,11 @@ def build_master_data_from_jv(df_current):
             )
         )
 
-        year = h.get("年", np.nan)
-        month = h.get("月", np.nan)
-        day = h.get("日", np.nan)
+        # APIは「kaisai_nen」「kaisai_gappi」を返す。年/月/日が無い場合はこちらを優先。
+        year = h.get("年", h.get("kaisai_nen", np.nan))
+        _gappi = str(h.get("kaisai_gappi") or "").strip().zfill(4)
+        month = h.get("月", int(_gappi[:2]) if _gappi.isdigit() and 1 <= int(_gappi[:2]) <= 12 else np.nan)
+        day = h.get("日", int(_gappi[2:]) if _gappi.isdigit() and 1 <= int(_gappi[2:]) <= 31 else np.nan)
 
         if (
             pd.isna(year)
@@ -3158,14 +3160,52 @@ def display_geo_prediction(geo):
                 })
             st.dataframe(pd.DataFrame(_first_rows), use_container_width=True, hide_index=True)
             st.caption("初挑戦馬のみ、異種馬場の直近最大6走の平均着順から代理能力指数を算出。初ダート40%、初芝30%を転用（±6点）。父産駒の既存血統補正を±5点に置換。距離差を±2点で補正。実績馬の計算は維持します。")
-        with st.expander("🏁 過去走・勝ち馬とのタイム差（診断のみ）", expanded=False):
-            st.caption("同じレースの1着馬との差。予想点数や自己学習は変更しません。")
+        with st.expander("🏁 過去走・着差と着順能力の比較（仮計算・配点変更なし）", expanded=False):
+            st.caption("年月日はAPIのkaisai_nen/kaisai_gappiから表示。着差評価は比較用の仮説で、統合指数・学習・保存データには反映しません。")
             _past = st.session_state.get("master_data_jv")
             if isinstance(_past, pd.DataFrame) and not _past.empty:
                 _fields = ["馬名", "年", "月", "日", "場所", "距離", "クラス", "着順", "走破タイム", "勝ち馬名", "勝ち馬走破タイム秒", "勝ち馬とのタイム差秒", "着差取得状況"]
                 st.dataframe(_past[[c for c in _fields if c in _past.columns]], use_container_width=True, hide_index=True)
                 if "着差取得状況" in _past.columns and (_past["着差取得状況"] == "API未対応").any():
-                    st.warning("API旧版のキャッシュの可能性。両サーバーを再起動して予想を再実行してください。")
+                    st.warning("API旧版のキャッシュの可能性があります。両サーバーを再起動して予想を再実行してください。")
+                # 既存の着順能力は、同じ芝/ダートの直近最大6走の平均着順から算出。
+                # 仮案：着順相当値を着差で最大±0.5着だけ動かし、既存式へ入力する。
+                # 着差不明なら従来の着順をそのまま使う。
+                _cmp = _past.copy()
+                _cmp["_finish"] = pd.to_numeric(_cmp.get("着順"), errors="coerce")
+                _cmp["_gap"] = pd.to_numeric(_cmp.get("勝ち馬とのタイム差秒"), errors="coerce")
+                _cmp = _cmp[_cmp["_finish"].ge(1)].copy()
+                _surface = str(surface)
+                if "芝・ダ" in _cmp.columns:
+                    if "ダ" in _surface:
+                        _cmp = _cmp[_cmp["芝・ダ"].astype(str).str.contains("ダ", na=False)].copy()
+                    else:
+                        _cmp = _cmp[~_cmp["芝・ダ"].astype(str).str.contains("ダ", na=False)].copy()
+                _sort = [c for c in ("年", "月", "日") if c in _cmp.columns]
+                if _sort:
+                    _cmp = _cmp.sort_values(_sort, ascending=False)
+                _cmp["_horse"] = _cmp["馬名"].astype(str).map(normalize_horse_name)
+                _cmp = _cmp.groupby("_horse", sort=False).head(6).copy()
+                _baseline_gap = (_cmp["_finish"] - 1).clip(lower=0) * 0.2
+                _adjust = ((_cmp["_gap"] - _baseline_gap) / 0.5).clip(-0.5, 0.5).fillna(0)
+                _adjust = _adjust.where(_cmp["_finish"] > 1, 0)
+                _cmp["_effective_finish"] = (_cmp["_finish"] + _adjust).clip(lower=1)
+                _summary = []
+                for _horse, _g in _cmp.groupby("_horse", sort=False):
+                    _avg_old = float(_g["_finish"].mean())
+                    _avg_new = float(_g["_effective_finish"].mean())
+                    _old_score = max(0.0, (15.0 - (_avg_old - 1) * 1.2) * 0.5)
+                    _new_score = max(0.0, (15.0 - (_avg_new - 1) * 1.2) * 0.5)
+                    _summary.append({"馬名": _horse, "対象過去走": len(_g), "着差取得走数": int(_g["_gap"].notna().sum()),
+                                     "従来の着順能力(点)": round(_old_score, 3),
+                                     "着差考慮の仮能力(点)": round(_new_score, 3),
+                                     "仮差分(点)": round(_new_score - _old_score, 3)})
+                st.markdown("**着順能力の比較（直近最大6走・同じ芝/ダート）**")
+                if _summary:
+                    st.dataframe(pd.DataFrame(_summary), use_container_width=True, hide_index=True)
+                else:
+                    st.info("比較対象の過去走がありません。")
+                st.caption("仮式：基準着差=0.2秒×(着順−1)、着順相当値の変化=(実着差−基準着差)÷0.5（±0.5着で制限）。1着は補正なし。あくまで比較用の仮設定です。")
             else:
                 st.info("過去走データがありません。予想を実行してください。")
         overview = dashboard_df.copy()
