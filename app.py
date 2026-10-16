@@ -1860,11 +1860,8 @@ def run_integrated_simulation(
                     # 追加の距離延長・短縮補正は適用しない。
                     distance_penalty_or_bonus = 0.0
 
-                    # v20: 1階級につき±0.2秒（例：1勝→3勝は+0.4秒）。
-                    # 既存の連勝中(is_rising)の例外処理は維持。
-                    class_level_penalty = (
-                        0.0 if is_rising else 0.20 * class_diff
-                    )
+                    # v33: 連勝によるクラス差補正免除を廃止。全馬共通の補正。
+                    class_level_penalty = 0.20 * class_diff
 
                     time_diff = (
                         past_base_time
@@ -1878,8 +1875,6 @@ def run_integrated_simulation(
                         + class_level_penalty
                     )
 
-                    if is_rising:
-                        converted_time -= 0.2
 
                     if (
                         not pd.isna(converted_time)
@@ -1898,7 +1893,7 @@ def run_integrated_simulation(
                             "階級差": class_diff,
                             "追加距離補正秒": 0.0,
                             "クラス補正秒": round(float(class_level_penalty), 3),
-                            "連勝補正秒": -0.2 if is_rising else 0.0,
+                            "連勝補正秒": 0.0,  # v33: 連勝によるタイム優遇なし
                             "過去走馬場状態": r_baba,
                             "Excel参照馬場状態": r_baba if r_baba in ("良", "稍重", "重", "不良") else "参照不可",
                             "過去走馬場状態コード": str(row.get("馬場状態コード", "")),
@@ -1951,21 +1946,12 @@ def run_integrated_simulation(
 
                     f3_class_adjustment = 0.0
 
-                    if not is_rising:
-                        if (
-                            r_surface_keyword
-                            == "ダート"
-                        ):
-                            if class_diff > 0:
-                                f3_class_adjustment = (
-                                    class_diff
-                                    * 0.15
-                                )
-                            elif class_diff < 0:
-                                f3_class_adjustment = (
-                                    class_diff
-                                    * 0.1
-                                )
+                    # v33: 上がり3Fのクラス差補正も連勝状態に関係なく適用。
+                    if r_surface_keyword == "ダート":
+                        if class_diff > 0:
+                            f3_class_adjustment = class_diff * 0.15
+                        elif class_diff < 0:
+                            f3_class_adjustment = class_diff * 0.1
 
                     converted_f3 = (
                         target_base_f3
