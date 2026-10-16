@@ -1353,11 +1353,9 @@ def build_master_data_from_jv(df_current):
             )
         )
 
-        # APIは「kaisai_nen」「kaisai_gappi」を返す。年/月/日が無い場合はこちらを優先。
-        year = h.get("年", h.get("kaisai_nen", np.nan))
-        _gappi = str(h.get("kaisai_gappi") or "").strip().zfill(4)
-        month = h.get("月", int(_gappi[:2]) if _gappi.isdigit() and 1 <= int(_gappi[:2]) <= 12 else np.nan)
-        day = h.get("日", int(_gappi[2:]) if _gappi.isdigit() and 1 <= int(_gappi[2:]) <= 31 else np.nan)
+        year = h.get("年", np.nan)
+        month = h.get("月", np.nan)
+        day = h.get("日", np.nan)
 
         if (
             pd.isna(year)
@@ -1391,13 +1389,6 @@ def build_master_data_from_jv(df_current):
                 "馬場状態": str(baba) if baba else "不明",
                 "芝・ダ": surface,
                 "race_code": str(h.get("race_code") or ""),
-                "勝ち馬名": h.get("勝ち馬名"),
-                "勝ち馬走破タイム秒": h.get("勝ち馬走破タイム秒"),
-                "勝ち馬とのタイム差秒": h.get("勝ち馬とのタイム差秒"),
-                "2着馬名": h.get("2着馬名"),
-                "2着馬走破タイム秒": h.get("2着馬走破タイム秒"),
-                "符号付き着差秒": h.get("符号付き着差秒"),
-                "着差取得状況": h.get("着差取得状況", "API未対応"),
                 "馬場状態コード": str(h.get("馬場状態コード") or ""),
                 "shiba_babajotai_code": str(h.get("shiba_babajotai_code") or ""),
                 "dirt_babajotai_code": str(h.get("dirt_babajotai_code") or ""),
@@ -1863,8 +1854,11 @@ def run_integrated_simulation(
                     # 追加の距離延長・短縮補正は適用しない。
                     distance_penalty_or_bonus = 0.0
 
-                    # v33: 連勝によるクラス差補正免除を廃止。全馬共通の補正。
-                    class_level_penalty = 0.20 * class_diff
+                    # v20: 1階級につき±0.2秒（例：1勝→3勝は+0.4秒）。
+                    # 既存の連勝中(is_rising)の例外処理は維持。
+                    class_level_penalty = (
+                        0.0 if is_rising else 0.20 * class_diff
+                    )
 
                     time_diff = (
                         past_base_time
@@ -1878,6 +1872,8 @@ def run_integrated_simulation(
                         + class_level_penalty
                     )
 
+                    if is_rising:
+                        converted_time -= 0.2
 
                     if (
                         not pd.isna(converted_time)
@@ -1896,7 +1892,7 @@ def run_integrated_simulation(
                             "階級差": class_diff,
                             "追加距離補正秒": 0.0,
                             "クラス補正秒": round(float(class_level_penalty), 3),
-                            "連勝補正秒": 0.0,  # v33: 連勝によるタイム優遇なし
+                            "連勝補正秒": -0.2 if is_rising else 0.0,
                             "過去走馬場状態": r_baba,
                             "Excel参照馬場状態": r_baba if r_baba in ("良", "稍重", "重", "不良") else "参照不可",
                             "過去走馬場状態コード": str(row.get("馬場状態コード", "")),
@@ -1949,12 +1945,21 @@ def run_integrated_simulation(
 
                     f3_class_adjustment = 0.0
 
-                    # v33: 上がり3Fのクラス差補正も連勝状態に関係なく適用。
-                    if r_surface_keyword == "ダート":
-                        if class_diff > 0:
-                            f3_class_adjustment = class_diff * 0.15
-                        elif class_diff < 0:
-                            f3_class_adjustment = class_diff * 0.1
+                    if not is_rising:
+                        if (
+                            r_surface_keyword
+                            == "ダート"
+                        ):
+                            if class_diff > 0:
+                                f3_class_adjustment = (
+                                    class_diff
+                                    * 0.15
+                                )
+                            elif class_diff < 0:
+                                f3_class_adjustment = (
+                                    class_diff
+                                    * 0.1
+                                )
 
                     converted_f3 = (
                         target_base_f3
@@ -2295,7 +2300,7 @@ def run_integrated_simulation(
             "コース適性": float(combined_theory_bonus),
             "走破タイム": float(soha_theory_bonus) * 1.2,
             "上がり3F": float(f3_theory_bonus),
-            "連勝": 0.0,  # v32: ライジングスターの直接加点を廃止（表示判定は維持）
+            "連勝": 4.0 if is_rising else 0.0,
             "タフネス": 0.0,
             "直線・脚質": 0.0,
             "ペース": 0.0,
@@ -2614,7 +2619,11 @@ def save_geo_prediction(
             st.warning(f"⚠️ Geo予想保存失敗: {result.get('error')}")
             return False
 
-        st.warning(f"⚠️ Geo予想保存APIエラー: {response.status_code}")
+        try:
+            reason = response.json().get("error", "")
+        except (ValueError, AttributeError):
+            reason = response.text[:250]
+        st.warning(f"⚠️ Geo予想保存APIエラー: {response.status_code} / {reason}")
         return False
 
     except Exception as e:
@@ -2800,64 +2809,6 @@ def enrich_with_field_quality(df, asof_date):
                    'メンバーレベル判定', 'メンバーレベル取得状況'] if c in out.columns]].head(8).to_dict('records'),
     }
     return out
-
-
-# v28: v27で比較した着差相対補正を、予想時点で利用可能な過去走だけから計算する。
-# 倍率はv27の2倍（0.60→1.20）。欠損馬は補正0、出走馬間の有効馬平均を引く。
-def geo_v28_margin_adjustments(runners, history, asof_date):
-    zero = {normalize_horse_name(str(name)): 0.0 for name in runners["馬名"]}
-    if not isinstance(history, pd.DataFrame) or history.empty:
-        return zero
-    required = {"馬名", "着順", "符号付き着差秒", "年", "月", "日"}
-    if not required.issubset(history.columns):
-        return zero
-    past = history.copy()
-    past["_horse"] = past["馬名"].astype(str).map(normalize_horse_name)
-    past["_finish"] = pd.to_numeric(past["着順"], errors="coerce")
-    past["_gap"] = pd.to_numeric(past["符号付き着差秒"], errors="coerce")
-    dates = pd.to_datetime(
-        past["年"].astype(str) + "-" + past["月"].astype(str) + "-" + past["日"].astype(str),
-        errors="coerce",
-    )
-    cutoff = pd.to_datetime(asof_date, errors="coerce")
-    if pd.isna(cutoff):
-        return zero
-    # 対象レース当日の結果は予想時点で未確定の可能性があるため含めない。
-    past = past.loc[dates.notna() & dates.lt(cutoff) & past["_finish"].ge(1)].copy()
-    if past.empty:
-        return zero
-    past["_date"] = dates.loc[past.index]
-    past["_surface"] = past["芝・ダ"].astype(str) if "芝・ダ" in past.columns else ""
-    past = past.sort_values("_date", ascending=False)
-    raw = {}
-    for _, horse in runners.iterrows():
-        name = normalize_horse_name(str(horse.get("馬名") or ""))
-        surface = str(horse.get("芝・ダ") or "")
-        group = past[past["_horse"].eq(name)]
-        if "ダ" in surface:
-            group = group[group["_surface"].str.contains("ダ", na=False)]
-        elif "芝" in surface:
-            group = group[group["_surface"].str.contains("芝", na=False)]
-        group = group.head(6)
-        if group.empty or not group["_gap"].notna().any():
-            continue
-        def expected(finish):
-            if finish <= 1: return 0.0
-            if finish <= 3: return 0.20
-            if finish <= 6: return 0.50
-            if finish <= 10: return 0.90
-            return 1.30
-        expected_gap = group["_finish"].map(expected)
-        # 1着: 勝ち幅(プラス)×1.2。2着以下: 従来の期待着差との差を維持。
-        points = ((expected_gap + group["_gap"]) * 1.20).clip(-1.20, 1.20)
-        points = points.where(group["_gap"].notna(), 0.0)
-        raw[name] = float(points.mean())
-    if not raw:
-        return zero
-    center = sum(raw.values()) / len(raw)
-    for name, value in raw.items():
-        zero[name] = float(value - center)
-    return zero
 
 
 def run_geo_prediction(
@@ -3072,33 +3023,6 @@ def run_geo_prediction(
         df.loc[idx, "ジオ評価"] = geo_score
         reasons[horse] = point
 
-    # v28: v27で検証した着差補正を×2で正式採用。統合指数・着順能力内訳にも反映。
-    # 過去走が取得できない馬は0点。予想対象日以降の結果は参照しない。
-    _margin_map = geo_v28_margin_adjustments(
-        df, st.session_state.get("master_data_jv"), asof_date
-    )
-    df["着差補正"] = 0.0
-    for idx, row in df.iterrows():
-        _name = normalize_horse_name(str(row.get("馬名") or ""))
-        _bonus = float(_margin_map.get(_name, 0.0))
-        df.at[idx, "着差補正"] = _bonus
-        df.at[idx, "統合指数"] = float(row["統合指数"]) + _bonus
-        df.at[idx, "ジオ評価"] = float(df.at[idx, "ジオ評価"]) + _bonus
-        _index_parts = row.get("統合指数内訳")
-        if isinstance(_index_parts, dict):
-            _index_parts = dict(_index_parts)
-            _index_parts["着順能力"] = float(_index_parts.get("着順能力", 0.0)) + _bonus
-            df.at[idx, "統合指数内訳"] = _index_parts
-        _parts = df.at[idx, "最終評価内訳"]
-        if isinstance(_parts, dict):
-            _parts = dict(_parts)
-            _parts["統合指数"] = float(_parts["統合指数"]) + _bonus
-            df.at[idx, "最終評価内訳"] = _parts
-        if abs(_bonus) > 0.001:
-            reasons.setdefault(str(row.get("馬名", "")), []).append(
-                f"勝ち馬との着差を考慮した着順能力補正{_bonus:+.2f}点"
-            )
-
     # 自動学習補正。API障害時は従来ロジックをそのまま継続する。
     df = apply_geo_learning_adjustment(
         df, pace=pace, bias=bias, condition=condition, venue=venue
@@ -3210,7 +3134,7 @@ def display_geo_prediction(geo):
         dashboard_df = dashboard_df.reset_index(drop=True)
         dashboard_df.insert(0, "順位", range(1, len(dashboard_df)+1))
         st.markdown(
-            '<div class="geo-v13-banner"><strong>🏆 GEO AI 予想結果 ｜ v28.1</strong>'
+            '<div class="geo-v13-banner"><strong>🏆 GEO AI 予想結果 ｜ 試験配点 v13</strong>'
             '<div class="geo-v13-preset">能力順位 0 ｜ 穴馬 0 ｜ 血統 3倍 ｜ メンバーレベル 3倍 ｜ 自己学習 2倍'
             '（実効補正は各項目の上限あり）</div></div>',
             unsafe_allow_html=True,
@@ -3234,20 +3158,6 @@ def display_geo_prediction(geo):
                 })
             st.dataframe(pd.DataFrame(_first_rows), use_container_width=True, hide_index=True)
             st.caption("初挑戦馬のみ、異種馬場の直近最大6走の平均着順から代理能力指数を算出。初ダート40%、初芝30%を転用（±6点）。父産駒の既存血統補正を±5点に置換。距離差を±2点で補正。実績馬の計算は維持します。")
-        with st.expander("🏁 過去走・着差補正（v28正式採用）", expanded=False):
-            st.caption("年月日はAPIのkaisai_nen/kaisai_gappiから表示。着差補正は統合指数・予想順位・印・保存される予想特徴量に反映されます。")
-            _past = st.session_state.get("master_data_jv")
-            if isinstance(_past, pd.DataFrame) and not _past.empty:
-                _fields = ["馬名", "年", "月", "日", "場所", "距離", "クラス", "着順", "走破タイム", "勝ち馬名", "勝ち馬走破タイム秒", "勝ち馬とのタイム差秒", "2着馬名", "2着馬走破タイム秒", "符号付き着差秒", "着差取得状況"]
-                st.dataframe(_past[[c for c in _fields if c in _past.columns]], use_container_width=True, hide_index=True)
-                if "着差取得状況" in _past.columns and (_past["着差取得状況"] == "API未対応").any():
-                    st.warning("API旧版のキャッシュの可能性があります。両サーバーを再起動して予想を再実行してください。")
-                _applied = dashboard_df[[c for c in ["馬名", "着差補正", "統合指数", "ジオ評価"] if c in dashboard_df.columns]].copy()
-                st.markdown("**v28 着差補正（×2）・統合指数へ正式反映済み**")
-                st.dataframe(_applied, use_container_width=True, hide_index=True)
-                st.caption("同じ芝・ダートの直近最大6走。着順別想定着差と実際の差×1.2点（各走±1.2点）、出走馬の取得済み馬間で平均0点に調整。取得できない馬は0点。対象日当日以降の過去走は除外。")
-            else:
-                st.info("過去走データがありません。予想を実行してください。")
         overview = dashboard_df.copy()
         overview["補正合計"] = pd.to_numeric(overview["ジオ評価"], errors="coerce") - pd.to_numeric(overview["統合指数"], errors="coerce")
         overview["印"] = ["◎" if i == 0 else "○" if i == 1 else "▲" if i == 2 else "△" if i == 3 else "☆" if i == 4 else "" for i in range(len(overview))]
@@ -3264,7 +3174,13 @@ def display_geo_prediction(geo):
                            "補正合計": st.column_config.NumberColumn("補正合計", format="%+.3f")},
         )
         st.caption("※ 印と順位は最終ジオ評価順。勝率ではありません。オッズが未取得なら実際の値を表示せず欠損のままにします。")
-        with st.container():
+        left, right = st.columns([1.1, 1.2], gap="medium")
+        with left:
+            st.markdown('<div class="geo-panel-title">♛ AI予想順位</div>', unsafe_allow_html=True)
+            fields = [c for c in ["順位", "馬番", "馬名", "ジオ評価", "統合指数", "オッズ"] if c in dashboard_df.columns]
+            st.dataframe(dashboard_df[fields], use_container_width=True, hide_index=True, height=410)
+            st.caption("順位はジオ評価によるもの。勝率を表す数値ではありません。")
+        with right:
             st.markdown('<div class="geo-panel-title">◆ 馬別インテリジェンス</div>', unsafe_allow_html=True)
             options = list(range(len(dashboard_df)))
             choice = st.selectbox(
@@ -3306,7 +3222,7 @@ def display_geo_prediction(geo):
                     st.bar_chart(pd.DataFrame({"指数":metrics}),height=220)
             else:
                 st.info("指数データがまだありません。")
-        with st.expander("🧮 統合指数の計算内訳｜加点・減点の根拠", expanded=False):
+        with st.expander("🧮 統合指数の計算内訳｜加点・減点の根拠", expanded=True):
             st.caption("基礎70点から実際に加算・減算された値です。血統・メンバーレベル・学習補正などの最終ジオ評価への補正とは別です。")
             details = chosen.get("統合指数内訳")
             if isinstance(details, dict):
@@ -3327,7 +3243,7 @@ def display_geo_prediction(geo):
             else:
                 st.info("この予想は内訳保存前のデータです。新しいコードで予想を実行すると表示されます。")
 
-        with st.expander("🔬 上がり3F診断｜単位補正後の計算確認", expanded=False):
+        with st.expander("🔬 上がり3F診断｜単位補正後の計算確認", expanded=True):
             st.caption("上がり3Fの332→33.2秒などの単位補正を予想計算に適用しています。ここでは補正後の計算値を確認できます。")
             all_f3_rows = []
             for _, horse in dashboard_df.iterrows():
@@ -3373,7 +3289,37 @@ def display_geo_prediction(geo):
             else:
                 st.info("診断値がまだありません。新しいコードで予想を実行すると表示されます。")
 
-        with st.expander("🎯 最終ジオ評価の全補正内訳｜配点検証", expanded=False):
+        with st.expander("🧪 v13 新配点とv11参考配点の比較", expanded=True):
+            st.caption("v13は試験配点を予想に適用中。v11配点は保存された各馬の内訳から比較用に再構成します。オッズを使う旧穴馬加点の判定は予想時のオッズを参照します。")
+            comparisons = []
+            threshold80 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.8)
+            threshold60 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.6)
+            threshold70 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.7)
+            for _, item in dashboard_df.iterrows():
+                parts = item.get("最終評価内訳")
+                if not isinstance(parts, dict):
+                    continue
+                trial = float(item["ジオ評価"])
+                idx_score = float(item["統合指数"])
+                old_ability = 8.0 if idx_score >= threshold80 else (3.0 if idx_score >= threshold60 else 0.0)
+                old_outsider = 8.0 if float(item.get("オッズ", 999)) >= 8 and idx_score >= threshold70 else 0.0
+                old = (trial - float(parts.get("能力順位", 0)) - float(parts.get("穴馬評価", 0))
+                       - float(parts.get("血統補正", 0)) * (2.0 / 3.0) - float(parts.get("メンバーレベル", 0)) * (2.0 / 3.0)
+                       - float(parts.get("自己学習", 0)) / 2
+                       + old_ability + old_outsider)
+                # v13の3倍/3倍/2倍をv11の1倍/1倍/1倍へ参考復元（上限到達時は近似）。
+                comparisons.append({"馬番":item.get("馬番"), "馬名":item.get("馬名"),
+                                    "試験配点":round(trial,3),"旧配点の参考再構成":round(old,3)})
+            if comparisons:
+                comp_df = pd.DataFrame(comparisons)
+                comp_df["試験順位"] = comp_df["試験配点"].rank(method="min",ascending=False).astype(int)
+                comp_df["旧参考順位"] = comp_df["旧配点の参考再構成"].rank(method="min",ascending=False).astype(int)
+                st.dataframe(comp_df.sort_values("試験順位"),use_container_width=True,hide_index=True)
+                st.caption("旧配点は再計算した参考値です。補正の上限に達した馬では厳密な旧スコアと異なる可能性があります。")
+            else:
+                st.info("比較できる最終評価内訳がありません。")
+
+        with st.expander("🎯 最終ジオ評価の全補正内訳｜配点検証", expanded=True):
             st.caption("統合指数から最終評価まで、実際に適用された加減点。自己学習はAPIから取得した補正値です。")
             details = chosen.get("最終評価内訳")
             if isinstance(details, dict):
@@ -3390,10 +3336,31 @@ def display_geo_prediction(geo):
                     st.success("最終ジオ評価と補正内訳の合計が一致しています。")
                 else:
                     st.error(f"補正内訳の合計と最終評価が一致しません（差 {total-actual:+.6f}pt）。")
-                st.caption("現在の予想で使用した最終評価の内訳です。")
+                st.caption("v12試験配点を適用しています。変更前のv11をバックアップし、今週末の予想と結果を比較してください。")
             else:
                 st.info("この予想には最終評価の内訳がありません。新しいコードで予想した場合に表示されます。")
 
+        tabs = st.tabs(["📊 指数比較", "🧬 血統・メンバー", "🏇 展開データ"])
+        with tabs[0]:
+            cols = [c for c in ["ジオ評価","統合指数","メンバーレベル"] if c in dashboard_df.columns and dashboard_df[c].notna().any()]
+            if cols:
+                st.bar_chart(dashboard_df.head(10).set_index("馬名")[cols],height=280)
+            else:
+                st.info("比較可能な指数がありません。")
+        with tabs[1]:
+            st.caption("父系の血統適性とメンバーレベルを表示。欠損値は推測で補いません。")
+            blood_cols = [c for c in dashboard_df.columns if "血統" in str(c) or "メンバー" in str(c)]
+            if blood_cols:
+                st.dataframe(dashboard_df[["馬名"]+blood_cols],use_container_width=True,hide_index=True)
+            else:
+                st.info("血統・メンバーレベルの比較列はありません。下の根拠診断で確認してください。")
+        with tabs[2]:
+            st.caption("予想時点の脚質データです。走行位置のアニメーションや未計算の能力値は表示しません。")
+            if "脚質" in dashboard_df.columns:
+                st.dataframe(dashboard_df[[c for c in ["馬番","馬名","脚質","ジオ評価"] if c in dashboard_df.columns]],
+                             use_container_width=True,hide_index=True)
+            else:
+                st.info("脚質データがありません。")
     else:
         st.info("レース予想を実行するとAI順位表・馬別分析が表示されます。")
     st.subheader("🧠 ジオの最終判断")
@@ -3437,6 +3404,44 @@ def display_geo_prediction(geo):
                 st.markdown("**評価理由**")
                 for reason in horse_reasons[:4]:
                     st.write(f"・{reason}")
+
+    with st.expander("📊 AI分析ダッシュボード｜全頭指数・血統・メンバーレベル", expanded=True):
+        st.caption("実際の予想計算に使用した値を可視化します。勝率や的中確率を新たに推定するものではありません。")
+        chart_df = geo.get("df_geo")
+        if isinstance(chart_df, pd.DataFrame) and not chart_df.empty and "馬名" in chart_df.columns:
+            chart_df = chart_df.copy()
+            for metric in ["ジオ評価", "統合指数", "メンバーレベル"]:
+                if metric in chart_df.columns:
+                    chart_df[metric] = pd.to_numeric(chart_df[metric], errors="coerce")
+            top = chart_df.sort_values("ジオ評価", ascending=False).head(10) if "ジオ評価" in chart_df.columns else chart_df.head(10)
+            metrics = [c for c in ["ジオ評価", "統合指数", "メンバーレベル"] if c in top.columns and top[c].notna().any()]
+            if metrics:
+                st.markdown("**全頭AI指数ランキング（上位10頭）**")
+                st.bar_chart(top.set_index("馬名")[metrics], height=320)
+            st.markdown("**◎○▲ 血統適性とコース一致サンプル**")
+            pedigree_rows = []
+            for label, h in horse_data:
+                if not isinstance(h, dict): continue
+                blood = h.get("血統適性") or {}
+                if not isinstance(blood, dict): blood = {}
+                father = blood.get("father") or {}
+                if not isinstance(father, dict): father = {}
+                pedigree_rows.append({
+                    "印": label, "馬名": h.get("馬名", ""),
+                    "血統スコア": blood.get("score"),
+                    "信頼度": blood.get("confidence"),
+                    "コース一致出走数": father.get("exact_course_sample"),
+                    "コース一致勝率%": father.get("exact_course_win_rate"),
+                    "コース一致複勝率%": father.get("exact_course_top3_rate"),
+                })
+            if pedigree_rows:
+                pedigree_df = pd.DataFrame(pedigree_rows)
+                st.dataframe(pedigree_df, use_container_width=True, hide_index=True)
+                if pedigree_df["血統スコア"].notna().any():
+                    st.bar_chart(pedigree_df.set_index("馬名")[["血統スコア"]], height=220)
+            st.caption("血統は父の産駒実績に基づきます。完全一致サンプルが少ない場合は過信しないでください。")
+        else:
+            st.info("まだ全頭の予想結果がありません。レースを分析すると表示されます。")
 
     with st.expander("🧬 血統・学習補正の根拠", expanded=False):
         st.caption("血統スコアは父の産駒実績100%で算出。母の産駒実績はスコアに使いません。条件別成績はサンプル数と一緒に確認してください。")
@@ -3846,18 +3851,31 @@ if st.button("🏇 開催日全レース自動予想", key="geo_all_race_auto_pr
                 if str(x.get("race_id", "")).strip()
             }
 
+        # v35: 確定着順が既にDBにあるレースは予想前に除外する。
+        # API側の409保護はそのまま維持し、事後予想の学習混入を防止。
+        settled_info = api_get(f"/geo/settled-race-ids?date={target_date}", timeout=30)
+        if not isinstance(settled_info, dict) or not settled_info.get("ok"):
+            st.error("⚠️ 確定結果の事前確認ができないため、全レース自動予想を開始しません。Flask APIをv35に更新してください。")
+            st.stop()
+        settled_ids = {str(x).strip() for x in settled_info.get("race_ids", [])}
+
         pending = []
         already_saved = []
+        already_settled = []
         for item in day_races:
             rid = str(item.get("race_id", item.get("id", item.get("race_code", ""))) or "").strip()
             if not rid:
                 continue
             if rid in saved_ids:
                 already_saved.append(item)
+            elif rid in settled_ids:
+                already_settled.append(item)
             else:
                 pending.append(item)
 
-        st.info(f"📅 {target_date_raw} の開催日全{len(day_races)}Rを確認。未予想 {len(pending)}R / 保存済み {len(already_saved)}R")
+        st.info(f"📅 {target_date_raw} の開催日全{len(day_races)}Rを確認。未予想 {len(pending)}R / 保存済み {len(already_saved)}R / 確定済み・新規保存不可 {len(already_settled)}R")
+        if already_settled:
+            st.warning("⚠️ 確定済みレースは事後予想を学習に混ぜないため自動除外しました。")
 
         if not pending:
             st.success("✅ この開催日の予想はすべて保存済みです。")
