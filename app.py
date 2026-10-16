@@ -1394,6 +1394,9 @@ def build_master_data_from_jv(df_current):
                 "勝ち馬名": h.get("勝ち馬名"),
                 "勝ち馬走破タイム秒": h.get("勝ち馬走破タイム秒"),
                 "勝ち馬とのタイム差秒": h.get("勝ち馬とのタイム差秒"),
+                "2着馬名": h.get("2着馬名"),
+                "2着馬走破タイム秒": h.get("2着馬走破タイム秒"),
+                "符号付き着差秒": h.get("符号付き着差秒"),
                 "着差取得状況": h.get("着差取得状況", "API未対応"),
                 "馬場状態コード": str(h.get("馬場状態コード") or ""),
                 "shiba_babajotai_code": str(h.get("shiba_babajotai_code") or ""),
@@ -2805,13 +2808,13 @@ def geo_v28_margin_adjustments(runners, history, asof_date):
     zero = {normalize_horse_name(str(name)): 0.0 for name in runners["馬名"]}
     if not isinstance(history, pd.DataFrame) or history.empty:
         return zero
-    required = {"馬名", "着順", "勝ち馬とのタイム差秒", "年", "月", "日"}
+    required = {"馬名", "着順", "符号付き着差秒", "年", "月", "日"}
     if not required.issubset(history.columns):
         return zero
     past = history.copy()
     past["_horse"] = past["馬名"].astype(str).map(normalize_horse_name)
     past["_finish"] = pd.to_numeric(past["着順"], errors="coerce")
-    past["_gap"] = pd.to_numeric(past["勝ち馬とのタイム差秒"], errors="coerce")
+    past["_gap"] = pd.to_numeric(past["符号付き着差秒"], errors="coerce")
     dates = pd.to_datetime(
         past["年"].astype(str) + "-" + past["月"].astype(str) + "-" + past["日"].astype(str),
         errors="coerce",
@@ -2845,8 +2848,9 @@ def geo_v28_margin_adjustments(runners, history, asof_date):
             if finish <= 10: return 0.90
             return 1.30
         expected_gap = group["_finish"].map(expected)
-        points = ((expected_gap - group["_gap"]) * 1.20).clip(-1.20, 1.20).fillna(0.0)
-        points.loc[group["_finish"].eq(1)] = 0.0
+        # 1着: 勝ち幅(プラス)×1.2。2着以下: 従来の期待着差との差を維持。
+        points = ((expected_gap + group["_gap"]) * 1.20).clip(-1.20, 1.20)
+        points = points.where(group["_gap"].notna(), 0.0)
         raw[name] = float(points.mean())
     if not raw:
         return zero
@@ -3234,7 +3238,7 @@ def display_geo_prediction(geo):
             st.caption("年月日はAPIのkaisai_nen/kaisai_gappiから表示。着差補正は統合指数・予想順位・印・保存される予想特徴量に反映されます。")
             _past = st.session_state.get("master_data_jv")
             if isinstance(_past, pd.DataFrame) and not _past.empty:
-                _fields = ["馬名", "年", "月", "日", "場所", "距離", "クラス", "着順", "走破タイム", "勝ち馬名", "勝ち馬走破タイム秒", "勝ち馬とのタイム差秒", "着差取得状況"]
+                _fields = ["馬名", "年", "月", "日", "場所", "距離", "クラス", "着順", "走破タイム", "勝ち馬名", "勝ち馬走破タイム秒", "勝ち馬とのタイム差秒", "2着馬名", "2着馬走破タイム秒", "符号付き着差秒", "着差取得状況"]
                 st.dataframe(_past[[c for c in _fields if c in _past.columns]], use_container_width=True, hide_index=True)
                 if "着差取得状況" in _past.columns and (_past["着差取得状況"] == "API未対応").any():
                     st.warning("API旧版のキャッシュの可能性があります。両サーバーを再起動して予想を再実行してください。")
