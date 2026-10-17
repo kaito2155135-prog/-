@@ -2325,6 +2325,17 @@ def run_integrated_simulation(
             _proxy = _first_material_for_index.get("代理能力指数")
             if _proxy is not None:
                 _transfer_ability_for_index = max(-6.0, min(6.0, (float(_proxy) - 70.0) * 0.70))
+        # v38: 診断専用。既存の採点値や補正上限は一切変更しない。
+        if _first_diag_for_index.get("判定") in ("初芝", "初ダート"):
+            _proxy_for_debug = _first_material_for_index.get("代理能力指数")
+            if _proxy_for_debug is not None:
+                _raw_for_debug = (float(_proxy_for_debug) - 70.0) * 0.70
+                _first_material_for_index["転用前補正（上限前）"] = float(_raw_for_debug)
+                _first_material_for_index["転用補正（上限後）"] = float(_transfer_ability_for_index)
+                _first_material_for_index["上限到達"] = bool(abs(_raw_for_debug) > 6.0)
+                _first_material_for_index["診断状態"] = "算出成功"
+            else:
+                _first_material_for_index["診断状態"] = "代理能力算出不可（着順等を確認）"
         components["初挑戦・転用能力"] = float(_transfer_ability_for_index)
 
         raw_index = sum(components.values())
@@ -3153,8 +3164,23 @@ def display_geo_prediction(geo):
                     "理由": _diag.get("判定理由", ""),
                     "代理能力指数": (_h.get("初挑戦能力材料") or {}).get("代理能力指数") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
                     "平均着順": (_h.get("初挑戦能力材料") or {}).get("平均着順") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
+                    "能力使用走数": (_h.get("初挑戦能力材料") or {}).get("能力使用走数") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
+                    "転用率": "70%" if _diag.get("判定") in ("初芝", "初ダート") else "—",
+                    "上限前補正": (_h.get("初挑戦能力材料") or {}).get("転用前補正（上限前）") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
+                    "実際の転用補正": (_h.get("統合指数内訳") or {}).get("初挑戦・転用能力") if isinstance(_h.get("統合指数内訳"), dict) else None,
+                    "±6点上限到達": (_h.get("初挑戦能力材料") or {}).get("上限到達") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
+                    "転用以外の統合指数": (float(_h.get("統合指数")) - float((_h.get("統合指数内訳") or {}).get("初挑戦・転用能力", 0))) if isinstance(_h.get("統合指数内訳"), dict) and pd.notna(_h.get("統合指数")) else None,
+                    "最終統合指数": _h.get("統合指数"),
+                    "診断状態": (_h.get("初挑戦能力材料") or {}).get("診断状態", "材料なし" if _diag.get("判定") in ("初芝", "初ダート") else "対象外") if isinstance(_h.get("初挑戦能力材料"), dict) else "材料なし",
                 })
-            st.dataframe(pd.DataFrame(_first_rows), use_container_width=True, hide_index=True)
+            _first_debug_df = pd.DataFrame(_first_rows)
+            st.dataframe(_first_debug_df, use_container_width=True, hide_index=True)
+            _first_only = _first_debug_df[_first_debug_df["判定"].isin(["初芝", "初ダート"])].copy()
+            if not _first_only.empty:
+                st.markdown("**🔬 初挑戦70%転用・上限の詳細検証（診断専用）**")
+                _debug_cols = ["馬番", "馬名", "判定", "能力使用走数", "平均着順", "代理能力指数", "転用率", "上限前補正", "実際の転用補正", "±6点上限到達", "転用以外の統合指数", "最終統合指数", "診断状態"]
+                st.dataframe(_first_only[_debug_cols], use_container_width=True, hide_index=True)
+                st.caption("計算式：（代理能力指数 − 70）× 0.70 → ±6点に制限。上限前補正が異なるのに実際の転用補正が同じなら、上限で能力差が圧縮されています。診断表示のみ追加し、指数の計算は変更していません。")
             st.caption("初挑戦馬のみ、異種馬場の直近最大6走の平均着順から代理能力指数を算出。初ダート・初芝とも70%を統合指数へ転用（±6点）。父産駒の既存血統補正を±5点に置換。距離差を±2点で補正。実績馬の計算は維持します。")
         overview = dashboard_df.copy()
         overview["補正合計"] = pd.to_numeric(overview["ジオ評価"], errors="coerce") - pd.to_numeric(overview["統合指数"], errors="coerce")
