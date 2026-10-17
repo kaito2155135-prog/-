@@ -3308,7 +3308,13 @@ def display_geo_prediction(geo):
             st.caption("走破タイムの中央値だけを加重平均に置換し、実際の走破タイム加点（×1.2）とコース適性内の走破タイム寄与を同時に再計算。他の評価・最終補正は固定します。実際の予想には反映しません。")
             _v43_steps = (0.05, 0.10, 0.15, 0.20)
             _v43_rows = []
-            _v43_course_weight = (0.75 if straight_length < 320 else (0.70 if straight_length < 400 else 0.60))
+            _v43_surface = "ダ" if "ダ" in str(race_surface) else "芝"
+            _v43_straights = {
+                "芝": {"新潟":659.9,"東京":525.9,"阪神":473.6,"中京":412.5,"京都":403.9,"中山":310.0,"小倉":293.0,"函館":262.1,"福島":292.0,"札幌":266.1},
+                "ダ": {"新潟":353.9,"東京":501.6,"阪神":352.7,"中京":410.7,"京都":329.1,"中山":308.0,"小倉":291.0,"函館":260.1,"福島":295.7,"札幌":264.3},
+            }
+            _v43_straight_length = next((v for k,v in _v43_straights[_v43_surface].items() if k in str(race_place)), 400.0)
+            _v43_course_weight = (0.75 if _v43_straight_length < 320 else (0.70 if _v43_straight_length < 400 else 0.60))
             for _, _v43_h in dashboard_df.iterrows():
                 _v43_diag = _v43_h.get("走破タイムクラス診断", {})
                 _v43_parts = _v43_h.get("統合指数内訳", {})
@@ -3329,7 +3335,8 @@ def display_geo_prediction(geo):
                 try:
                     _v43_base = float(_v43_h.get("ジオ評価"))
                     _v43_index = float(_v43_h.get("統合指数"))
-                    _v43_target = float(target_base_seconds)
+                    _v43_detail = _v43_diag.get("過去走詳細", []) or []
+                    _v43_target = float(next(r["今回基準タイム"] for r in _v43_detail if isinstance(r, dict) and r.get("今回基準タイム") is not None))
                     _v43_existing_soha = float(_v43_parts.get("走破タイム", 0.0))
                 except (TypeError, ValueError):
                     continue
