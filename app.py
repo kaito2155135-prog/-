@@ -1879,6 +1879,11 @@ def run_integrated_simulation(
                             converted_time
                         )
                         soha_class_rows.append({
+                            "過去年": row.get("年"),
+                            "過去月": row.get("月"),
+                            "過去日": row.get("日"),
+                            "過去着順": row.get("着順"),
+                            "過去実走秒": round(float(r_time), 3),
                             "過去競馬場": r_course,
                             "過去距離": r_dist,
                             "過去クラス": r_class,
@@ -1902,6 +1907,9 @@ def run_integrated_simulation(
                             "今回基準参照元": target_soha_source,
                             "今回基準タイム": round(float(target_base_seconds), 3),
                             "換算走破タイム": round(float(converted_time), 3),
+                            "0.2秒補正なし換算": round(float(converted_time - class_level_penalty), 3),
+                            "0.2秒補正の影響": round(float(class_level_penalty), 3),
+
                         })
                             
                 if (
@@ -3182,6 +3190,111 @@ def display_geo_prediction(geo):
                 st.dataframe(_first_only[_debug_cols], use_container_width=True, hide_index=True)
                 st.caption("計算式：（代理能力指数 − 70）× 0.70 → ±6点に制限。上限前補正が異なるのに実際の転用補正が同じなら、上限で能力差が圧縮されています。診断表示のみ追加し、指数の計算は変更していません。")
             st.caption("初挑戦馬のみ、異種馬場の直近最大6走の平均着順から代理能力指数を算出。初ダート・初芝とも70%を統合指数へ転用（±6点）。父産駒の既存血統補正を±5点に置換。距離差を±2点で補正。実績馬の計算は維持します。")
+        with st.expander("📈 直近の成長・過去6走中央値の影響（v40・診断専用）", expanded=False):
+            st.caption("GEOの現行走破タイム評価は、同じ芝/ダートの直近最大6走のうち、Excel基準が取得できた走の換算タイムの中央値です。直近2・3走も中央値で仮計算します。予想・順位・学習には一切反映しません。")
+            _growth_summary, _growth_detail = [], []
+            for _, _gh in dashboard_df.iterrows():
+                _gd = _gh.get("走破タイムクラス診断", {})
+                if not isinstance(_gd, dict):
+                    continue
+                _runs = [r for r in (_gd.get("過去走詳細", []) or []) if isinstance(r, dict)]
+                _values = []
+                for _ri, _r in enumerate(_runs, 1):
+                    try:
+                        _tv = float(_r.get("換算走破タイム"))
+                    except (ValueError, TypeError):
+                        continue
+                    if not np.isfinite(_tv) or _tv <= 0:
+                        continue
+                    _values.append(_tv)
+                    _growth_detail.append({
+                        "馬番": _gh.get("馬番"), "馬名": _gh.get("馬名"),
+                        "有効走順（新→旧）": _ri,
+                        "年": _r.get("過去年"), "月": _r.get("過去月"), "日": _r.get("過去日"),
+                        "着順": _r.get("過去着順"), "過去クラス": _r.get("過去クラス"),
+                        "過去基準秒": _r.get("過去基準タイム"),
+                        "過去実走秒": _r.get("過去実走秒"),
+                        "今回条件換算秒": _tv,
+                        "クラス補正秒": _r.get("クラス補正秒"),
+                    })
+                if not _values:
+                    continue
+                _med6 = float(np.median(_values))
+                _med2 = float(np.median(_values[:2])) if len(_values) >= 2 else None
+                _med3 = float(np.median(_values[:3])) if len(_values) >= 3 else None
+                _older = float(np.median(_values[3:])) if len(_values) >= 5 else None
+                _growth_summary.append({
+                    "馬番": _gh.get("馬番"), "馬名": _gh.get("馬名"),
+                    "最終ジオ順位": _gh.get("順位"),
+                    "有効走数": len(_values),
+                    "現行中央値秒": round(_med6, 3),
+                    "直近2走中央値秒": round(_med2, 3) if _med2 is not None else None,
+                    "直近3走中央値秒": round(_med3, 3) if _med3 is not None else None,
+                    "古い3走中央値秒": round(_older, 3) if _older is not None else None,
+                    "直近2走改善秒": round(_med6 - _med2, 3) if _med2 is not None else None,
+                    "直近3走改善秒": round(_med6 - _med3, 3) if _med3 is not None else None,
+                    "新旧改善秒": round(_older - _med3, 3) if _older is not None and _med3 is not None else None,
+                })
+            if _growth_summary:
+                _growth_df = pd.DataFrame(_growth_summary)
+                st.markdown("**全頭比較：プラスの改善秒ほど直近の走りが速い（小さい秒数が優秀）**")
+                st.dataframe(_growth_df, use_container_width=True, hide_index=True)
+                _growth_horses = [f"{r['馬番']}番 {r['馬名']}" for r in _growth_summary]
+                _selected_growth = st.selectbox("過去走別の根拠を確認する馬", _growth_horses, key="geo_v40_growth_horse")
+                _selected_idx = _growth_horses.index(_selected_growth)
+                _selected_horse = _growth_summary[_selected_idx]
+                st.write(f"**{_selected_horse['馬名']}**：現行中央値 {_selected_horse['現行中央値秒']}秒 / 直近2走 {_selected_horse['直近2走中央値秒']}秒 / 直近3走 {_selected_horse['直近3走中央値秒']}秒")
+                _detail_df = pd.DataFrame([r for r in _growth_detail if str(r['馬名']) == str(_selected_horse['馬名']) and str(r['馬番']) == str(_selected_horse['馬番'])])
+                st.dataframe(_detail_df, use_container_width=True, hide_index=True)
+                st.caption("注意：直近2/3走は『有効な換算タイムが取れた走』から選びます。過去走が6走未満の場合やExcel参照不能で除外された走がある場合は解釈に注意。改善秒は原因診断であり、加点や勝率ではありません。")
+                st.caption("過去の富士Sを検証する際は、当時のレース前データ・当時のオッズを使ってください。結果確定後の情報を予想へ混ぜないでください。")
+            else:
+                st.info("有効な過去走の走破タイムがないため比較できません。")
+        with st.expander("🔬 クラス±0.2秒の有無を比較（v39・診断専用）", expanded=False):
+            st.caption("実際の予想は従来の±0.2秒補正ありで計算。補正なしは比較表示のみ。Excelの過去走基準と今回基準を使い、同一の過去走について0.2秒補正だけを取り除きます。")
+            _class_rows = []
+            for _, _h in dashboard_df.iterrows():
+                _cd = _h.get("走破タイムクラス診断", {})
+                if not isinstance(_cd, dict):
+                    continue
+                for _i, _p in enumerate(_cd.get("過去走詳細", []) or [], 1):
+                    if not isinstance(_p, dict):
+                        continue
+                    _diff = _p.get("階級差", 0)
+                    _kind = "昇級・格上" if _diff > 0 else ("降級・格下" if _diff < 0 else "同階級")
+                    _with = _p.get("換算走破タイム")
+                    _pen = _p.get("クラス補正秒", 0)
+                    _without = _p.get("0.2秒補正なし換算")
+                    if _without is None and _with is not None:
+                        try:
+                            _without = round(float(_with) - float(_pen), 3)
+                        except (TypeError, ValueError):
+                            pass
+                    _class_rows.append({
+                        "馬番": _h.get("馬番"), "馬名": _h.get("馬名"), "過去走番号": _i,
+                        "区分": _kind, "過去クラス": _p.get("過去クラス"),
+                        "今回クラス": _p.get("今回クラス"), "階級差": _diff,
+                        "過去基準採用クラス": _p.get("過去基準採用クラス"),
+                        "今回基準採用クラス": _p.get("今回基準採用クラス"),
+                        "過去基準秒": _p.get("過去基準タイム"),
+                        "今回基準秒": _p.get("今回基準タイム"),
+                        "補正あり換算秒": _with, "補正なし換算秒": _without,
+                        "補正による差秒": _pen,
+                    })
+            if _class_rows:
+                _class_df = pd.DataFrame(_class_rows)
+                st.dataframe(_class_df, use_container_width=True, hide_index=True)
+                _class_summary = _class_df.groupby(["馬番", "馬名", "区分"], dropna=False).agg(
+                    有効過去走数=("過去走番号", "count"),
+                    補正あり平均秒=("補正あり換算秒", "mean"),
+                    補正なし平均秒=("補正なし換算秒", "mean"),
+                    平均補正差秒=("補正による差秒", "mean"),
+                ).reset_index()
+                st.markdown("**馬別・区分別の比較（過去走の単純平均）**")
+                st.dataframe(_class_summary.round(3), use_container_width=True, hide_index=True)
+                st.caption("注意：これは過去走の換算秒数の比較であり、最終ジオ順位の再計算ではありません。実際の走破タイム集約・上がり3F・他の補正を含めた順位変動は別途検証が必要です。")
+            else:
+                st.info("今回の予想には比較可能な走破タイム診断データがありません。")
         overview = dashboard_df.copy()
         overview["補正合計"] = pd.to_numeric(overview["ジオ評価"], errors="coerce") - pd.to_numeric(overview["統合指数"], errors="coerce")
         overview["印"] = ["◎" if i == 0 else "○" if i == 1 else "▲" if i == 2 else "△" if i == 3 else "☆" if i == 4 else "" for i in range(len(overview))]
