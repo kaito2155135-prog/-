@@ -3843,7 +3843,7 @@ def display_geo_prediction(geo):
             _v45_index = st.selectbox("診断する馬", range(len(_v45_names)), index=_v45_default,
                                      format_func=lambda i: _v45_names[i], key="geo_v45_horse")
             _v45_name, _v45_hid = _v45_horses[_v45_index]
-            _v45_asof = st.date_input("集計締切日（この日までの相手の後続成績）", value=datetime.now().date(),
+            _v45_asof = st.date_input("集計締切日（この日までの相手の後続成績）", value=__import__("datetime").date.today(),
                                       key="geo_v45_asof")
             st.caption("過去のレース前検証では、そのレースの前日を指定。ただし診断APIは対象馬の過去走自体を日付で除外しないため、厳密な当時の予想再現ではありません。")
             if st.button("この馬の過去3走を詳しく調べる", key="geo_v45_fetch"):
