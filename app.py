@@ -1981,15 +1981,10 @@ def run_integrated_simulation(
 
             soha_score = 0.0
             if derived_times and not target_soha_missing:
-                sorted_times = sorted(
-                    derived_times
-                )
-
-                val_to_use = float(
-                    np.median(
-                        sorted_times
-                    )
-                )
+                # v46: newest valid past run has weight 1.0, then -0.20 per run.
+                # The 6th valid run is 0; use the original newest-to-oldest order.
+                _v46_weights = [max(0.0, 1.0 - 0.20 * i) for i in range(len(derived_times))]
+                val_to_use = float(np.average(derived_times, weights=_v46_weights))
 
                 horse_predicted_time_map[h_name] = val_to_use
 
@@ -2011,6 +2006,7 @@ def run_integrated_simulation(
                 "対象基準採用クラス": target_soha_matched_class,
                 "対象基準参照元": target_soha_source,
                 "有効過去走数": len(soha_class_rows),
+                "v46走破集約": "直近加重平均（減少幅0.20）",
                 "過去走詳細": soha_class_rows,
             }
 
@@ -2780,6 +2776,8 @@ def enrich_with_field_quality(df, asof_date):
     out["メンバーレベル判定"] = "判定材料不足"
     out["メンバーレベル使用レース数"] = 0
     out["メンバーレベル取得状況"] = "未取得"
+    out["メンバーレベル信頼度"] = None
+    out["メンバーレベル後続走数"] = None
     targets = []
     for idx, row in out.iterrows():
         hid = str(row.get("血統登録番号", row.get("ketto_toroku_bango", "")) or "").strip()
@@ -2805,6 +2803,8 @@ def enrich_with_field_quality(df, asof_date):
                 out.at[idx, 'メンバーレベル判定'] = result.get('label', '判定材料不足')
                 out.at[idx, 'メンバーレベル使用レース数'] = int(result.get('races_used', 0) or 0)
                 out.at[idx, 'メンバーレベル取得状況'] = ('取得成功' if score is not None else '判定材料不足')
+                out.at[idx, 'メンバーレベル信頼度'] = result.get('confidence')
+                out.at[idx, 'メンバーレベル後続走数'] = result.get('followup_starts_used')
             elapsed = payload.get('elapsed_seconds')
         except Exception as exc:
             error = f'{type(exc).__name__}: {exc}'[:180]
@@ -2985,6 +2985,14 @@ def run_geo_prediction(
             member_value = float(member_value)
             if np.isfinite(member_value):
                 member_bonus = max(-8.0, min(8.0, (member_value - 50.0) / 12.5 * 3.0))
+                # v46: only shrink when the API explicitly provides valid sample confidence.
+                _v46_conf = row.get("メンバーレベル信頼度")
+                try:
+                    _v46_conf = float(_v46_conf)
+                    if np.isfinite(_v46_conf) and 0.0 <= _v46_conf <= 1.0:
+                        member_bonus *= _v46_conf
+                except (TypeError, ValueError):
+                    pass
                 point.append(
                     f"メンバーレベル{member_value:.1f}点（{row.get('メンバーレベル判定', '判定材料不足')}・{int(row.get('メンバーレベル使用レース数', 0) or 0)}レース）"
                 )
@@ -3814,6 +3822,8 @@ def display_geo_prediction(geo):
                 "使用過去レース数": int(_used) if pd.notna(_used) else 0,
                 "最大3走の不足数": max(0, 3 - int(_used)) if pd.notna(_used) else 3,
                 "実際のメンバー加点": _parts.get("メンバーレベル"),
+                "信頼度係数": _mr.get("メンバーレベル信頼度"),
+                "後続走数": _mr.get("メンバーレベル後続走数"),
                 "判定": _mr.get("メンバーレベル判定"),
                 "取得状況": _mr.get("メンバーレベル取得状況"),
             })
