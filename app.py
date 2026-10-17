@@ -3828,6 +3828,87 @@ def display_geo_prediction(geo):
         else:
             st.info("全馬の診断データがありません。予想を実行してください。")
 
+    with st.expander("🔬 v45 メンバーレベル・過去3走の相手別内訳", expanded=False):
+        st.caption("診断専用。既存の予想・加点は変更しません。対象日を指定すると、相手馬の後続成績をその日までに制限します。")
+        _v45_horses = []
+        for _, _v45_row in dashboard_df.iterrows():
+            _v45_hid = str(_v45_row.get("血統登録番号", "") or "").strip()
+            if _v45_hid and _v45_hid.lower() not in ("none", "nan"):
+                _v45_horses.append((str(_v45_row.get("馬名", "")), _v45_hid))
+        if not _v45_horses:
+            st.warning("血統登録番号がありません。")
+        else:
+            _v45_names = [x[0] for x in _v45_horses]
+            _v45_default = next((i for i, n in enumerate(_v45_names) if "アンパドゥ" in n), 0)
+            _v45_index = st.selectbox("診断する馬", range(len(_v45_names)), index=_v45_default,
+                                     format_func=lambda i: _v45_names[i], key="geo_v45_horse")
+            _v45_name, _v45_hid = _v45_horses[_v45_index]
+            _v45_asof = st.date_input("集計締切日（この日までの相手の後続成績）", value=datetime.now().date(),
+                                      key="geo_v45_asof")
+            st.caption("過去のレース前検証では、そのレースの前日を指定。ただし診断APIは対象馬の過去走自体を日付で除外しないため、厳密な当時の予想再現ではありません。")
+            if st.button("この馬の過去3走を詳しく調べる", key="geo_v45_fetch"):
+                try:
+                    from urllib.parse import quote as _v45_quote
+                    _v45_resp = requests.get(
+                        f"{API_BASE.rstrip('/')}/geo/field-quality/debug/{_v45_quote(_v45_hid, safe='')}",
+                        params={"asof": _v45_asof.isoformat(), "limit": 6}, timeout=(10, 90))
+                    _v45_resp.raise_for_status()
+                    _v45_payload = _v45_resp.json()
+                    if not _v45_payload.get("ok"):
+                        raise ValueError(_v45_payload.get("error", "診断APIの応答異常"))
+                    st.session_state["geo_v45_details"] = {"horse_id": _v45_hid, "asof": _v45_asof.isoformat(), "payload": _v45_payload}
+                except Exception as _v45_err:
+                    st.error(f"診断取得エラー: {type(_v45_err).__name__}: {_v45_err}")
+            _v45_saved = st.session_state.get("geo_v45_details", {})
+            if _v45_saved.get("horse_id") == _v45_hid and _v45_saved.get("asof") == _v45_asof.isoformat():
+                _v45_runs = _v45_saved.get("payload", {}).get("runs", []) or []
+                _v45_cutoff = _v45_asof.strftime("%Y%m%d")
+                _v45_rows = []
+                _v45_kept = []
+                for _v45_r in _v45_runs:
+                    _v45_rdate = str(_v45_r.get("kaisai_nen", "")) + str(_v45_r.get("kaisai_gappi", "")).zfill(4)
+                    if _v45_rdate >= _v45_cutoff:
+                        continue
+                    _v45_kept.append(_v45_r)
+                    if len(_v45_kept) >= 3:
+                        break
+                if len(_v45_kept) < 3:
+                    st.warning("締切日以前の過去走が3走未満です。APIの取得対象6走より前に対象走がある場合、正確な3走抽出にはAPI側の日付絞り込みが必要です。")
+                for _v45_i, _v45_r in enumerate(_v45_kept, 1):
+                    _v45_fq = _v45_r.get("field_quality") or {}
+                    _v45_rdate = str(_v45_r.get("kaisai_nen", "")) + str(_v45_r.get("kaisai_gappi", "")).zfill(4)
+                    _v45_rows.append({
+                        "過去走": _v45_i, "日付": _v45_rdate, "レース名": _v45_r.get("kyosomei_hondai"),
+                        "自身の着順": _v45_r.get("kakutei_chakujun"), "メンバーレベル": _v45_fq.get("score"),
+                        "対戦相手数": _v45_fq.get("opponents_in_race"),
+                        "後続成績ありの相手数": _v45_fq.get("opponents_with_followup_results"),
+                        "後続走数": _v45_fq.get("followup_starts_used"),
+                        "後続3着内率%": _v45_fq.get("followup_top3_rate_pct")})
+                if _v45_rows:
+                    st.write("**過去3走のレース別評価**")
+                    st.dataframe(pd.DataFrame(_v45_rows), use_container_width=True, hide_index=True)
+                    _v45_scores = [float(x["メンバーレベル"]) for x in _v45_rows if x["メンバーレベル"] is not None]
+                    if _v45_scores:
+                        st.write(f"この3走の単純平均: **{sum(_v45_scores)/len(_v45_scores):.2f}点**")
+                    for _v45_i, _v45_r in enumerate(_v45_kept, 1):
+                        _v45_fq = _v45_r.get("field_quality") or {}
+                        with st.expander(f"{_v45_i}走前：{_v45_r.get('kyosomei_hondai') or _v45_r.get('race_code')} ／ スコア {_v45_fq.get('score')}"):
+                            _v45_details = _v45_fq.get("followup_details") or []
+                            if _v45_details:
+                                _v45_detail_rows = [{
+                                    "対戦相手": x.get("opponent_name"), "後続日": x.get("followup_date"),
+                                    "後続レース": x.get("race_name"), "後続クラス": x.get("class_label"),
+                                    "後続着順": x.get("finish"), "頭数": x.get("field_size"),
+                                    "着順スコア": x.get("score_before"), "クラス加点": x.get("class_bonus"),
+                                    "採用スコア": x.get("score_after")}
+                                    for x in _v45_details]
+                                st.dataframe(pd.DataFrame(_v45_detail_rows), use_container_width=True, hide_index=True)
+                            else:
+                                st.info("相手の後続成績がありません。")
+                    st.caption("注意：診断GETと本番の一括APIは別実装です。スコアが本番表示と一致するか確認してください。過去レースの当時の再現には対象馬の過去走選択もAPI側で日付制限する必要があります。")
+                else:
+                    st.info("締切日より前の対象走が見つかりません。")
+
     with st.expander("🧪 メンバーレベル取得診断", expanded=False):
         diag = st.session_state.get("geo_field_quality_diagnostics")
         if not diag:
