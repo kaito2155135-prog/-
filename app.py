@@ -1854,9 +1854,9 @@ def run_integrated_simulation(
                     # 追加の距離延長・短縮補正は適用しない。
                     distance_penalty_or_bonus = 0.0
 
-                    # v20: 1階級につき±0.2秒（例：1勝→3勝は+0.4秒）。
+                    # v47: 1階級につき±0.5秒（例：1勝→3勝は+1.0秒）。
                     # 連勝によるクラス補正免除は廃止（表示のみ残す）。
-                    class_level_penalty = 0.20 * class_diff
+                    class_level_penalty = 0.50 * class_diff
 
                     time_diff = (
                         past_base_time
@@ -1907,8 +1907,8 @@ def run_integrated_simulation(
                             "今回基準参照元": target_soha_source,
                             "今回基準タイム": round(float(target_base_seconds), 3),
                             "換算走破タイム": round(float(converted_time), 3),
-                            "0.2秒補正なし換算": round(float(converted_time - class_level_penalty), 3),
-                            "0.2秒補正の影響": round(float(class_level_penalty), 3),
+                            "0.5秒補正なし換算": round(float(converted_time - class_level_penalty), 3),
+                            "0.5秒補正の影響": round(float(class_level_penalty), 3),
 
                         })
                             
@@ -3442,8 +3442,8 @@ def display_geo_prediction(geo):
                 st.warning("過去レースを終了後に再予想した結果には、対象レース自身や未来の成績が混入する可能性があります。この画面は計算方式の診断であり、当時の予想精度・回収率のバックテストではありません。")
             else:
                 st.info("比較できる換算タイムがありません。")
-        with st.expander("🔬 クラス±0.2秒の有無を比較（v39・診断専用）", expanded=False):
-            st.caption("実際の予想は従来の±0.2秒補正ありで計算。補正なしは比較表示のみ。Excelの過去走基準と今回基準を使い、同一の過去走について0.2秒補正だけを取り除きます。")
+        with st.expander("🔬 クラス±0.5秒の有無を比較（v39・診断専用）", expanded=False):
+            st.caption("実際の予想は正式採用の±0.5秒補正ありで計算。補正なしは比較表示のみ。Excelの過去走基準と今回基準を使い、同一の過去走について0.5秒補正だけを取り除きます。")
             _class_rows = []
             for _, _h in dashboard_df.iterrows():
                 _cd = _h.get("走破タイムクラス診断", {})
@@ -3456,7 +3456,7 @@ def display_geo_prediction(geo):
                     _kind = "昇級・格上" if _diff > 0 else ("降級・格下" if _diff < 0 else "同階級")
                     _with = _p.get("換算走破タイム")
                     _pen = _p.get("クラス補正秒", 0)
-                    _without = _p.get("0.2秒補正なし換算")
+                    _without = _p.get("0.5秒補正なし換算")
                     if _without is None and _with is not None:
                         try:
                             _without = round(float(_with) - float(_pen), 3)
