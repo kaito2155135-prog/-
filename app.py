@@ -3250,6 +3250,60 @@ def display_geo_prediction(geo):
                 st.caption("過去の富士Sを検証する際は、当時のレース前データ・当時のオッズを使ってください。結果確定後の情報を予想へ混ぜないでください。")
             else:
                 st.info("有効な過去走の走破タイムがないため比較できません。")
+        with st.expander("⚖️ 過去6走の直近重視・加重平均比較（v41・診断専用）", expanded=False):
+            st.caption("現行の6走中央値と、直近ほど重くした加重平均を比較します。指数・予想順位・自己学習には反映しません。換算タイムは既存のクラス補正込みです。")
+            _weight_step = st.slider("1走古くなるごとの重みの減少", min_value=0.00, max_value=0.20, value=0.05, step=0.01, key="geo_v41_weight_step", help="0.05なら直近から 1.00, 0.95, 0.90, 0.85, 0.80, 0.75")
+            _weighted_rows = []
+            _weighted_details = []
+            for _, _wh in dashboard_df.iterrows():
+                _wd = _wh.get("走破タイムクラス診断", {})
+                if not isinstance(_wd, dict):
+                    continue
+                _valid_runs = []
+                for _wr in (_wd.get("過去走詳細", []) or []):
+                    if not isinstance(_wr, dict):
+                        continue
+                    try:
+                        _wt = float(_wr.get("換算走破タイム"))
+                    except (TypeError, ValueError):
+                        continue
+                    if np.isfinite(_wt) and _wt > 0:
+                        _valid_runs.append((_wr, _wt))
+                if not _valid_runs:
+                    continue
+                _times = np.asarray([v for _, v in _valid_runs], dtype=float)
+                _weights = np.asarray([max(0.0, 1.0 - _weight_step * i) for i in range(len(_times))], dtype=float)
+                _weighted = float(np.average(_times, weights=_weights))
+                _median = float(np.median(_times))
+                _weighted_rows.append({
+                    "馬番": _wh.get("馬番"), "馬名": _wh.get("馬名"), "現在のGEO順位": _wh.get("順位"),
+                    "有効走数": len(_times), "現行中央値秒": round(_median, 3),
+                    "直近加重平均秒": round(_weighted, 3),
+                    "加重平均の改善秒": round(_median - _weighted, 3),
+                    "直近2走平均秒": round(float(np.mean(_times[:2])), 3) if len(_times) >= 2 else None,
+                })
+                for _i, (_run, _time) in enumerate(_valid_runs):
+                    _weighted_details.append({
+                        "馬番": _wh.get("馬番"), "馬名": _wh.get("馬名"), "有効走順（新→旧）": _i + 1,
+                        "年": _run.get("過去年"), "月": _run.get("過去月"), "日": _run.get("過去日"),
+                        "過去クラス": _run.get("過去クラス"), "換算タイム秒": round(_time, 3),
+                        "重み": round(float(_weights[_i]), 3), "クラス補正秒": _run.get("クラス補正秒"),
+                    })
+            if _weighted_rows:
+                _wdf = pd.DataFrame(_weighted_rows)
+                _wdf["現行タイム順位"] = _wdf["現行中央値秒"].rank(method="min", ascending=True).astype(int)
+                _wdf["加重タイム順位"] = _wdf["直近加重平均秒"].rank(method="min", ascending=True).astype(int)
+                _wdf["タイム順位改善"] = _wdf["現行タイム順位"] - _wdf["加重タイム順位"]
+                st.dataframe(_wdf.sort_values("現在のGEO順位"), use_container_width=True, hide_index=True)
+                st.caption("『タイム順位』は走破タイム単独の参考順位であり、GEO総合順位ではありません。プラスの改善秒＝加重平均が従来中央値より速い。加重平均と中央値は集約方法も異なるため、差の全てが直近重視の効果ではありません。")
+                _choices = [f"{r['馬番']}番 {r['馬名']}" for r in _weighted_rows]
+                _choice = st.selectbox("過去走別の重みを確認", _choices, key="geo_v41_weighted_horse")
+                _selected = _weighted_rows[_choices.index(_choice)]
+                _detail = [r for r in _weighted_details if str(r["馬番"]) == str(_selected["馬番"]) and str(r["馬名"]) == str(_selected["馬名"])]
+                st.dataframe(pd.DataFrame(_detail), use_container_width=True, hide_index=True)
+                st.caption("注意：レース終了後の再予想には対象レース自身や未来の情報が入る場合があります。過去レースの予測精度の検証には、発走前時点のデータだけを使用してください。")
+            else:
+                st.info("比較できる過去走タイムがありません。")
         with st.expander("🔬 クラス±0.2秒の有無を比較（v39・診断専用）", expanded=False):
             st.caption("実際の予想は従来の±0.2秒補正ありで計算。補正なしは比較表示のみ。Excelの過去走基準と今回基準を使い、同一の過去走について0.2秒補正だけを取り除きます。")
             _class_rows = []
