@@ -1855,10 +1855,8 @@ def run_integrated_simulation(
                     distance_penalty_or_bonus = 0.0
 
                     # v20: 1階級につき±0.2秒（例：1勝→3勝は+0.4秒）。
-                    # 既存の連勝中(is_rising)の例外処理は維持。
-                    class_level_penalty = (
-                        0.0 if is_rising else 0.20 * class_diff
-                    )
+                    # 連勝によるクラス補正免除は廃止（表示のみ残す）。
+                    class_level_penalty = 0.20 * class_diff
 
                     time_diff = (
                         past_base_time
@@ -1872,8 +1870,6 @@ def run_integrated_simulation(
                         + class_level_penalty
                     )
 
-                    if is_rising:
-                        converted_time -= 0.2
 
                     if (
                         not pd.isna(converted_time)
@@ -1892,7 +1888,7 @@ def run_integrated_simulation(
                             "階級差": class_diff,
                             "追加距離補正秒": 0.0,
                             "クラス補正秒": round(float(class_level_penalty), 3),
-                            "連勝補正秒": -0.2 if is_rising else 0.0,
+                            "連勝補正秒": 0.0,
                             "過去走馬場状態": r_baba,
                             "Excel参照馬場状態": r_baba if r_baba in ("良", "稍重", "重", "不良") else "参照不可",
                             "過去走馬場状態コード": str(row.get("馬場状態コード", "")),
@@ -1945,21 +1941,11 @@ def run_integrated_simulation(
 
                     f3_class_adjustment = 0.0
 
-                    if not is_rising:
-                        if (
-                            r_surface_keyword
-                            == "ダート"
-                        ):
-                            if class_diff > 0:
-                                f3_class_adjustment = (
-                                    class_diff
-                                    * 0.15
-                                )
-                            elif class_diff < 0:
-                                f3_class_adjustment = (
-                                    class_diff
-                                    * 0.1
-                                )
+                    if r_surface_keyword == "ダート":
+                        if class_diff > 0:
+                            f3_class_adjustment = class_diff * 0.15
+                        elif class_diff < 0:
+                            f3_class_adjustment = class_diff * 0.1
 
                     converted_f3 = (
                         target_base_f3
@@ -2300,7 +2286,7 @@ def run_integrated_simulation(
             "コース適性": float(combined_theory_bonus),
             "走破タイム": float(soha_theory_bonus) * 1.2,
             "上がり3F": float(f3_theory_bonus),
-            "連勝": 4.0 if is_rising else 0.0,
+            "連勝": 0.0,
             "タフネス": 0.0,
             "直線・脚質": 0.0,
             "ペース": 0.0,
@@ -2329,6 +2315,17 @@ def run_integrated_simulation(
 
         if tokui_baba == condition:
             components["得意馬場"] = 5.0
+
+        # v37: 初芝・初ダートは異種馬場の過去走から作った代理能力の
+        # 基礎点70からの差を70%転用。統合指数に反映し、最終評価では二重加点しない。
+        _first_diag_for_index = first_surface_map.get(str(hname_clean), {})
+        _first_material_for_index = first_surface_input_map.get(str(hname_clean), {})
+        _transfer_ability_for_index = 0.0
+        if _first_diag_for_index.get("判定") in ("初芝", "初ダート"):
+            _proxy = _first_material_for_index.get("代理能力指数")
+            if _proxy is not None:
+                _transfer_ability_for_index = max(-6.0, min(6.0, (float(_proxy) - 70.0) * 0.70))
+        components["初挑戦・転用能力"] = float(_transfer_ability_for_index)
 
         raw_index = sum(components.values())
         index_breakdowns.append(components)
@@ -2988,7 +2985,7 @@ def run_geo_prediction(
         if _first_status in ("初ダート", "初芝"):
             _past_proxy = _first_inputs.get("代理能力指数")
             if _past_proxy is not None:
-                _transfer_rate = 0.4 if _first_status == "初ダート" else 0.3
+                _transfer_rate = 0.70
                 _first_ability = max(-6.0, min(6.0, (float(_past_proxy) - 70.0) * _transfer_rate))
             _old_distance = _first_inputs.get("異種馬場の中央値距離")
             try:
@@ -3010,15 +3007,16 @@ def run_geo_prediction(
             # 血統スコア・信頼度は従来の父産駒評価を使用。
             bloodline_bonus = max(-5.0, min(5.0, float(bloodline_bonus)))
             point.append(
-                f"{_first_status}専用：転用能力{_first_ability:+.2f}点"
+                f"{_first_status}専用：統合指数に転用能力{_first_ability:+.2f}点反映済み（再加点なし）"
                 f"（異種馬場の平均着順{_first_inputs.get('平均着順', '不明')}から代理指数算出）、"
                 f"血統{bloodline_bonus:+.2f}点、距離条件{_first_condition:+.2f}点"
             )
-        components["初挑戦・転用能力"] = float(_first_ability)
+        # 転用能力は既に統合指数へ算入済み。最終補正には再加算しない。
+        components["初挑戦・転用能力"] = 0.0
         components["初挑戦・距離条件"] = float(_first_condition)
         components["血統補正"] = float(bloodline_bonus)
         components["メンバーレベル"] = float(member_bonus)
-        geo_score = score + bonus - penalty + bloodline_bonus + member_bonus + _first_ability + _first_condition
+        geo_score = score + bonus - penalty + bloodline_bonus + member_bonus + _first_condition
         df.at[idx, "最終評価内訳"] = components
         df.loc[idx, "ジオ評価"] = geo_score
         reasons[horse] = point
@@ -3157,7 +3155,7 @@ def display_geo_prediction(geo):
                     "平均着順": (_h.get("初挑戦能力材料") or {}).get("平均着順") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
                 })
             st.dataframe(pd.DataFrame(_first_rows), use_container_width=True, hide_index=True)
-            st.caption("初挑戦馬のみ、異種馬場の直近最大6走の平均着順から代理能力指数を算出。初ダート40%、初芝30%を転用（±6点）。父産駒の既存血統補正を±5点に置換。距離差を±2点で補正。実績馬の計算は維持します。")
+            st.caption("初挑戦馬のみ、異種馬場の直近最大6走の平均着順から代理能力指数を算出。初ダート・初芝とも70%を統合指数へ転用（±6点）。父産駒の既存血統補正を±5点に置換。距離差を±2点で補正。実績馬の計算は維持します。")
         overview = dashboard_df.copy()
         overview["補正合計"] = pd.to_numeric(overview["ジオ評価"], errors="coerce") - pd.to_numeric(overview["統合指数"], errors="coerce")
         overview["印"] = ["◎" if i == 0 else "○" if i == 1 else "▲" if i == 2 else "△" if i == 3 else "☆" if i == 4 else "" for i in range(len(overview))]
