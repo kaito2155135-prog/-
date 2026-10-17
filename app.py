@@ -3304,6 +3304,53 @@ def display_geo_prediction(geo):
                 st.caption("注意：レース終了後の再予想には対象レース自身や未来の情報が入る場合があります。過去レースの予測精度の検証には、発走前時点のデータだけを使用してください。")
             else:
                 st.info("比較できる過去走タイムがありません。")
+        with st.expander("📊 重み0.05・0.10・0.15の全馬一括比較（v42・診断専用）", expanded=False):
+            st.caption("現行中央値と、過去走の直近重視加重平均（重み減少0.05 / 0.10 / 0.15）を全馬同時に比較します。予想・順位・自己学習は変更しません。")
+            _v42_rows = []
+            for _, _v42_h in dashboard_df.iterrows():
+                _v42_diag = _v42_h.get("走破タイムクラス診断", {})
+                if not isinstance(_v42_diag, dict):
+                    continue
+                _v42_times = []
+                for _v42_r in (_v42_diag.get("過去走詳細", []) or []):
+                    if not isinstance(_v42_r, dict):
+                        continue
+                    try:
+                        _v42_t = float(_v42_r.get("換算走破タイム"))
+                    except (TypeError, ValueError):
+                        continue
+                    if np.isfinite(_v42_t) and _v42_t > 0:
+                        _v42_times.append(_v42_t)
+                if not _v42_times:
+                    continue
+                _v42_a = np.asarray(_v42_times, dtype=float)
+                _v42_row = {"馬番": _v42_h.get("馬番"), "馬名": _v42_h.get("馬名"),
+                            "現行GEO順位": _v42_h.get("順位"), "有効走数": len(_v42_a),
+                            "現行中央値秒": round(float(np.median(_v42_a)), 3)}
+                for _v42_step in (0.00, 0.05, 0.10, 0.15):
+                    _v42_weights = np.maximum(0.0, 1.0 - _v42_step * np.arange(len(_v42_a)))
+                    _v42_value = float(np.average(_v42_a, weights=_v42_weights))
+                    _v42_label = f"加重平均{_v42_step:.2f}秒"
+                    _v42_row[_v42_label] = round(_v42_value, 3)
+                    _v42_row[f"改善{_v42_step:.2f}秒"] = round(float(np.median(_v42_a)) - _v42_value, 3)
+                _v42_rows.append(_v42_row)
+            if _v42_rows:
+                _v42_df = pd.DataFrame(_v42_rows)
+                _v42_df["現行タイム順位"] = _v42_df["現行中央値秒"].rank(method="min", ascending=True).astype(int)
+                for _v42_step in (0.00, 0.05, 0.10, 0.15):
+                    _v42_label = f"加重平均{_v42_step:.2f}秒"
+                    _v42_df[f"タイム順位{_v42_step:.2f}"] = _v42_df[_v42_label].rank(method="min", ascending=True).astype(int)
+                st.markdown("**全馬の換算タイム・参考順位**")
+                _v42_cols = ["馬番", "馬名", "現行GEO順位", "有効走数", "現行中央値秒", "現行タイム順位"]
+                _v42_cols += [f"加重平均{x:.2f}秒" for x in (0.00, 0.05, 0.10, 0.15)]
+                _v42_cols += [f"タイム順位{x:.2f}" for x in (0.00, 0.05, 0.10, 0.15)]
+                st.dataframe(_v42_df.sort_values("現行GEO順位")[_v42_cols], use_container_width=True, hide_index=True)
+                st.markdown("**従来中央値からの改善秒（プラス＝加重平均が速い）**")
+                st.dataframe(_v42_df.sort_values("現行GEO順位")[["馬番", "馬名"] + [f"改善{x:.2f}秒" for x in (0.00, 0.05, 0.10, 0.15)]], use_container_width=True, hide_index=True)
+                st.caption("0.00は全走の単純平均。0.05/0.10/0.15は1走古くなるごとに重みを減らす値です。中央値と平均の差には集約方法の違いも含まれるため、0.00との比較で重み自体の影響を分けて見てください。")
+                st.warning("過去レースを終了後に再予想した結果には、対象レース自身や未来の成績が混入する可能性があります。この画面は計算方式の診断であり、当時の予想精度・回収率のバックテストではありません。")
+            else:
+                st.info("比較できる換算タイムがありません。")
         with st.expander("🔬 クラス±0.2秒の有無を比較（v39・診断専用）", expanded=False):
             st.caption("実際の予想は従来の±0.2秒補正ありで計算。補正なしは比較表示のみ。Excelの過去走基準と今回基準を使い、同一の過去走について0.2秒補正だけを取り除きます。")
             _class_rows = []
