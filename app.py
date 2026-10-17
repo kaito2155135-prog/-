@@ -3304,6 +3304,82 @@ def display_geo_prediction(geo):
                 st.caption("注意：レース終了後の再予想には対象レース自身や未来の情報が入る場合があります。過去レースの予測精度の検証には、発走前時点のデータだけを使用してください。")
             else:
                 st.info("比較できる過去走タイムがありません。")
+        with st.expander("🏇 重み別・仮想最終GEO順位（v43・診断専用）", expanded=False):
+            st.caption("走破タイムの中央値だけを加重平均に置換し、実際の走破タイム加点（×1.2）とコース適性内の走破タイム寄与を同時に再計算。他の評価・最終補正は固定します。実際の予想には反映しません。")
+            _v43_steps = (0.05, 0.10, 0.15, 0.20)
+            _v43_rows = []
+            _v43_course_weight = (0.75 if straight_length < 320 else (0.70 if straight_length < 400 else 0.60))
+            for _, _v43_h in dashboard_df.iterrows():
+                _v43_diag = _v43_h.get("走破タイムクラス診断", {})
+                _v43_parts = _v43_h.get("統合指数内訳", {})
+                if not isinstance(_v43_diag, dict) or not isinstance(_v43_parts, dict):
+                    continue
+                _v43_times = []
+                for _v43_r in (_v43_diag.get("過去走詳細", []) or []):
+                    if not isinstance(_v43_r, dict):
+                        continue
+                    try:
+                        _v43_t = float(_v43_r.get("換算走破タイム"))
+                    except (ValueError, TypeError):
+                        continue
+                    if np.isfinite(_v43_t) and _v43_t > 0:
+                        _v43_times.append(_v43_t)
+                if not _v43_times:
+                    continue
+                try:
+                    _v43_base = float(_v43_h.get("ジオ評価"))
+                    _v43_index = float(_v43_h.get("統合指数"))
+                    _v43_target = float(target_base_seconds)
+                    _v43_existing_soha = float(_v43_parts.get("走破タイム", 0.0))
+                except (TypeError, ValueError):
+                    continue
+                if not all(np.isfinite(x) for x in (_v43_base, _v43_index, _v43_target, _v43_existing_soha)):
+                    continue
+                _v43_a = np.asarray(_v43_times, dtype=float)
+                _v43_median = float(np.median(_v43_a))
+                _v43_row = {"馬番": _v43_h.get("馬番"), "馬名": _v43_h.get("馬名"),
+                            "現行GEO順位": _v43_h.get("順位"), "有効走数": len(_v43_a),
+                            "現行中央値秒": round(_v43_median, 3),
+                            "現行ジオ評価": round(_v43_base, 3)}
+                # 現行の走破タイム点は max(-5,min(12,(対象基準-中央値)*3))、
+                # 統合指数への寄与は ×1.2 + コース適性中の重み (0.75/0.70/0.60)。
+                # 最終補正は現行値で固定。表示の丸め誤差は最大数千分の1秒程度。
+                _v43_original_raw = max(-5.0, min(12.0, (_v43_target - _v43_median) * 3.0))
+                for _v43_step in _v43_steps:
+                    _v43_w = np.maximum(0.0, 1.0 - _v43_step * np.arange(len(_v43_a)))
+                    _v43_weighted = float(np.average(_v43_a, weights=_v43_w))
+                    _v43_new_raw = max(-5.0, min(12.0, (_v43_target - _v43_weighted) * 3.0))
+                    _v43_delta = (_v43_new_raw - _v43_original_raw) * (1.2 + _v43_course_weight)
+                    _v43_row[f"仮想評価{_v43_step:.2f}"] = round(_v43_base + _v43_delta, 3)
+                    _v43_row[f"変化点{_v43_step:.2f}"] = round(_v43_delta, 3)
+                    _v43_row[f"換算秒{_v43_step:.2f}"] = round(_v43_weighted, 3)
+                _v43_rows.append(_v43_row)
+            if _v43_rows:
+                _v43_df = pd.DataFrame(_v43_rows)
+                for _v43_step in _v43_steps:
+                    _v43_col = f"仮想評価{_v43_step:.2f}"
+                    _v43_df[f"仮想順位{_v43_step:.2f}"] = _v43_df[_v43_col].rank(method="min", ascending=False).astype(int)
+                    _v43_df[f"順位変化{_v43_step:.2f}"] = _v43_df["現行GEO順位"].astype(int) - _v43_df[f"仮想順位{_v43_step:.2f}"]
+                _v43_columns = ["馬番", "馬名", "現行GEO順位", "現行ジオ評価", "有効走数"]
+                for _v43_step in _v43_steps:
+                    _v43_columns += [f"仮想順位{_v43_step:.2f}", f"仮想評価{_v43_step:.2f}", f"順位変化{_v43_step:.2f}"]
+                st.dataframe(_v43_df.sort_values("現行GEO順位")[_v43_columns], use_container_width=True, hide_index=True)
+                _v43_pick = st.selectbox("馬別の配点差を確認", list(range(len(_v43_df))),
+                                         format_func=lambda i: f"{_v43_df.iloc[i]['馬番']} {_v43_df.iloc[i]['馬名']}",
+                                         key="geo_v43_horse")
+                _v43_selected = _v43_df.iloc[_v43_pick]
+                _v43_detail = []
+                for _v43_step in _v43_steps:
+                    _v43_detail.append({"重み減少": _v43_step,
+                                        "加重平均秒": _v43_selected[f"換算秒{_v43_step:.2f}"],
+                                        "指数変化点": _v43_selected[f"変化点{_v43_step:.2f}"],
+                                        "仮想最終評価": _v43_selected[f"仮想評価{_v43_step:.2f}"],
+                                        "仮想順位": _v43_selected[f"仮想順位{_v43_step:.2f}"]})
+                st.dataframe(pd.DataFrame(_v43_detail), use_container_width=True, hide_index=True)
+                st.caption(f"走破タイムのコース適性内係数：{_v43_course_weight:.2f}、単独係数：1.20。順位変化のプラスは順位上昇。")
+                st.warning("これは現時点の再予想データを使った仮想順位です。富士S終了後の再予想では富士S自身や未来の情報が含まれ得るため、レース前の予想順位や的中率を示すものではありません。また、走破タイム欠損馬がいる場合、表示対象内だけで順位を計算します。")
+            else:
+                st.info("仮想順位を計算できる走破タイム診断データがありません。")
         with st.expander("📊 重み0.05・0.10・0.15の全馬一括比較（v42・診断専用）", expanded=False):
             st.caption("現行中央値と、過去走の直近重視加重平均（重み減少0.05 / 0.10 / 0.15）を全馬同時に比較します。予想・順位・自己学習は変更しません。")
             _v42_rows = []
