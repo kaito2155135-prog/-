@@ -3798,6 +3798,36 @@ def display_geo_prediction(geo):
             st.dataframe(pd.DataFrame(diagnostic_rows), use_container_width=True, hide_index=True)
         st.caption("『コース＋馬場』の出走数が少ない場合、信頼度が中・高でも完全一致条件の根拠は薄い可能性があります。ここでは数値を表示し、信頼度判定そのものは今回変更していません。")
 
+    with st.expander("🔍 v44 メンバーレベル・全馬比較（診断専用）", expanded=False):
+        st.caption("過去の対戦相手の後続成績から計算したスコアと、実際の加点を全馬で確認。直近最大3走の平均であり、出走歴全体の重賞経験を直接加点する指標ではありません。")
+        _member_rows = []
+        for _, _mr in dashboard_df.iterrows():
+            _raw = pd.to_numeric(_mr.get("メンバーレベル"), errors="coerce")
+            _used = pd.to_numeric(_mr.get("メンバーレベル使用レース数"), errors="coerce")
+            _parts = _mr.get("最終評価内訳")
+            if not isinstance(_parts, dict):
+                _parts = {}
+            _member_rows.append({
+                "馬番": _mr.get("馬番"), "馬名": _mr.get("馬名"),
+                "現行GEO順位": _mr.get("ジオ順位"),
+                "メンバーレベル原点": round(float(_raw), 2) if pd.notna(_raw) else None,
+                "使用過去レース数": int(_used) if pd.notna(_used) else 0,
+                "最大3走の不足数": max(0, 3 - int(_used)) if pd.notna(_used) else 3,
+                "実際のメンバー加点": _parts.get("メンバーレベル"),
+                "判定": _mr.get("メンバーレベル判定"),
+                "取得状況": _mr.get("メンバーレベル取得状況"),
+            })
+        if _member_rows:
+            _member_table = pd.DataFrame(_member_rows)
+            st.dataframe(_member_table, use_container_width=True, hide_index=True)
+            st.caption("使用レース数が少ない＝弱い相手とは限りません。直近のレースほど相手の『その後』の成績が少ないため、データ不足による評価の偏りがないか確認します。")
+            _valid_member = _member_table[pd.to_numeric(_member_table["メンバーレベル原点"], errors="coerce").notna()]
+            if not _valid_member.empty:
+                st.write("**メンバーレベルが低い順**")
+                st.dataframe(_valid_member.sort_values("メンバーレベル原点").head(10), use_container_width=True, hide_index=True)
+        else:
+            st.info("全馬の診断データがありません。予想を実行してください。")
+
     with st.expander("🧪 メンバーレベル取得診断", expanded=False):
         diag = st.session_state.get("geo_field_quality_diagnostics")
         if not diag:
