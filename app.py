@@ -1065,16 +1065,31 @@ df_race["馬名"] = df_race["馬名"].apply(normalize_horse_name)
 df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
 
 
+# 個別・全自動の共通ペース判定（両方から呼び出す）
+def geo_auto_detect_pace(df):
+    styles = df.get("脚質", pd.Series(dtype=str)).astype(str)
+    front = int(styles.isin(["逃げ"]).sum())
+    stalker = int(styles.isin(["先行"]).sum())
+    if front >= 4:
+        return "H（ハイ）"
+    if front <= 1 and stalker >= 4:
+        return "M（ミドル）"
+    if front <= 1:
+        return "S（スロー）"
+    return "M（ミドル）"
+
 # =========================================================
 # ペース・バイアス・馬場
 # =========================================================
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### ⚙️ 予想設定")
-selected_pace = st.sidebar.radio(
-    "ペース想定", ["S（スロー）", "M（ミドル）", "H（ハイ）"],
-    index=1, key="geo_v13_pace",
+pace_mode = st.sidebar.radio(
+    "ペース想定", ["自動判定（全自動と同じ）", "S（スロー）", "M（ミドル）", "H（ハイ）"],
+    index=0, key="geo_v49_pace_mode",
 )
+selected_pace = geo_auto_detect_pace(df_race) if pace_mode.startswith("自動判定") else pace_mode
+st.sidebar.caption(f"今回の適用ペース：{selected_pace}")
 selected_bias = st.sidebar.radio(
     "トラックバイアス", ["フラット", "内有利", "外有利"],
     index=0, key="geo_v13_bias",
@@ -4230,17 +4245,6 @@ def geo_auto_race_context(race_summary, race_detail):
     }
 
 
-def geo_auto_detect_pace(df):
-    styles = df.get("脚質", pd.Series(dtype=str)).astype(str)
-    front = int(styles.isin(["逃げ"]).sum())
-    stalker = int(styles.isin(["先行"]).sum())
-    if front >= 4:
-        return "H（ハイ）"
-    if front <= 1 and stalker >= 4:
-        return "M（ミドル）"
-    if front <= 1:
-        return "S（スロー）"
-    return "M（ミドル）"
 
 
 if st.button("🏇 開催日全レース自動予想", key="geo_all_race_auto_predict", type="primary", use_container_width=True):
@@ -4392,6 +4396,7 @@ if st.button("🏇 開催日全レース自動予想", key="geo_all_race_auto_pr
                     geo = run_geo_prediction(
                         df_sim, auto_pace, auto_bias, auto_condition,
                         venue=context["race_place"],
+                        asof_date=context["race_info"].get("date"),
                     )
                     if geo is None:
                         skip_count += 1
