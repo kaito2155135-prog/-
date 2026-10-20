@@ -1065,31 +1065,16 @@ df_race["馬名"] = df_race["馬名"].apply(normalize_horse_name)
 df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
 
 
-# 個別・全自動の共通ペース判定（両方から呼び出す）
-def geo_auto_detect_pace(df):
-    styles = df.get("脚質", pd.Series(dtype=str)).astype(str)
-    front = int(styles.isin(["逃げ"]).sum())
-    stalker = int(styles.isin(["先行"]).sum())
-    if front >= 4:
-        return "H（ハイ）"
-    if front <= 1 and stalker >= 4:
-        return "M（ミドル）"
-    if front <= 1:
-        return "S（スロー）"
-    return "M（ミドル）"
-
 # =========================================================
 # ペース・バイアス・馬場
 # =========================================================
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### ⚙️ 予想設定")
-pace_mode = st.sidebar.radio(
-    "ペース想定", ["自動判定（全自動と同じ）", "S（スロー）", "M（ミドル）", "H（ハイ）"],
-    index=0, key="geo_v49_pace_mode",
+selected_pace = st.sidebar.radio(
+    "ペース想定", ["S（スロー）", "M（ミドル）", "H（ハイ）"],
+    index=1, key="geo_v13_pace",
 )
-selected_pace = geo_auto_detect_pace(df_race) if pace_mode.startswith("自動判定") else pace_mode
-st.sidebar.caption(f"今回の適用ペース：{selected_pace}")
 selected_bias = st.sidebar.radio(
     "トラックバイアス", ["フラット", "内有利", "外有利"],
     index=0, key="geo_v13_bias",
@@ -3174,12 +3159,12 @@ def display_geo_prediction(geo):
         dashboard_df = dashboard_df.reset_index(drop=True)
         dashboard_df.insert(0, "順位", range(1, len(dashboard_df)+1))
         st.markdown(
-            '<div class="geo-v13-banner"><strong>🏆 GEO AI 予想結果 ｜ 試験配点 v13</strong>'
-            '<div class="geo-v13-preset">能力順位 0 ｜ 穴馬 0 ｜ 血統 3倍 ｜ メンバーレベル 3倍 ｜ 自己学習 2倍'
+            '<div class="geo-v13-banner"><strong>🏇 GEO AI 予想結果 ｜ 現行モデル（新モデル切替前）</strong>'
+            '<div class="geo-v13-preset">現行モデルの参考表示。新モデルへの切替は予測一致検証後に実施'
             '（実効補正は各項目の上限あり）</div></div>',
             unsafe_allow_html=True,
         )
-        with st.expander("🆕 初芝・初ダート診断（v19・専用評価適用）", expanded=False):
+        with st.expander("🔧 開発・検証｜初芝・初ダート診断", expanded=False):
             st.caption("過去走全体の芝・ダート区分から初挑戦を判定。過去走が取れない馬は初挑戦と断定せず『要確認』と表示します。")
             _first_rows = []
             for _, _h in dashboard_df.iterrows():
@@ -3213,7 +3198,7 @@ def display_geo_prediction(geo):
                 st.dataframe(_first_only[_debug_cols], use_container_width=True, hide_index=True)
                 st.caption("計算式：（代理能力指数 − 70）× 0.70 → ±6点に制限。上限前補正が異なるのに実際の転用補正が同じなら、上限で能力差が圧縮されています。診断表示のみ追加し、指数の計算は変更していません。")
             st.caption("初挑戦馬のみ、異種馬場の直近最大6走の平均着順から代理能力指数を算出。初ダート・初芝とも70%を統合指数へ転用（±6点）。父産駒の既存血統補正を±5点に置換。距離差を±2点で補正。実績馬の計算は維持します。")
-        with st.expander("📈 直近の成長・過去6走中央値の影響（v40・診断専用）", expanded=False):
+        with st.expander("🔧 開発・検証｜直近の成長と中央値", expanded=False):
             st.caption("GEOの現行走破タイム評価は、同じ芝/ダートの直近最大6走のうち、Excel基準が取得できた走の換算タイムの中央値です。直近2・3走も中央値で仮計算します。予想・順位・学習には一切反映しません。")
             _growth_summary, _growth_detail = [], []
             for _, _gh in dashboard_df.iterrows():
@@ -3273,7 +3258,7 @@ def display_geo_prediction(geo):
                 st.caption("過去の富士Sを検証する際は、当時のレース前データ・当時のオッズを使ってください。結果確定後の情報を予想へ混ぜないでください。")
             else:
                 st.info("有効な過去走の走破タイムがないため比較できません。")
-        with st.expander("⚖️ 過去6走の直近重視・加重平均比較（v41・診断専用）", expanded=False):
+        with st.expander("🔧 開発・検証｜加重平均比較", expanded=False):
             st.caption("現行の6走中央値と、直近ほど重くした加重平均を比較します。指数・予想順位・自己学習には反映しません。換算タイムは既存のクラス補正込みです。")
             _weight_step = st.slider("1走古くなるごとの重みの減少", min_value=0.00, max_value=0.20, value=0.05, step=0.01, key="geo_v41_weight_step", help="0.05なら直近から 1.00, 0.95, 0.90, 0.85, 0.80, 0.75")
             _weighted_rows = []
@@ -3327,7 +3312,7 @@ def display_geo_prediction(geo):
                 st.caption("注意：レース終了後の再予想には対象レース自身や未来の情報が入る場合があります。過去レースの予測精度の検証には、発走前時点のデータだけを使用してください。")
             else:
                 st.info("比較できる過去走タイムがありません。")
-        with st.expander("🏇 重み別・仮想最終GEO順位（v43・診断専用）", expanded=False):
+        with st.expander("🔧 開発・検証｜旧モデルの仮想順位", expanded=False):
             st.caption("走破タイムの中央値だけを加重平均に置換し、実際の走破タイム加点（×1.2）とコース適性内の走破タイム寄与を同時に再計算。他の評価・最終補正は固定します。実際の予想には反映しません。")
             _v43_steps = (0.05, 0.10, 0.15, 0.20)
             _v43_rows = []
@@ -3410,7 +3395,7 @@ def display_geo_prediction(geo):
                 st.warning("これは現時点の再予想データを使った仮想順位です。富士S終了後の再予想では富士S自身や未来の情報が含まれ得るため、レース前の予想順位や的中率を示すものではありません。また、走破タイム欠損馬がいる場合、表示対象内だけで順位を計算します。")
             else:
                 st.info("仮想順位を計算できる走破タイム診断データがありません。")
-        with st.expander("📊 重み0.05・0.10・0.15の全馬一括比較（v42・診断専用）", expanded=False):
+        with st.expander("🔧 開発・検証｜旧モデルの重み比較", expanded=False):
             st.caption("現行中央値と、過去走の直近重視加重平均（重み減少0.05 / 0.10 / 0.15）を全馬同時に比較します。予想・順位・自己学習は変更しません。")
             _v42_rows = []
             for _, _v42_h in dashboard_df.iterrows():
@@ -3457,7 +3442,7 @@ def display_geo_prediction(geo):
                 st.warning("過去レースを終了後に再予想した結果には、対象レース自身や未来の成績が混入する可能性があります。この画面は計算方式の診断であり、当時の予想精度・回収率のバックテストではありません。")
             else:
                 st.info("比較できる換算タイムがありません。")
-        with st.expander("🔬 クラス±0.4秒の有無を比較（v39・診断専用）", expanded=False):
+        with st.expander("🔧 開発・検証｜クラス補正比較", expanded=False):
             st.caption("実際の予想は正式採用の±0.4秒補正ありで計算。補正なしは比較表示のみ。Excelの過去走基準と今回基準を使い、同一の過去走について0.4秒補正だけを取り除きます。")
             _class_rows = []
             for _, _h in dashboard_df.iterrows():
@@ -3566,7 +3551,7 @@ def display_geo_prediction(geo):
                     st.bar_chart(pd.DataFrame({"指数":metrics}),height=220)
             else:
                 st.info("指数データがまだありません。")
-        with st.expander("🧮 統合指数の計算内訳｜加点・減点の根拠", expanded=True):
+        with st.expander("🔎 詳細分析｜旧統合指数の計算内訳", expanded=False):
             st.caption("基礎70点から実際に加算・減算された値です。血統・メンバーレベル・学習補正などの最終ジオ評価への補正とは別です。")
             details = chosen.get("統合指数内訳")
             if isinstance(details, dict):
@@ -3587,7 +3572,7 @@ def display_geo_prediction(geo):
             else:
                 st.info("この予想は内訳保存前のデータです。新しいコードで予想を実行すると表示されます。")
 
-        with st.expander("🔬 上がり3F診断｜単位補正後の計算確認", expanded=True):
+        with st.expander("🔧 開発・検証｜上がり3F単位補正", expanded=False):
             st.caption("上がり3Fの332→33.2秒などの単位補正を予想計算に適用しています。ここでは補正後の計算値を確認できます。")
             all_f3_rows = []
             for _, horse in dashboard_df.iterrows():
@@ -3633,7 +3618,7 @@ def display_geo_prediction(geo):
             else:
                 st.info("診断値がまだありません。新しいコードで予想を実行すると表示されます。")
 
-        with st.expander("🧪 v13 新配点とv11参考配点の比較", expanded=True):
+        with st.expander("🔧 開発・検証｜旧モデル配点比較", expanded=False):
             st.caption("v13は試験配点を予想に適用中。v11配点は保存された各馬の内訳から比較用に再構成します。オッズを使う旧穴馬加点の判定は予想時のオッズを参照します。")
             comparisons = []
             threshold80 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.8)
@@ -3663,7 +3648,7 @@ def display_geo_prediction(geo):
             else:
                 st.info("比較できる最終評価内訳がありません。")
 
-        with st.expander("🎯 最終ジオ評価の全補正内訳｜配点検証", expanded=True):
+        with st.expander("🔧 開発・検証｜旧ジオ最終配点", expanded=False):
             st.caption("統合指数から最終評価まで、実際に適用された加減点。自己学習はAPIから取得した補正値です。")
             details = chosen.get("最終評価内訳")
             if isinstance(details, dict):
@@ -3749,7 +3734,7 @@ def display_geo_prediction(geo):
                 for reason in horse_reasons[:4]:
                     st.write(f"・{reason}")
 
-    with st.expander("📊 AI分析ダッシュボード｜全頭指数・血統・メンバーレベル", expanded=True):
+    with st.expander("🔎 詳細分析｜全頭指数・血統・メンバーレベル", expanded=False):
         st.caption("実際の予想計算に使用した値を可視化します。勝率や的中確率を新たに推定するものではありません。")
         chart_df = geo.get("df_geo")
         if isinstance(chart_df, pd.DataFrame) and not chart_df.empty and "馬名" in chart_df.columns:
@@ -3821,7 +3806,7 @@ def display_geo_prediction(geo):
             st.dataframe(pd.DataFrame(diagnostic_rows), use_container_width=True, hide_index=True)
         st.caption("『コース＋馬場』の出走数が少ない場合、信頼度が中・高でも完全一致条件の根拠は薄い可能性があります。ここでは数値を表示し、信頼度判定そのものは今回変更していません。")
 
-    with st.expander("🔍 v44 メンバーレベル・全馬比較（診断専用）", expanded=False):
+    with st.expander("🔧 開発・検証｜メンバーレベル全馬比較", expanded=False):
         st.caption("過去の対戦相手の後続成績から計算したスコアと、実際の加点を全馬で確認。直近最大3走の平均であり、出走歴全体の重賞経験を直接加点する指標ではありません。")
         _member_rows = []
         for _, _mr in dashboard_df.iterrows():
@@ -3853,7 +3838,7 @@ def display_geo_prediction(geo):
         else:
             st.info("全馬の診断データがありません。予想を実行してください。")
 
-    with st.expander("🔬 v45 メンバーレベル・過去3走の相手別内訳", expanded=False):
+    with st.expander("🔧 開発・検証｜メンバーレベル相手別内訳", expanded=False):
         st.caption("診断専用。既存の予想・加点は変更しません。対象日を指定すると、相手馬の後続成績をその日までに制限します。")
         _v45_horses = []
         for _, _v45_row in dashboard_df.iterrows():
@@ -3934,7 +3919,7 @@ def display_geo_prediction(geo):
                 else:
                     st.info("締切日より前の対象走が見つかりません。")
 
-    with st.expander("🧪 メンバーレベル取得診断", expanded=False):
+    with st.expander("🔧 開発・検証｜メンバーレベル取得診断", expanded=False):
         diag = st.session_state.get("geo_field_quality_diagnostics")
         if not diag:
             st.info("診断情報がありません。レース予想を実行してください。")
@@ -4245,6 +4230,17 @@ def geo_auto_race_context(race_summary, race_detail):
     }
 
 
+def geo_auto_detect_pace(df):
+    styles = df.get("脚質", pd.Series(dtype=str)).astype(str)
+    front = int(styles.isin(["逃げ"]).sum())
+    stalker = int(styles.isin(["先行"]).sum())
+    if front >= 4:
+        return "H（ハイ）"
+    if front <= 1 and stalker >= 4:
+        return "M（ミドル）"
+    if front <= 1:
+        return "S（スロー）"
+    return "M（ミドル）"
 
 
 if st.button("🏇 開催日全レース自動予想", key="geo_all_race_auto_predict", type="primary", use_container_width=True):
@@ -4396,7 +4392,6 @@ if st.button("🏇 開催日全レース自動予想", key="geo_all_race_auto_pr
                     geo = run_geo_prediction(
                         df_sim, auto_pace, auto_bias, auto_condition,
                         venue=context["race_place"],
-                        asof_date=context["race_info"].get("date"),
                     )
                     if geo is None:
                         skip_count += 1
