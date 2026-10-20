@@ -3066,7 +3066,12 @@ def run_geo_prediction(
     if race_id:
         try:
             response = requests.get(API_BASE.rstrip('/') + '/geo/new/predict/' + str(race_id), timeout=240)
-            response.raise_for_status()
+            if not response.ok:
+                try:
+                    detail = response.json().get('error', response.text[:400])
+                except Exception:
+                    detail = response.text[:400]
+                raise RuntimeError(f'API HTTP {response.status_code}: {detail}')
             model_data = response.json()
             if not model_data.get('ok'):
                 raise RuntimeError(model_data.get('error', 'unknown GEO model error'))
@@ -4062,6 +4067,9 @@ if st.button(
     key="geo_prediction_button",
     type="primary"
 ):
+    if not st.session_state.get("sim_executed", False) or "df_simulated" not in st.session_state:
+        st.warning("先に『🚀 走破タイム×上がり3F完全統合シミュレーションを実行』を押してください。")
+        st.stop()
     geo_result = run_geo_prediction(
         st.session_state["df_simulated"],
         selected_pace,
