@@ -2827,6 +2827,46 @@ def enrich_with_field_quality(df, asof_date):
     return out
 
 
+def geo47_get_prediction(race_id, max_wait_seconds=900):
+    """Start an async prediction and poll using short requests (Tunnel-safe)."""
+    import time
+    base = API_BASE.rstrip('/')
+    start = requests.get(f'{base}/geo/new/predict/{race_id}/async', timeout=(10, 30))
+    if not start.ok:
+        raise RuntimeError(f'新ジオ非同期開始 HTTP {start.status_code}: {start.text[:250]}')
+    data = start.json()
+    if not data.get('ok') or not data.get('job_id'):
+        raise RuntimeError('新ジオ開始エラー: ' + str(data.get('error', data)))
+    job_id = data['job_id']
+    status_area = st.empty()
+    began = time.monotonic()
+    while time.monotonic() - began < max_wait_seconds:
+        elapsed = int(time.monotonic() - began)
+        status_area.info(f'新ジオ計算中… {elapsed}秒経過（JRA-VAN特徴量・モデル学習）')
+        try:
+            response = requests.get(f'{base}/geo/new/predict/status/{job_id}', timeout=(10, 30))
+            if not response.ok:
+                raise RuntimeError(f'状態確認 HTTP {response.status_code}: {response.text[:200]}')
+            status = response.json()
+        except requests.RequestException:
+            time.sleep(4)
+            continue
+        if status.get('status') == 'complete':
+            status_area.empty()
+            result = status.get('result')
+            if not isinstance(result, dict) or not result.get('ok'):
+                raise RuntimeError('新ジオ計算結果が不正です')
+            return result
+        if status.get('status') == 'error':
+            status_area.empty()
+            raise RuntimeError('新ジオ計算エラー: ' + str(status.get('error', 'unknown')))
+        if not status.get('ok'):
+            raise RuntimeError('新ジオ状態確認エラー: ' + str(status.get('error', status)))
+        time.sleep(4)
+    status_area.empty()
+    raise TimeoutError(f'新ジオ予想が{max_wait_seconds}秒以内に完了しません。ジョブID: {job_id}')
+
+
 def run_geo_prediction(
     df_sim,
     pace,
@@ -3065,14 +3105,7 @@ def run_geo_prediction(
     # Never silently substitute the old ranking if the new endpoint fails.
     if race_id:
         try:
-            response = requests.get(API_BASE.rstrip('/') + '/geo/new/predict/' + str(race_id), timeout=240)
-            if not response.ok:
-                try:
-                    detail = response.json().get('error', response.text[:400])
-                except Exception:
-                    detail = response.text[:400]
-                raise RuntimeError(f'API HTTP {response.status_code}: {detail}')
-            model_data = response.json()
+            model_data = geo47_get_prediction(str(race_id))
             if not model_data.get('ok'):
                 raise RuntimeError(model_data.get('error', 'unknown GEO model error'))
             by_number = {int(x['umaban']): x for x in model_data['horses']}
