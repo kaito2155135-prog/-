@@ -2851,6 +2851,9 @@ def geo47_get_prediction(race_id, max_wait_seconds=900):
         except requests.RequestException:
             time.sleep(4)
             continue
+        stage=status.get('stage','計算中')
+        done=status.get('done',0); total=status.get('total',0)
+        status_area.info(f'新ジオ：{stage}（{done}/{total}レース）・{elapsed}秒経過' if total else f'新ジオ：{stage}・{elapsed}秒経過')
         if status.get('status') == 'complete':
             status_area.empty()
             result = status.get('result')
