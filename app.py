@@ -4098,6 +4098,41 @@ if (
 ):
     st.markdown("---")
 
+# Phase16.49: explicitly prepare the as-of-date model, separate from predictions.
+_geo49_date = str(race_id or '')[:8]
+if len(_geo49_date)==8 and _geo49_date.isdigit():
+    _geo49_base=API_BASE.rstrip('/')
+    try:
+        _geo49_ready_resp=requests.get(f'{_geo49_base}/geo/new/model/ready/{_geo49_date}',timeout=(5,12))
+        _geo49_ready=_geo49_ready_resp.ok and _geo49_ready_resp.json().get('ready',False)
+    except (requests.RequestException,ValueError):
+        _geo49_ready=False
+    if _geo49_ready:
+        st.success('新ジオの学習済みモデルは準備完了。予想ボタンを押せるで。')
+    else:
+        st.info('新ジオのモデルが未準備です。最初に「モデルを事前準備」を実行してください。進捗は保存され、途中から再開できます。')
+        if st.button('🧠 新ジオのモデルを事前準備',key='geo49_prepare_model'):
+            try:
+                _g49r=requests.get(f'{_geo49_base}/geo/new/model/prepare/{_geo49_date}/async',timeout=(5,30))
+                _g49r.raise_for_status()
+                _g49data=_g49r.json()
+                st.session_state['geo49_model_job_id']=_g49data['job_id']
+            except (requests.RequestException,KeyError,ValueError) as _g49err:
+                st.error(f'モデル準備開始エラー: {_g49err}')
+        _g49job=st.session_state.get('geo49_model_job_id')
+        if _g49job:
+            try:
+                _g49s=requests.get(f'{_geo49_base}/geo/new/predict/status/{_g49job}',timeout=(5,15)).json()
+                _g49stage=_g49s.get('stage','準備中')
+                st.info(f"モデル準備: {_g49s.get('status')} / {_g49stage} / {_g49s.get('done',0)}/{_g49s.get('total',0)}レース / {_g49s.get('elapsed_seconds',0)}秒")
+                if _g49s.get('status')=='complete':
+                    st.success('学習完了！画面を再読み込みして予想ボタンを押してな。')
+                elif _g49s.get('status')=='error':
+                    st.error(str(_g49s.get('error')))
+            except (requests.RequestException,ValueError) as _g49err:
+                st.warning(f'モデル準備状態を取得できません: {_g49err}')
+        st.caption('モデル準備中は、画面を再読み込みすると進捗を確認できるで。')
+
 if st.button(
     "🧠 ジオにレースを分析させる",
     key="geo_prediction_button",
@@ -4105,6 +4140,9 @@ if st.button(
 ):
     if not st.session_state.get("sim_executed", False) or "df_simulated" not in st.session_state:
         st.warning("先に『🚀 走破タイム×上がり3F完全統合シミュレーションを実行』を押してください。")
+        st.stop()
+    if len(_geo49_date)==8 and _geo49_date.isdigit() and not _geo49_ready:
+        st.warning('新ジオの学習済みモデルがまだ準備できていません。先に「モデルを事前準備」を実行してな。')
         st.stop()
     geo_result = run_geo_prediction(
         st.session_state["df_simulated"],
