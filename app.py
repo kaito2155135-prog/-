@@ -2888,6 +2888,12 @@ def run_geo_prediction(
         payload = geo47_get_prediction(str(race_id))
         if not isinstance(payload, dict) or not payload.get("ok"):
             raise RuntimeError((payload or {}).get("error", "新ジオAPIの応答が不正です"))
+        # Phase16.55: API応答を照合し、旧モデルの結果を新8項目と誤表示しない。
+        expected_features = ["ability_recent", "ability_similar", "jockey", "forward", "lead", "hill_sessions", "wood_sessions", "sire_condition_edge"]
+        if (str(payload.get("phase")) != "16.55"
+                or payload.get("model") != "sire_condition_edge/top3"
+                or payload.get("features") != expected_features):
+            raise RuntimeError("APIのモデルが新8項目 Phase16.55 と一致しません。Flask APIの起動ファイルを確認してください。")
         raw = payload.get("horses")
         if not isinstance(raw, list) or not raw:
             raise RuntimeError("新ジオAPIに出走馬の予測結果がありません")
@@ -2919,13 +2925,13 @@ def run_geo_prediction(
             df["オッズ"] = np.nan
         # 保存APIの既存形式との互換性。値は旧指数ではなく新ジオ複勝確率(%)。
         df["ジオ評価"] = df["新ジオ複勝確率"] * 100.0
-        df["予想モデル"] = "新ジオ ability_plus_counts/top3"
+        df["予想モデル"] = "新ジオ Phase16.55 sire_condition_edge/top3"
         top = [df.iloc[i] if len(df) > i else None for i in range(3)]
         return {"df_geo": df, "honmei": top[0], "second": top[1], "third": top[2],
                 "decision": "新ジオ複勝確率順", "confidence": 0,
-                "gap12": 0, "gap13": 0, "comment": ["新ジオ7項目の複勝予測確率を使用"],
+                "gap12": 0, "gap13": 0, "comment": ["新ジオ8項目（父産駒の条件別適性差を含む）の複勝予測確率を使用"],
                 "tickets": [], "reasons": {}, "pace": pace, "bias": bias, "condition": condition,
-                "prediction_model": "新ジオ ability_plus_counts/top3"}
+                "prediction_model": "新ジオ Phase16.55 sire_condition_edge/top3"}
     except Exception as exc:
         st.error(f"新ジオ予測を取得できません。旧ジオでは代用しません: {exc}")
         return None
@@ -3163,7 +3169,7 @@ def run_geo_prediction(
             df['新ジオ複勝確率'] = numbers.astype(int).map(lambda n: by_number[int(n)]['top3_probability'])
             df['新ジオ順位'] = numbers.astype(int).map(lambda n: by_number[int(n)]['rank'])
             df['ジオ評価'] = df['新ジオ複勝確率'] * 100.0
-            df['予想モデル'] = 'Phase16.45 ability_plus_counts/top3'
+            df['予想モデル'] = '新ジオ Phase16.55 sire_condition_edge/top3'
             for _, item in df.iterrows():
                 reasons.setdefault(str(item.get('馬名','')), []).insert(0, '新ジオ複勝確率 {:.1%}'.format(item['新ジオ複勝確率']))
         except Exception as exc:
@@ -3261,7 +3267,7 @@ def display_geo_prediction(geo):
     df["複勝予測確率 (%)"] = df["新ジオ複勝確率"] * 100
     st.markdown("---")
     st.subheader("🧠 新ジオ｜複勝予測ランキング")
-    st.caption("Phase16.43検証モデル ability_plus_counts/top3。◎○▲は新ジオの複勝予測確率順。旧ジオの統合指数・補正は使用しません。")
+    st.caption("Phase16.55 本番モデル（8項目・sire_condition_edge/top3）。◎○▲は複勝予測確率順。旧ジオの統合指数・補正は使用しません。")
     columns = [c for c in ("印", "馬番", "馬名", "複勝予測確率 (%)", "オッズ") if c in df.columns]
     st.dataframe(df[columns], use_container_width=True, hide_index=True,
                  column_config={"複勝予測確率 (%)": st.column_config.NumberColumn("複勝予測確率 (%)", format="%.1f%%")})
