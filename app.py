@@ -2880,9 +2880,54 @@ def run_geo_prediction(
     race_id=None,
 ):
 
-    df = df_sim.copy()
-
-    if df.empty:
+    # Phase16.50: 新ジオ専用。旧ジオの統合指数・補正・学習補正は実行しない。
+    if not race_id:
+        st.error("新ジオ予想にはレースIDが必要です。")
+        return None
+    try:
+        payload = geo47_get_prediction(str(race_id))
+        if not isinstance(payload, dict) or not payload.get("ok"):
+            raise RuntimeError((payload or {}).get("error", "新ジオAPIの応答が不正です"))
+        raw = payload.get("horses")
+        if not isinstance(raw, list) or not raw:
+            raise RuntimeError("新ジオAPIに出走馬の予測結果がありません")
+        entries = []
+        seen = set()
+        for item in raw:
+            n = int(item["umaban"])
+            prob = float(item["top3_probability"])
+            if n in seen or not np.isfinite(prob) or not 0 <= prob <= 1:
+                raise ValueError("新ジオの馬番または複勝確率が不正です")
+            seen.add(n)
+            entries.append({"馬番": n, "新ジオ複勝確率": prob, "新ジオ順位": int(item["rank"])})
+        df = pd.DataFrame(entries).sort_values(["新ジオ順位", "馬番"]).reset_index(drop=True)
+        if sorted(df["新ジオ順位"].tolist()) != list(range(1, len(df) + 1)):
+            raise ValueError("新ジオの順位が重複または欠落しています")
+        source = df_sim.copy() if isinstance(df_sim, pd.DataFrame) else pd.DataFrame()
+        if not source.empty and "馬番" in source.columns:
+            source["馬番"] = pd.to_numeric(source["馬番"], errors="coerce")
+            source = source.dropna(subset=["馬番"]).drop_duplicates(subset=["馬番"])
+            source["馬番"] = source["馬番"].astype(int)
+            if set(source["馬番"]) != set(df["馬番"]):
+                raise ValueError("新ジオと出走表の馬番が一致しません")
+            for c in ("馬名", "オッズ"):
+                if c in source.columns:
+                    df = df.merge(source[["馬番", c]], on="馬番", how="left", validate="one_to_one")
+        if "馬名" not in df.columns:
+            df["馬名"] = df["馬番"].map(lambda x: f"{x}番")
+        if "オッズ" not in df.columns:
+            df["オッズ"] = np.nan
+        # 保存APIの既存形式との互換性。値は旧指数ではなく新ジオ複勝確率(%)。
+        df["ジオ評価"] = df["新ジオ複勝確率"] * 100.0
+        df["予想モデル"] = "新ジオ ability_plus_counts/top3"
+        top = [df.iloc[i] if len(df) > i else None for i in range(3)]
+        return {"df_geo": df, "honmei": top[0], "second": top[1], "third": top[2],
+                "decision": "新ジオ複勝確率順", "confidence": 0,
+                "gap12": 0, "gap13": 0, "comment": ["新ジオ7項目の複勝予測確率を使用"],
+                "tickets": [], "reasons": {}, "pace": pace, "bias": bias, "condition": condition,
+                "prediction_model": "新ジオ ability_plus_counts/top3"}
+    except Exception as exc:
+        st.error(f"新ジオ予測を取得できません。旧ジオでは代用しません: {exc}")
         return None
 
     # 予想対象レース日までに判明している情報だけでメンバーレベルを評価する。
@@ -3203,6 +3248,30 @@ def run_geo_prediction(
 # ============================================================
 
 def display_geo_prediction(geo):
+    # Phase16.50: 旧指数・補正合計・旧自信度は一切表示しない。
+    if geo is None:
+        st.warning("新ジオの予測結果がありません。")
+        return
+    df = geo.get("df_geo")
+    if not isinstance(df, pd.DataFrame) or df.empty or "新ジオ複勝確率" not in df.columns:
+        st.error("新ジオ複勝確率がないため、旧ジオの結果は表示しません。")
+        return
+    df = df.sort_values("新ジオ順位").copy()
+    df.insert(0, "印", ["◎" if i == 0 else "○" if i == 1 else "▲" if i == 2 else "△" if i == 3 else "☆" if i == 4 else "" for i in range(len(df))])
+    df["複勝予測確率 (%)"] = df["新ジオ複勝確率"] * 100
+    st.markdown("---")
+    st.subheader("🧠 新ジオ｜複勝予測ランキング")
+    st.caption("Phase16.43検証モデル ability_plus_counts/top3。◎○▲は新ジオの複勝予測確率順。旧ジオの統合指数・補正は使用しません。")
+    columns = [c for c in ("印", "馬番", "馬名", "複勝予測確率 (%)", "オッズ") if c in df.columns]
+    st.dataframe(df[columns], use_container_width=True, hide_index=True,
+                 column_config={"複勝予測確率 (%)": st.column_config.NumberColumn("複勝予測確率 (%)", format="%.1f%%")})
+    if len(df) >= 3:
+        a,b,c = st.columns(3)
+        for col, mark, row in zip((a,b,c), ("◎ 本命", "○ 対抗", "▲ 単穴"), (df.iloc[0],df.iloc[1],df.iloc[2])):
+            col.metric(f"{mark} {row['馬名']}", f"{row['複勝予測確率 (%)']:.1f}%")
+    st.caption("この確率は各馬が3着以内に入るモデル推定値で、レース内で合計100%になるものではありません。")
+    return
+
     if geo is None:
         st.warning("ジオが判断できるデータがありません。")
         return
