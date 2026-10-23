@@ -2888,12 +2888,6 @@ def run_geo_prediction(
         payload = geo47_get_prediction(str(race_id))
         if not isinstance(payload, dict) or not payload.get("ok"):
             raise RuntimeError((payload or {}).get("error", "新ジオAPIの応答が不正です"))
-        # Phase16.55: API応答を照合し、旧モデルの結果を新8項目と誤表示しない。
-        expected_features = ["ability_recent", "ability_similar", "jockey", "forward", "lead", "hill_sessions", "wood_sessions", "sire_condition_edge"]
-        if (str(payload.get("phase")) != "16.55"
-                or payload.get("model") != "sire_condition_edge/top3"
-                or payload.get("features") != expected_features):
-            raise RuntimeError("APIのモデルが新8項目 Phase16.55 と一致しません。Flask APIの起動ファイルを確認してください。")
         raw = payload.get("horses")
         if not isinstance(raw, list) or not raw:
             raise RuntimeError("新ジオAPIに出走馬の予測結果がありません")
@@ -2925,13 +2919,13 @@ def run_geo_prediction(
             df["オッズ"] = np.nan
         # 保存APIの既存形式との互換性。値は旧指数ではなく新ジオ複勝確率(%)。
         df["ジオ評価"] = df["新ジオ複勝確率"] * 100.0
-        df["予想モデル"] = "新ジオ Phase16.55 sire_condition_edge/top3"
+        df["予想モデル"] = "新ジオ ability_plus_counts/top3"
         top = [df.iloc[i] if len(df) > i else None for i in range(3)]
         return {"df_geo": df, "honmei": top[0], "second": top[1], "third": top[2],
                 "decision": "新ジオ複勝確率順", "confidence": 0,
-                "gap12": 0, "gap13": 0, "comment": ["新ジオ8項目（父産駒の条件別適性差を含む）の複勝予測確率を使用"],
+                "gap12": 0, "gap13": 0, "comment": ["新ジオ7項目の複勝予測確率を使用"],
                 "tickets": [], "reasons": {}, "pace": pace, "bias": bias, "condition": condition,
-                "prediction_model": "新ジオ Phase16.55 sire_condition_edge/top3"}
+                "prediction_model": "新ジオ ability_plus_counts/top3"}
     except Exception as exc:
         st.error(f"新ジオ予測を取得できません。旧ジオでは代用しません: {exc}")
         return None
@@ -3169,7 +3163,7 @@ def run_geo_prediction(
             df['新ジオ複勝確率'] = numbers.astype(int).map(lambda n: by_number[int(n)]['top3_probability'])
             df['新ジオ順位'] = numbers.astype(int).map(lambda n: by_number[int(n)]['rank'])
             df['ジオ評価'] = df['新ジオ複勝確率'] * 100.0
-            df['予想モデル'] = '新ジオ Phase16.55 sire_condition_edge/top3'
+            df['予想モデル'] = 'Phase16.45 ability_plus_counts/top3'
             for _, item in df.iterrows():
                 reasons.setdefault(str(item.get('馬名','')), []).insert(0, '新ジオ複勝確率 {:.1%}'.format(item['新ジオ複勝確率']))
         except Exception as exc:
@@ -3253,7 +3247,7 @@ def run_geo_prediction(
 # 🧠 ジオ表示
 # ============================================================
 
-def display_geo_prediction(geo):
+def display_geo_prediction(geo, bet_surface=None, bet_distance=None):
     # Phase16.50: 旧指数・補正合計・旧自信度は一切表示しない。
     if geo is None:
         st.warning("新ジオの予測結果がありません。")
@@ -3267,7 +3261,7 @@ def display_geo_prediction(geo):
     df["複勝予測確率 (%)"] = df["新ジオ複勝確率"] * 100
     st.markdown("---")
     st.subheader("🧠 新ジオ｜複勝予測ランキング")
-    st.caption("Phase16.55 本番モデル（8項目・sire_condition_edge/top3）。◎○▲は複勝予測確率順。旧ジオの統合指数・補正は使用しません。")
+    st.caption("Phase16.43検証モデル ability_plus_counts/top3。◎○▲は新ジオの複勝予測確率順。旧ジオの統合指数・補正は使用しません。")
     columns = [c for c in ("印", "馬番", "馬名", "複勝予測確率 (%)", "オッズ") if c in df.columns]
     st.dataframe(df[columns], use_container_width=True, hide_index=True,
                  column_config={"複勝予測確率 (%)": st.column_config.NumberColumn("複勝予測確率 (%)", format="%.1f%%")})
@@ -3276,6 +3270,39 @@ def display_geo_prediction(geo):
         for col, mark, row in zip((a,b,c), ("◎ 本命", "○ 対抗", "▲ 単穴"), (df.iloc[0],df.iloc[1],df.iloc[2])):
             col.metric(f"{mark} {row['馬名']}", f"{row['複勝予測確率 (%)']:.1f}%")
     st.caption("この確率は各馬が3着以内に入るモデル推定値で、レース内で合計100%になるものではありません。")
+
+    # Phase16.65: 馬券購入の参考判定のみ（モデル・予想順位・DB保存は変更しない）
+    st.markdown("#### 🎫 芝ジオ｜馬券購入参考判定（検証運用）")
+    try:
+        _bet_dist = int(float(bet_distance))
+    except (TypeError, ValueError, OverflowError):
+        _bet_dist = None
+    _bet_surface = str(bet_surface or "").strip()
+    _bet_ok = _bet_surface == "芝" and _bet_dist is not None and 1401 <= _bet_dist <= 1800
+    _bet_horses = df.head(5).copy()
+    if _bet_surface == "芝" and _bet_dist is None:
+        st.warning("距離が確認できないため購入判定は保留です。")
+    elif _bet_ok and len(_bet_horses) >= 5 and "馬番" in _bet_horses.columns:
+        _bet_nums = []
+        for _v in _bet_horses["馬番"].tolist():
+            try:
+                _bet_nums.append(str(int(float(_v))))
+            except (TypeError, ValueError, OverflowError):
+                _bet_nums = []
+                break
+        if len(_bet_nums) == 5 and len(set(_bet_nums)) == 5:
+            st.success(f"🟢 購入候補（過去検証上）：芝{_bet_dist}m")
+            st.write(f"**馬連4点：{_bet_nums[0]}番 → {'・'.join(_bet_nums[1:])}番**（各100円・計400円）")
+            st.caption("2026/9/5〜10/18の芝1401〜1800m：81R、回収率175.28%。高配当への偏りが大きく、将来の利益は未保証です。")
+        else:
+            st.warning("馬番が不足または重複しているため、馬券候補を表示しません。")
+    elif _bet_surface == "芝":
+        st.info(f"⚪ 検証継続・購入推奨なし：芝{_bet_dist}m（重点検証距離の対象外）")
+    elif _bet_surface == "ダート":
+        st.info("⚪ 見送り候補：ダートは現行馬連4点の過去回収率58.72%。専用モデルは未検証です。")
+    else:
+        st.info("⚪ 判定対象外：芝1401〜1800m以外、または馬場区分不明です。")
+    st.caption("参考判定は馬券購入を自動実行しません。予想モデル・順位・保存データへの影響はありません。過去特徴量の未来情報混入は未監査です。")
     return
 
     if geo is None:
@@ -4285,7 +4312,7 @@ if st.button(
 _cached_geo = st.session_state.get("geo_prediction")
 _cached_race_id = st.session_state.get("geo_prediction_race_id")
 if _cached_geo is not None and _cached_race_id == str(race_id):
-    display_geo_prediction(_cached_geo)
+    display_geo_prediction(_cached_geo, bet_surface=race_surface, bet_distance=race_distance)
 elif not st.session_state.get("sim_executed", False):
     st.info(
         "👆 ペース・バイアス等を設定して、"
