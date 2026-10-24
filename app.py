@@ -2975,6 +2975,21 @@ def run_geo_prediction(
                 official_error=str(exc)
         else:
             official_error='APIにofficial_nine_featureがありません。Phase18.2 APIを確認してください。'
+        ten_payload=payload.get('official_ten_feature')
+        ten_error=payload.get('course_suitability_error')
+        if isinstance(ten_payload,dict) and isinstance(ten_payload.get('horses'),list):
+            try:
+                th=ten_payload['horses']; tm={int(h['umaban']):h for h in th}
+                if len(tm)!=len(th) or set(tm)!=set(df['馬番']):raise ValueError('正式10項目の馬番が一致しません')
+                if sorted(int(h['rank']) for h in th)!=list(range(1,len(df)+1)):raise ValueError('正式10項目の順位が不正です')
+                df['正式10項目順位']=df['馬番'].map(lambda n:int(tm[int(n)]['rank']))
+                df['正式10項目スコア']=df['馬番'].map(lambda n:float(tm[int(n)]['ranking_score']))
+                df['末脚力指数']=df['馬番'].map(lambda n:float(tm[int(n)]['closing_kick']))
+                df['末脚評価過去走']=df['馬番'].map(lambda n:int(tm[int(n)]['sample_count']))
+                df['昇級クラス補正']=df['馬番'].map(lambda n:float(tm[int(n)].get('class_adjustment_in_ninth') or 0))
+                df['末脚クラス移行係数']=df['馬番'].map(lambda n:float(tm[int(n)].get('class_transfer_factor') or 1))
+            except (KeyError,ValueError,TypeError) as exc:ten_error=str(exc)
+        else:ten_error=ten_error or 'APIにofficial_ten_featureがありません。Phase18.3 APIを確認してください。'
         # 保存APIの既存形式との互換性。値は旧指数ではなく新ジオ複勝確率(%)。
         df["ジオ評価"] = df["新ジオ複勝確率"] * 100.0
         df["予想モデル"] = "新ジオ ability_plus_counts/top3"
@@ -2988,7 +3003,8 @@ def run_geo_prediction(
                 "course_snapshot": course_snapshot, "course_payload": course_payload,
                 "suitability_payload": suitability_payload, "suitability_error": suitability_error,
                 "abc_snapshot": payload.get("course_abc_snapshot"),
-                "official_payload":official_payload,"official_error":official_error}
+                "official_payload":official_payload,"official_error":official_error,
+                "ten_payload":ten_payload,"ten_error":ten_error,"ten_snapshot":payload.get("official_ten_snapshot")}
     except Exception as exc:
         st.error(f"新ジオ予測を取得できません。旧ジオでは代用しません: {exc}")
         return None
@@ -3323,15 +3339,35 @@ def display_geo_prediction(geo):
     df.insert(0, "印", ["◎" if i == 0 else "○" if i == 1 else "▲" if i == 2 else "△" if i == 3 else "☆" if i == 4 else "" for i in range(len(df))])
     df["複勝予測確率 (%)"] = df["新ジオ複勝確率"] * 100
     st.markdown("---")
+    # Phase18.3: official 10-feature ranking; 9-feature and 8-feature kept for comparison.
+    if '正式10項目順位' in df.columns:
+        st.subheader('🏆 新ジオ正式版｜10項目ランキング（Phase18.4・クラス補正）')
+        ten=df.sort_values(['正式10項目順位','馬番']).copy()
+        ten.insert(0,'正式印',['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '△' if i==3 else '☆' if i==4 else '' for i in range(len(ten))])
+        ten['10項目評価指数']=ten['正式10項目スコア']*100
+        show=['正式印','馬番','馬名','正式10項目順位','10項目評価指数','末脚力指数','末脚評価過去走']
+        if '昇級クラス補正' in ten.columns:show.extend(['昇級クラス補正','末脚クラス移行係数'])
+        if '正式9項目順位' in ten.columns:show.append('正式9項目順位')
+        show.append('新ジオ順位')
+        st.dataframe(ten[show],use_container_width=True,hide_index=True,
+            column_config={'10項目評価指数':st.column_config.NumberColumn(format='%.2f'),
+                           '末脚力指数':st.column_config.NumberColumn(format='%.3f'),
+                           '昇級クラス補正':st.column_config.NumberColumn(format='%+.3f'),
+                           '末脚クラス移行係数':st.column_config.NumberColumn(format='%.3f')})
+        st.info(f"正式◎：{ten.iloc[0]['馬番']}番 {ten.iloc[0]['馬名']}")
+        st.caption('第9項目の過去走着順を相手クラス差で補正。第10項目は下級条件で記録したプラスの末脚評価だけを控えめに割引。クラス不明は中立。係数は仮説値で、評価指数は複勝確率ではありません。')
+        st.caption('予想保存：'+str(geo.get('ten_snapshot') or '未確認'))
+    else:
+        st.warning('正式10項目版を取得できません。'+str(geo.get('ten_error') or 'API未対応'))
     # Official model: nine features; preserve eight-feature probabilities as reference only.
     if '正式9項目順位' in df.columns:
-        st.subheader('🏆 新ジオ正式版｜9項目ランキング（Phase18.2）')
+        st.subheader('🔬 比較基準｜9項目ランキング（Phase18.2）')
         nine=df.sort_values(['正式9項目順位','馬番']).copy()
         nine.insert(0,'正式印',['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '△' if i==3 else '☆' if i==4 else '' for i in range(len(nine))])
         nine['9項目評価指数']=nine['正式9項目スコア']*100
         st.dataframe(nine[['正式印','馬番','馬名','正式9項目順位','9項目評価指数','新ジオ順位']],use_container_width=True,hide_index=True,
                      column_config={'9項目評価指数':st.column_config.NumberColumn(format='%.2f')})
-        st.info(f"正式◎：{nine.iloc[0]['馬番']}番 {nine.iloc[0]['馬名']}｜○：{nine.iloc[1]['馬番']}番 {nine.iloc[1]['馬名']}" if len(nine)>1 else f"正式◎：{nine.iloc[0]['馬番']}番 {nine.iloc[0]['馬名']}")
+        st.info(f"9項目◎：{nine.iloc[0]['馬番']}番 {nine.iloc[0]['馬名']}｜○：{nine.iloc[1]['馬番']}番 {nine.iloc[1]['馬名']}" if len(nine)>1 else f"9項目◎：{nine.iloc[0]['馬番']}番 {nine.iloc[0]['馬名']}")
         st.caption('9項目評価指数は順位比較用の仮説スコアで、複勝確率ではありません。旧8項目の確率は下に参考表示します。係数0.8は未学習の暫定値です。')
     else:
         st.warning('正式9項目版を取得できません。従来8項目のみ表示します: '+str(geo.get('official_error') or 'API未対応'))
