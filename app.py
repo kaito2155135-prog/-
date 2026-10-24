@@ -2990,21 +2990,46 @@ def run_geo_prediction(
                 df['末脚クラス移行係数']=df['馬番'].map(lambda n:float(tm[int(n)].get('class_transfer_factor') or 1))
             except (KeyError,ValueError,TypeError) as exc:ten_error=str(exc)
         else:ten_error=ten_error or 'APIにofficial_ten_featureがありません。Phase18.3 APIを確認してください。'
-        # 保存APIの既存形式との互換性。値は旧指数ではなく新ジオ複勝確率(%)。
-        df["ジオ評価"] = df["新ジオ複勝確率"] * 100.0
-        df["予想モデル"] = "新ジオ ability_plus_counts/top3"
+        joint_payload=payload.get('joint_ten_learned')
+        if isinstance(joint_payload,dict) and joint_payload.get('status')=='trained':
+            jh=joint_payload.get('horses',[]);jm={int(h['umaban']):h for h in jh}
+            if len(jm)==len(df) and set(jm)==set(df['馬番']):
+                df['学習10項目順位']=df['馬番'].map(lambda n:int(jm[int(n)]['rank']))
+                df['学習10項目スコア']=df['馬番'].map(lambda n:float(jm[int(n)]['ranking_score']))
+        # Phase18.6: 個別・全自動の両方で正式10項目を保存順位として採用。
+        # 学習済み10項目は順位が全頭揃っている場合だけ採用し、それ以外はPhase18.4。
+        # APIに正式10項目がない場合、従来8項目へ黙って戻さずエラーにする。
+        if "正式10項目順位" not in df.columns:
+            raise ValueError(f"正式10項目の順位が取得できません: {ten_error}")
+        selected_rank = "正式10項目順位"
+        selected_score = "正式10項目スコア"
+        selected_model = "Phase18.4 正式10項目（暫定係数）"
+        if isinstance(joint_payload, dict) and joint_payload.get("status") == "trained":
+            if "学習10項目順位" not in df.columns:
+                raise ValueError("学習済み10項目の順位が不完全です。保存を中止します")
+            if sorted(df["学習10項目順位"].astype(int).tolist()) != list(range(1, len(df) + 1)):
+                raise ValueError("学習済み10項目の順位が不正です。保存を中止します")
+            selected_rank = "学習10項目順位"
+            selected_score = "学習10項目スコア"
+            selected_model = "Phase18.5 学習済み10項目"
+        df = df.sort_values([selected_rank, "馬番"]).reset_index(drop=True)
+        # ジオ評価は既存の保存API用の数値フィールド。複勝確率ではなく順位スコア。
+        df["ジオ評価"] = pd.to_numeric(df[selected_score], errors="raise") * 100.0
+        if not np.isfinite(df["ジオ評価"].to_numpy(dtype=float)).all():
+            raise ValueError("正式10項目のスコアが不正です")
+        df["予想モデル"] = selected_model
         top = [df.iloc[i] if len(df) > i else None for i in range(3)]
         return {"df_geo": df, "honmei": top[0], "second": top[1], "third": top[2],
-                "decision": "新ジオ複勝確率順", "confidence": 0,
-                "gap12": 0, "gap13": 0, "comment": ["新ジオ7項目の複勝予測確率を使用"],
+                "decision": selected_model + "の順位", "confidence": 0,
+                "gap12": 0, "gap13": 0, "comment": [selected_model + "で◎○▲を決定。ジオ評価は校正済み複勝確率ではありません"],
                 "tickets": [], "reasons": {}, "pace": pace, "bias": bias, "condition": condition,
-                "prediction_model": "新ジオ ability_plus_counts/top3",
+                "prediction_model": selected_model,
                 "course_profile": course_profile, "course_error": course_error,
                 "course_snapshot": course_snapshot, "course_payload": course_payload,
                 "suitability_payload": suitability_payload, "suitability_error": suitability_error,
                 "abc_snapshot": payload.get("course_abc_snapshot"),
                 "official_payload":official_payload,"official_error":official_error,
-                "ten_payload":ten_payload,"ten_error":ten_error,"ten_snapshot":payload.get("official_ten_snapshot")}
+                "ten_payload":ten_payload,"ten_error":ten_error,"ten_snapshot":payload.get("official_ten_snapshot"),"joint_payload":joint_payload}
     except Exception as exc:
         st.error(f"新ジオ予測を取得できません。旧ジオでは代用しません: {exc}")
         return None
@@ -3335,13 +3360,36 @@ def display_geo_prediction(geo):
     if not isinstance(df, pd.DataFrame) or df.empty or "新ジオ複勝確率" not in df.columns:
         st.error("新ジオ複勝確率がないため、旧ジオの結果は表示しません。")
         return
-    df = df.sort_values("新ジオ順位").copy()
+    # Phase18.6: 画面の先頭も実際の保存◎○▲と同じ正式10項目順位。
+    _display_rank = "学習10項目順位" if geo.get("prediction_model", "").startswith("Phase18.5") else "正式10項目順位"
+    df = df.sort_values([_display_rank, "馬番"]).copy()
     df.insert(0, "印", ["◎" if i == 0 else "○" if i == 1 else "▲" if i == 2 else "△" if i == 3 else "☆" if i == 4 else "" for i in range(len(df))])
     df["複勝予測確率 (%)"] = df["新ジオ複勝確率"] * 100
+    st.success(f"正式保存モデル：{geo.get('prediction_model')}｜◎ {geo['honmei']['馬番']}番　○ {geo['second']['馬番'] if geo.get('second') is not None else '-'}番　▲ {geo['third']['馬番'] if geo.get('third') is not None else '-'}番")
+    st.caption("正式◎○▲は全自動・個別とも共通。従来の複勝確率は比較表示で、保存する10項目評価指数は複勝確率ではありません。")
     st.markdown("---")
+    # Phase18.5: only show jointly trained model after real pre-race snapshots have settled.
+    joint=geo.get('joint_payload')
+    if isinstance(joint,dict):
+        st.subheader('🧠 Phase18.5｜10項目すべて同時学習')
+        used=int(joint.get('usable_training_races') or 0)
+        needed=int(joint.get('minimum_training_races') or 30)
+        if joint.get('status')=='trained' and '学習10項目順位' in df.columns:
+            trained=df.sort_values(['学習10項目順位','馬番']).copy()
+            trained.insert(0,'印',['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '' for i in range(len(trained))])
+            trained['学習指数']=trained['学習10項目スコア']*100
+            st.dataframe(trained[['印','馬番','馬名','学習10項目順位','学習指数']],hide_index=True,use_container_width=True)
+            imp=joint.get('importance_percent') or {}
+            if imp:
+                names={'ability_recent':'直近能力','ability_similar':'類似条件能力','jockey':'騎手','forward':'先行力','lead':'逃げ能力','hill_sessions':'坂路調教','wood_sessions':'ウッド調教','sire_condition_edge':'血統適性','course_fit':'コース適性','closing_kick':'末脚力'}
+                st.dataframe(pd.DataFrame([{'項目':names.get(k,k),'標準化係数の絶対値割合 (%)':v,'学習係数':(joint.get('weights') or {}).get(k)} for k,v in imp.items()]),hide_index=True,use_container_width=True)
+            st.caption('割合は標準化係数の絶対値を100%換算した参考値。実際の精度貢献率ではありません。学習指数は校正済み複勝確率ではありません。')
+        else:
+            st.info(f'学習用の確定済みレース：{used}/{needed}。不足中は従来Phase18.4の10項目順位を使用します。過去の出馬表を後付け復元して学習しません。')
+        st.caption('予想対象の前日以前に保存した特徴量だけを使い、対象レースの結果は学習に使いません。')
     # Phase18.3: official 10-feature ranking; 9-feature and 8-feature kept for comparison.
     if '正式10項目順位' in df.columns:
-        st.subheader('🏆 新ジオ正式版｜10項目ランキング（Phase18.4・クラス補正）')
+        st.subheader('🏆 Phase18.4｜暫定10項目ランキング（学習済み版との比較）')
         ten=df.sort_values(['正式10項目順位','馬番']).copy()
         ten.insert(0,'正式印',['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '△' if i==3 else '☆' if i==4 else '' for i in range(len(ten))])
         ten['10項目評価指数']=ten['正式10項目スコア']*100
@@ -3354,7 +3402,7 @@ def display_geo_prediction(geo):
                            '末脚力指数':st.column_config.NumberColumn(format='%.3f'),
                            '昇級クラス補正':st.column_config.NumberColumn(format='%+.3f'),
                            '末脚クラス移行係数':st.column_config.NumberColumn(format='%.3f')})
-        st.info(f"正式◎：{ten.iloc[0]['馬番']}番 {ten.iloc[0]['馬名']}")
+        st.caption(f"Phase18.4の◎：{ten.iloc[0]['馬番']}番 {ten.iloc[0]['馬名']}（実際の保存◎は画面最上部を参照）")
         st.caption('第9項目の過去走着順を相手クラス差で補正。第10項目は下級条件で記録したプラスの末脚評価だけを控えめに割引。クラス不明は中立。係数は仮説値で、評価指数は複勝確率ではありません。')
         st.caption('予想保存：'+str(geo.get('ten_snapshot') or '未確認'))
     else:
