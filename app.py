@@ -2939,6 +2939,25 @@ def run_geo_prediction(
                 course_error = str(exc)
         else:
             course_error = course_error or "APIにcourse_adjustedがありません。Phase18.0のAPIを確認してください。"
+        # Phase18.1 independent course-suitability model.
+        suitability_payload = payload.get("course_suitability")
+        suitability_error = payload.get("course_suitability_error")
+        if isinstance(suitability_payload, dict) and isinstance(suitability_payload.get("horses"), list):
+            try:
+                sh = suitability_payload["horses"]
+                sm = {int(h["umaban"]): h for h in sh}
+                if len(sm) != len(sh) or set(sm) != set(df["馬番"]):
+                    raise ValueError("適性版の馬番が一致しません")
+                if sorted(int(h["rank"]) for h in sh) != list(range(1,len(df)+1)):
+                    raise ValueError("適性版の順位が不正です")
+                df["適性追加順位"] = df["馬番"].map(lambda n:int(sm[int(n)]["rank"]))
+                df["適性追加指数"] = df["馬番"].map(lambda n:float(sm[int(n)]["course_suitability_score"])*100)
+                df["適性対象過去走"] = df["馬番"].map(lambda n:int(sm[int(n)]["matched_count"]))
+                df["適性順位変動"] = df["新ジオ順位"] - df["適性追加順位"]
+            except (KeyError,ValueError,TypeError) as exc:
+                suitability_error = str(exc)
+        else:
+            suitability_error = suitability_error or "APIにcourse_suitabilityがありません。Phase18.1 APIを確認してください。"
         # 保存APIの既存形式との互換性。値は旧指数ではなく新ジオ複勝確率(%)。
         df["ジオ評価"] = df["新ジオ複勝確率"] * 100.0
         df["予想モデル"] = "新ジオ ability_plus_counts/top3"
@@ -2949,7 +2968,9 @@ def run_geo_prediction(
                 "tickets": [], "reasons": {}, "pace": pace, "bias": bias, "condition": condition,
                 "prediction_model": "新ジオ ability_plus_counts/top3",
                 "course_profile": course_profile, "course_error": course_error,
-                "course_snapshot": course_snapshot, "course_payload": course_payload}
+                "course_snapshot": course_snapshot, "course_payload": course_payload,
+                "suitability_payload": suitability_payload, "suitability_error": suitability_error,
+                "abc_snapshot": payload.get("course_abc_snapshot")}
     except Exception as exc:
         st.error(f"新ジオ予測を取得できません。旧ジオでは代用しません: {exc}")
         return None
@@ -3328,6 +3349,36 @@ def display_geo_prediction(geo):
         snapshot = geo.get("course_snapshot")
         if isinstance(snapshot, dict):
             st.caption("予想スナップショット: " + ("保存済み" if snapshot.get("saved") else "未保存") + " / " + str(snapshot.get("reason", "")))
+
+    # Phase18.1: 3-way comparison; display-only, baseline remains official.
+    st.markdown("---")
+    st.subheader("🔬 Phase18.1｜従来・倍率補正・コース適性の3方式比較")
+    if "適性追加順位" not in df.columns:
+        st.warning("コース適性版を表示できません: " + str(geo.get("suitability_error") or "API未対応"))
+    else:
+        tri = df.sort_values(["新ジオ順位", "馬番"]).copy()
+        tri["従来"] = tri["新ジオ順位"].astype(int)
+        tri["倍率補正"] = tri["コース補正順位"].astype(int) if "コース補正順位" in tri.columns else "—"
+        tri["適性追加"] = tri["適性追加順位"].astype(int)
+        tri["適性の変動"] = tri["適性順位変動"].map(lambda x: f"↑{int(x)}" if x>0 else (f"↓{abs(int(x))}" if x<0 else "→0"))
+        st.dataframe(tri[["馬番","馬名","従来","倍率補正","適性追加","適性の変動","適性対象過去走","適性追加指数"]],
+                     use_container_width=True,hide_index=True)
+        best=tri.sort_values(["適性追加","馬番"]).iloc[0]
+        st.info(f"適性追加版◎：{best['馬番']}番 {best['馬名']}（従来{int(best['従来'])}位 → 適性{int(best['適性追加'])}位）")
+        st.caption("適性追加指数は仮説ベースの比較スコア。複勝確率として扱わない。対象過去走が0なら中立補正。坂や直線長を直接測った値ではない。")
+        st.metric("適性追加版で順位が変わった馬",f"{int((tri['適性順位変動']!=0).sum())}頭")
+        sp=geo.get("suitability_payload")
+        if isinstance(sp,dict):
+            with st.expander("コース適性の計算内訳（過去走のみ）",expanded=False):
+                rows=[]
+                for h in sp.get("horses",[]):
+                    d={"馬番":h.get("umaban"),"過去走数":h.get("matched_count"),"同競馬場":h.get("same_venue_count"),"適性補正":h.get("course_fit")}
+                    d.update(h.get("components") or {})
+                    rows.append(d)
+                st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
+        snapshot=geo.get("abc_snapshot")
+        if isinstance(snapshot,dict):
+            st.caption("3方式の予想記録: "+("新規保存" if snapshot.get("saved") else "保存済み/対象外")+" / "+str(snapshot.get("reason","")))
 
     return
 
