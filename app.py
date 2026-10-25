@@ -3376,7 +3376,7 @@ def display_geo_prediction(geo):
         needed=int(joint.get('minimum_training_races') or 30)
         if joint.get('status')=='trained' and '学習10項目順位' in df.columns:
             trained=df.sort_values(['学習10項目順位','馬番']).copy()
-            trained.insert(0,'印',['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '' for i in range(len(trained))])
+            trained['印'] = ['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '' for i in range(len(trained))]
             trained['学習指数']=trained['学習10項目スコア']*100
             st.dataframe(trained[['印','馬番','馬名','学習10項目順位','学習指数']],hide_index=True,use_container_width=True)
             imp=joint.get('importance_percent') or {}
