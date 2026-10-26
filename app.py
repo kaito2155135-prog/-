@@ -4904,6 +4904,55 @@ if st.button(
 
 st.markdown("---")
 
+
+st.markdown("### 🏆 GEO 28点方式｜新馬券バックテスト")
+st.caption("◎単勝・複勝／◎から○▲△☆へ馬連・馬単／◎軸3連複／◎1着固定3連単。各点100円・計28点。旧11点方式とは別集計です。")
+new_data = api_get("/prediction/bet_verification_v2?limit=500")
+if new_data and new_data.get("ok"):
+    ov = new_data.get("overall", {})
+    x1,x2,x3,x4 = st.columns(4)
+    x1.metric("検証対象", f"{new_data.get('eligible_races',0)}R")
+    x2.metric("総投資", f"{ov.get('投資',0):,}円")
+    x3.metric("総払戻", f"{ov.get('払戻',0):,}円")
+    x4.metric("回収率", f"{ov.get('回収率',0):.1f}%")
+    st.metric("収支", f"{ov.get('収支',0):+,}円")
+    st.markdown("#### 券種別回収率")
+    new_rows=[]
+    for name in ["単勝","複勝","馬連","馬単","3連複","3連単"]:
+        v=new_data.get("by_type",{}).get(name,{})
+        new_rows.append({"券種":name,"点数":v.get("点数",0),"的中":v.get("的中",0),"的中率":f"{v.get('的中率',0):.1f}%","投資":v.get("投資",0),"払戻":v.get("払戻",0),"収支":v.get("収支",0),"回収率":f"{v.get('回収率',0):.1f}%"})
+    st.dataframe(pd.DataFrame(new_rows),use_container_width=True,hide_index=True)
+    new_races=new_data.get("races",[])
+    if new_races:
+        records=[]
+        for r in new_races:
+            d=pd.to_datetime(r.get("race_date"),errors="coerce")
+            if pd.notna(d):
+                records.append({"日付":d.normalize(),"投資":r.get("投資",0),"払戻":r.get("払戻",0)})
+        if records:
+            df28=pd.DataFrame(records)
+            df28["月"]=df28["日付"].dt.strftime("%Y-%m")
+            tabs=st.tabs(["📅 日別","🗓️ 月別"])
+            for tab,group in zip(tabs,["日付","月"]):
+                with tab:
+                    summary=df28.groupby(group,as_index=False)[["投資","払戻"]].sum()
+                    summary["収支"]=summary["払戻"]-summary["投資"]
+                    summary["回収率%"]=(summary["払戻"]/summary["投資"]*100).round(1)
+                    st.dataframe(summary,use_container_width=True,hide_index=True)
+        with st.expander("レース別買い目・結果"):
+            for r in new_races:
+                with st.expander(f"{r.get('race_date')} {r.get('venue')} {r.get('race_no')}R｜投資 {r.get('投資',0):,}円／払戻 {r.get('払戻',0):,}円"):
+                    st.write(r.get("印",{}))
+                    st.dataframe(pd.DataFrame((r.get("verification") or {}).get("bets",[])),use_container_width=True,hide_index=True)
+    if new_data.get("excluded_races",0):
+        st.warning(f"{new_data['excluded_races']}Rは当時の5頭の印または払戻を確認できず、集計から除外しました。欠損を推測で補完していません。")
+        with st.expander("除外理由を確認"):
+            st.dataframe(pd.DataFrame(new_data.get("excluded",[])),use_container_width=True,hide_index=True)
+else:
+    st.info("新28点方式のAPIが未導入、または通信できません。API側を先に更新してください。")
+st.markdown("---")
+st.markdown("### 📚 旧11点方式｜従来の実績（比較用）")
+
 st.markdown("### 🎯 Geo自動馬券検証")
 st.caption("◎○▲から11点を自動生成し、JRA-VANのharaimodoshiと照合します。各点100円で計算します。")
 
