@@ -3351,6 +3351,21 @@ def run_geo_prediction(
 # 🧠 ジオ表示
 # ============================================================
 
+st.markdown("""
+<style>
+.geo-picks {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:12px;margin:12px 0 18px;}
+.geo-pick {display:flex;align-items:center;gap:13px;min-height:91px;padding:15px 16px;background:linear-gradient(120deg,#15273B,#101D30);border:1px solid #30445D;border-radius:15px;box-shadow:0 8px 24px #00000020;}
+.geo-pick:first-child {border-color:#A88B57;background:linear-gradient(115deg,#2D2B29,#152338);}
+.geo-pick-mark {font-size:32px;font-weight:850;line-height:1;min-width:38px;text-align:center;}
+.geo-pick-main {display:flex;flex:1;flex-direction:column;gap:4px;min-width:0;}
+.geo-pick-main strong {color:#F4F7FC;font-size:15px;overflow-wrap:anywhere;}
+.geo-pick-role {color:#91A9C3;font-size:11px;font-weight:700;letter-spacing:.08em;}
+.geo-pick-score {display:flex;flex-direction:column;align-items:flex-end;color:#E8C68E;font-size:21px;font-weight:800;white-space:nowrap;}
+.geo-pick-score small {color:#91A9C3;font-size:9px;letter-spacing:.12em;}
+@media(max-width:600px){.geo-picks{grid-template-columns:1fr;gap:8px}.geo-pick{min-height:72px;padding:10px 13px}.geo-pick-mark{font-size:28px}}
+</style>
+""",unsafe_allow_html=True)
+
 def display_geo_prediction(geo):
     # Phase16.50: 旧指数・補正合計・旧自信度は一切表示しない。
     if geo is None:
@@ -3367,6 +3382,21 @@ def display_geo_prediction(geo):
     df["複勝予測確率 (%)"] = df["新ジオ複勝確率"] * 100
     st.success(f"正式保存モデル：{geo.get('prediction_model')}｜◎ {geo['honmei']['馬番']}番　○ {geo['second']['馬番'] if geo.get('second') is not None else '-'}番　▲ {geo['third']['馬番'] if geo.get('third') is not None else '-'}番")
     st.caption("正式◎○▲は全自動・個別とも共通。従来の複勝確率は比較表示で、保存する10項目評価指数は複勝確率ではありません。")
+    # GEO AI: 現行正式モデルの上位5頭をスマホでも見やすいカードで表示。
+    _marks = ["◎", "○", "▲", "△", "☆"]
+    _roles = ["本命", "対抗", "単穴", "連下", "注目"]
+    _colors = ["#E8BF75", "#A5E2E5", "#C5D4EA", "#B7C6D9", "#D8A8EA"]
+    st.markdown('<div class="geo-panel-title">🏇 GEO AI / TOP FIVE</div>', unsafe_allow_html=True)
+    _cards = []
+    for _i, (_, _horse) in enumerate(df.head(5).iterrows()):
+        _name = html.escape(str(_horse.get("馬名", "")))
+        _num = html.escape(str(_horse.get("馬番", "—")).replace(".0", ""))
+        _score_key = "学習10項目スコア" if _display_rank == "学習10項目順位" else "正式10項目スコア"
+        _score = pd.to_numeric(_horse.get(_score_key), errors="coerce")
+        _score_text = f"{_score * 100:.1f}" if pd.notna(_score) else "—"
+        _cards.append(f'<div class="geo-pick"><span class="geo-pick-mark" style="color:{_colors[_i]}">{_marks[_i]}</span><div class="geo-pick-main"><span class="geo-pick-role">{_roles[_i]} · {_i+1}位</span><strong>{_num}番 {_name}</strong></div><span class="geo-pick-score">{_score_text}<small>INDEX</small></span></div>')
+    st.markdown('<div class="geo-picks">' + ''.join(_cards) + '</div>', unsafe_allow_html=True)
+    st.caption("上位5頭は現行正式モデルの順位。指数は勝率・複勝率ではありません。買い目と保存内容は従来どおりです。")
     st.markdown("---")
     # Phase18.5: only show jointly trained model after real pre-race snapshots have settled.
     joint=geo.get('joint_payload')
@@ -3376,7 +3406,7 @@ def display_geo_prediction(geo):
         needed=int(joint.get('minimum_training_races') or 30)
         if joint.get('status')=='trained' and '学習10項目順位' in df.columns:
             trained=df.sort_values(['学習10項目順位','馬番']).copy()
-            trained['印'] = ['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '' for i in range(len(trained))]
+            trained['印'] = ['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '△' if i==3 else '☆' if i==4 else '' for i in range(len(trained))]
             trained['学習指数']=trained['学習10項目スコア']*100
             st.dataframe(trained[['印','馬番','馬名','学習10項目順位','学習指数']],hide_index=True,use_container_width=True)
             imp=joint.get('importance_percent') or {}
@@ -3387,112 +3417,114 @@ def display_geo_prediction(geo):
         else:
             st.info(f'学習用の確定済みレース：{used}/{needed}。不足中は従来Phase18.4の10項目順位を使用します。過去の出馬表を後付け復元して学習しません。')
         st.caption('予想対象の前日以前に保存した特徴量だけを使い、対象レースの結果は学習に使いません。')
-    # Phase18.3: official 10-feature ranking; 9-feature and 8-feature kept for comparison.
-    if '正式10項目順位' in df.columns:
-        st.subheader('🏆 Phase18.4｜暫定10項目ランキング（学習済み版との比較）')
-        ten=df.sort_values(['正式10項目順位','馬番']).copy()
-        ten.insert(0,'正式印',['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '△' if i==3 else '☆' if i==4 else '' for i in range(len(ten))])
-        ten['10項目評価指数']=ten['正式10項目スコア']*100
-        show=['正式印','馬番','馬名','正式10項目順位','10項目評価指数','末脚力指数','末脚評価過去走']
-        if '昇級クラス補正' in ten.columns:show.extend(['昇級クラス補正','末脚クラス移行係数'])
-        if '正式9項目順位' in ten.columns:show.append('正式9項目順位')
-        show.append('新ジオ順位')
-        st.dataframe(ten[show],use_container_width=True,hide_index=True,
-            column_config={'10項目評価指数':st.column_config.NumberColumn(format='%.2f'),
-                           '末脚力指数':st.column_config.NumberColumn(format='%.3f'),
-                           '昇級クラス補正':st.column_config.NumberColumn(format='%+.3f'),
-                           '末脚クラス移行係数':st.column_config.NumberColumn(format='%.3f')})
-        st.caption(f"Phase18.4の◎：{ten.iloc[0]['馬番']}番 {ten.iloc[0]['馬名']}（実際の保存◎は画面最上部を参照）")
-        st.caption('第9項目の過去走着順を相手クラス差で補正。第10項目は下級条件で記録したプラスの末脚評価だけを控えめに割引。クラス不明は中立。係数は仮説値で、評価指数は複勝確率ではありません。')
-        st.caption('予想保存：'+str(geo.get('ten_snapshot') or '未確認'))
-    else:
-        st.warning('正式10項目版を取得できません。'+str(geo.get('ten_error') or 'API未対応'))
-    # Official model: nine features; preserve eight-feature probabilities as reference only.
-    if '正式9項目順位' in df.columns:
-        st.subheader('🔬 比較基準｜9項目ランキング（Phase18.2）')
-        nine=df.sort_values(['正式9項目順位','馬番']).copy()
-        nine.insert(0,'正式印',['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '△' if i==3 else '☆' if i==4 else '' for i in range(len(nine))])
-        nine['9項目評価指数']=nine['正式9項目スコア']*100
-        st.dataframe(nine[['正式印','馬番','馬名','正式9項目順位','9項目評価指数','新ジオ順位']],use_container_width=True,hide_index=True,
-                     column_config={'9項目評価指数':st.column_config.NumberColumn(format='%.2f')})
-        st.info(f"9項目◎：{nine.iloc[0]['馬番']}番 {nine.iloc[0]['馬名']}｜○：{nine.iloc[1]['馬番']}番 {nine.iloc[1]['馬名']}" if len(nine)>1 else f"9項目◎：{nine.iloc[0]['馬番']}番 {nine.iloc[0]['馬名']}")
-        st.caption('9項目評価指数は順位比較用の仮説スコアで、複勝確率ではありません。旧8項目の確率は下に参考表示します。係数0.8は未学習の暫定値です。')
-    else:
-        st.warning('正式9項目版を取得できません。従来8項目のみ表示します: '+str(geo.get('official_error') or 'API未対応'))
-    st.subheader('🧠 従来8項目｜複勝予測ランキング（比較基準）')
-    st.caption("比較基準の従来8項目モデル。以下の◎○▲は従来版の印で、正式9項目版の印ではありません。")
-    columns = [c for c in ("印", "馬番", "馬名", "複勝予測確率 (%)", "オッズ") if c in df.columns]
-    st.dataframe(df[columns], use_container_width=True, hide_index=True,
-                 column_config={"複勝予測確率 (%)": st.column_config.NumberColumn("複勝予測確率 (%)", format="%.1f%%")})
-    if len(df) >= 3:
-        a,b,c = st.columns(3)
-        for col, mark, row in zip((a,b,c), ("◎ 本命", "○ 対抗", "▲ 単穴"), (df.iloc[0],df.iloc[1],df.iloc[2])):
-            col.metric(f"{mark} {row['馬名']}", f"{row['複勝予測確率 (%)']:.1f}%")
-    st.caption("この確率は各馬が3着以内に入るモデル推定値で、レース内で合計100%になるものではありません。")
-    # Phase18.0 A/B比較。補正スコアは確率ではなく、公式の印は変更しない。
-    st.markdown("---")
-    st.subheader("🏟️ コース補正ジオ｜従来版とのA/B比較")
-    if "コース補正順位" not in df.columns:
-        st.warning("コース補正データを表示できません: " + str(geo.get("course_error") or "API未対応"))
-    else:
-        ab = df.sort_values(["新ジオ順位", "馬番"]).copy()
-        ab["従来順位"] = ab["新ジオ順位"].astype(int)
-        ab["補正順位"] = ab["コース補正順位"].astype(int)
-        ab["順位変動表示"] = ab["順位変動"].map(lambda x: f"↑{int(x)}" if x > 0 else (f"↓{abs(int(x))}" if x < 0 else "→0"))
-        ab["従来複勝予測 (%)"] = ab["新ジオ複勝確率"] * 100
-        ab["コース補正指数"] = ab["コース補正スコア"] * 100
-        show = [c for c in ["馬番", "馬名", "従来順位", "補正順位", "順位変動表示", "従来複勝予測 (%)", "コース補正指数"] if c in ab.columns]
-        st.dataframe(ab[show], use_container_width=True, hide_index=True,
-                     column_config={"従来複勝予測 (%)": st.column_config.NumberColumn(format="%.1f%%"),
-                                    "コース補正指数": st.column_config.NumberColumn(format="%.2f")})
-        st.caption("↑は補正後に順位上昇。倍率補正版は比較用で、正式な印は上の9項目版を参照してください。")
-        changed = int((ab["順位変動"] != 0).sum())
-        st.metric("コース補正で順位が変化した馬", f"{changed}頭")
-        course_top = ab.sort_values(["補正順位", "馬番"]).iloc[0]
-        st.info(f"コース補正版の◎：{course_top['馬番']}番 {course_top['馬名']}（従来{int(course_top['従来順位'])}位 → 補正{int(course_top['補正順位'])}位）")
-        profile = geo.get("course_profile")
-        if isinstance(profile, dict):
-            with st.expander("コース補正の根拠・係数", expanded=False):
-                st.write(f"競馬場: {profile.get('venue', '不明')} / 芝ダート: {profile.get('surface', '不明')} / 距離: {profile.get('distance_m', '?')}m")
-                st.caption("内回り・外回りは現バージョンでは未検証のため補正対象外")
-                factors = profile.get("factors", {})
-                if isinstance(factors, dict) and factors:
-                    st.dataframe(pd.DataFrame([{"特徴量": k, "倍率": v} for k, v in factors.items()]), hide_index=True, use_container_width=True)
-                for reason in profile.get("reasons", []):
-                    st.write("・" + str(reason))
-        snapshot = geo.get("course_snapshot")
-        if isinstance(snapshot, dict):
-            st.caption("予想スナップショット: " + ("保存済み" if snapshot.get("saved") else "未保存") + " / " + str(snapshot.get("reason", "")))
+    # 旧Phase比較は計算を維持しつつ、普段は閉じた検証用エリアへ移動。
+    with st.expander("🔬 旧Phaseのランキング比較・開発用診断", expanded=False):
+        # Phase18.3: official 10-feature ranking; 9-feature and 8-feature kept for comparison.
+        if '正式10項目順位' in df.columns:
+            st.subheader('🏆 Phase18.4｜暫定10項目ランキング（学習済み版との比較）')
+            ten=df.sort_values(['正式10項目順位','馬番']).copy()
+            ten.insert(0,'正式印',['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '△' if i==3 else '☆' if i==4 else '' for i in range(len(ten))])
+            ten['10項目評価指数']=ten['正式10項目スコア']*100
+            show=['正式印','馬番','馬名','正式10項目順位','10項目評価指数','末脚力指数','末脚評価過去走']
+            if '昇級クラス補正' in ten.columns:show.extend(['昇級クラス補正','末脚クラス移行係数'])
+            if '正式9項目順位' in ten.columns:show.append('正式9項目順位')
+            show.append('新ジオ順位')
+            st.dataframe(ten[show],use_container_width=True,hide_index=True,
+                column_config={'10項目評価指数':st.column_config.NumberColumn(format='%.2f'),
+                               '末脚力指数':st.column_config.NumberColumn(format='%.3f'),
+                               '昇級クラス補正':st.column_config.NumberColumn(format='%+.3f'),
+                               '末脚クラス移行係数':st.column_config.NumberColumn(format='%.3f')})
+            st.caption(f"Phase18.4の◎：{ten.iloc[0]['馬番']}番 {ten.iloc[0]['馬名']}（実際の保存◎は画面最上部を参照）")
+            st.caption('第9項目の過去走着順を相手クラス差で補正。第10項目は下級条件で記録したプラスの末脚評価だけを控えめに割引。クラス不明は中立。係数は仮説値で、評価指数は複勝確率ではありません。')
+            st.caption('予想保存：'+str(geo.get('ten_snapshot') or '未確認'))
+        else:
+            st.warning('正式10項目版を取得できません。'+str(geo.get('ten_error') or 'API未対応'))
+        # Official model: nine features; preserve eight-feature probabilities as reference only.
+        if '正式9項目順位' in df.columns:
+            st.subheader('🔬 比較基準｜9項目ランキング（Phase18.2）')
+            nine=df.sort_values(['正式9項目順位','馬番']).copy()
+            nine.insert(0,'正式印',['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '△' if i==3 else '☆' if i==4 else '' for i in range(len(nine))])
+            nine['9項目評価指数']=nine['正式9項目スコア']*100
+            st.dataframe(nine[['正式印','馬番','馬名','正式9項目順位','9項目評価指数','新ジオ順位']],use_container_width=True,hide_index=True,
+                         column_config={'9項目評価指数':st.column_config.NumberColumn(format='%.2f')})
+            st.info(f"9項目◎：{nine.iloc[0]['馬番']}番 {nine.iloc[0]['馬名']}｜○：{nine.iloc[1]['馬番']}番 {nine.iloc[1]['馬名']}" if len(nine)>1 else f"9項目◎：{nine.iloc[0]['馬番']}番 {nine.iloc[0]['馬名']}")
+            st.caption('9項目評価指数は順位比較用の仮説スコアで、複勝確率ではありません。旧8項目の確率は下に参考表示します。係数0.8は未学習の暫定値です。')
+        else:
+            st.warning('正式9項目版を取得できません。従来8項目のみ表示します: '+str(geo.get('official_error') or 'API未対応'))
+        st.subheader('🧠 従来8項目｜複勝予測ランキング（比較基準）')
+        st.caption("比較基準の従来8項目モデル。以下の◎○▲は従来版の印で、正式9項目版の印ではありません。")
+        columns = [c for c in ("印", "馬番", "馬名", "複勝予測確率 (%)", "オッズ") if c in df.columns]
+        st.dataframe(df[columns], use_container_width=True, hide_index=True,
+                     column_config={"複勝予測確率 (%)": st.column_config.NumberColumn("複勝予測確率 (%)", format="%.1f%%")})
+        if len(df) >= 3:
+            a,b,c = st.columns(3)
+            for col, mark, row in zip((a,b,c), ("◎ 本命", "○ 対抗", "▲ 単穴"), (df.iloc[0],df.iloc[1],df.iloc[2])):
+                col.metric(f"{mark} {row['馬名']}", f"{row['複勝予測確率 (%)']:.1f}%")
+        st.caption("この確率は各馬が3着以内に入るモデル推定値で、レース内で合計100%になるものではありません。")
+        # Phase18.0 A/B比較。補正スコアは確率ではなく、公式の印は変更しない。
+        st.markdown("---")
+        st.subheader("🏟️ コース補正ジオ｜従来版とのA/B比較")
+        if "コース補正順位" not in df.columns:
+            st.warning("コース補正データを表示できません: " + str(geo.get("course_error") or "API未対応"))
+        else:
+            ab = df.sort_values(["新ジオ順位", "馬番"]).copy()
+            ab["従来順位"] = ab["新ジオ順位"].astype(int)
+            ab["補正順位"] = ab["コース補正順位"].astype(int)
+            ab["順位変動表示"] = ab["順位変動"].map(lambda x: f"↑{int(x)}" if x > 0 else (f"↓{abs(int(x))}" if x < 0 else "→0"))
+            ab["従来複勝予測 (%)"] = ab["新ジオ複勝確率"] * 100
+            ab["コース補正指数"] = ab["コース補正スコア"] * 100
+            show = [c for c in ["馬番", "馬名", "従来順位", "補正順位", "順位変動表示", "従来複勝予測 (%)", "コース補正指数"] if c in ab.columns]
+            st.dataframe(ab[show], use_container_width=True, hide_index=True,
+                         column_config={"従来複勝予測 (%)": st.column_config.NumberColumn(format="%.1f%%"),
+                                        "コース補正指数": st.column_config.NumberColumn(format="%.2f")})
+            st.caption("↑は補正後に順位上昇。倍率補正版は比較用で、正式な印は上の9項目版を参照してください。")
+            changed = int((ab["順位変動"] != 0).sum())
+            st.metric("コース補正で順位が変化した馬", f"{changed}頭")
+            course_top = ab.sort_values(["補正順位", "馬番"]).iloc[0]
+            st.info(f"コース補正版の◎：{course_top['馬番']}番 {course_top['馬名']}（従来{int(course_top['従来順位'])}位 → 補正{int(course_top['補正順位'])}位）")
+            profile = geo.get("course_profile")
+            if isinstance(profile, dict):
+                with st.expander("コース補正の根拠・係数", expanded=False):
+                    st.write(f"競馬場: {profile.get('venue', '不明')} / 芝ダート: {profile.get('surface', '不明')} / 距離: {profile.get('distance_m', '?')}m")
+                    st.caption("内回り・外回りは現バージョンでは未検証のため補正対象外")
+                    factors = profile.get("factors", {})
+                    if isinstance(factors, dict) and factors:
+                        st.dataframe(pd.DataFrame([{"特徴量": k, "倍率": v} for k, v in factors.items()]), hide_index=True, use_container_width=True)
+                    for reason in profile.get("reasons", []):
+                        st.write("・" + str(reason))
+            snapshot = geo.get("course_snapshot")
+            if isinstance(snapshot, dict):
+                st.caption("予想スナップショット: " + ("保存済み" if snapshot.get("saved") else "未保存") + " / " + str(snapshot.get("reason", "")))
 
-    # Phase18.2: three-way comparison; nine-feature ranking is official.
-    st.markdown("---")
-    st.subheader("🔬 Phase18.1｜従来・倍率補正・コース適性の3方式比較")
-    if "適性追加順位" not in df.columns:
-        st.warning("コース適性版を表示できません: " + str(geo.get("suitability_error") or "API未対応"))
-    else:
-        tri = df.sort_values(["新ジオ順位", "馬番"]).copy()
-        tri["従来"] = tri["新ジオ順位"].astype(int)
-        tri["倍率補正"] = tri["コース補正順位"].astype(int) if "コース補正順位" in tri.columns else "—"
-        tri["適性追加"] = tri["適性追加順位"].astype(int)
-        tri["適性の変動"] = tri["適性順位変動"].map(lambda x: f"↑{int(x)}" if x>0 else (f"↓{abs(int(x))}" if x<0 else "→0"))
-        st.dataframe(tri[["馬番","馬名","従来","倍率補正","適性追加","適性の変動","適性対象過去走","適性追加指数"]],
-                     use_container_width=True,hide_index=True)
-        best=tri.sort_values(["適性追加","馬番"]).iloc[0]
-        st.info(f"適性追加版◎：{best['馬番']}番 {best['馬名']}（従来{int(best['従来'])}位 → 適性{int(best['適性追加'])}位）")
-        st.caption("適性追加指数は仮説ベースの比較スコア。複勝確率として扱わない。対象過去走が0なら中立補正。坂や直線長を直接測った値ではない。")
-        st.metric("適性追加版で順位が変わった馬",f"{int((tri['適性順位変動']!=0).sum())}頭")
-        sp=geo.get("suitability_payload")
-        if isinstance(sp,dict):
-            with st.expander("コース適性の計算内訳（過去走のみ）",expanded=False):
-                rows=[]
-                for h in sp.get("horses",[]):
-                    d={"馬番":h.get("umaban"),"過去走数":h.get("matched_count"),"同競馬場":h.get("same_venue_count"),"適性補正":h.get("course_fit")}
-                    d.update(h.get("components") or {})
-                    rows.append(d)
-                st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
-        snapshot=geo.get("abc_snapshot")
-        if isinstance(snapshot,dict):
-            st.caption("3方式の予想記録: "+("新規保存" if snapshot.get("saved") else "保存済み/対象外")+" / "+str(snapshot.get("reason","")))
+        # Phase18.2: three-way comparison; nine-feature ranking is official.
+        st.markdown("---")
+        st.subheader("🔬 Phase18.1｜従来・倍率補正・コース適性の3方式比較")
+        if "適性追加順位" not in df.columns:
+            st.warning("コース適性版を表示できません: " + str(geo.get("suitability_error") or "API未対応"))
+        else:
+            tri = df.sort_values(["新ジオ順位", "馬番"]).copy()
+            tri["従来"] = tri["新ジオ順位"].astype(int)
+            tri["倍率補正"] = tri["コース補正順位"].astype(int) if "コース補正順位" in tri.columns else "—"
+            tri["適性追加"] = tri["適性追加順位"].astype(int)
+            tri["適性の変動"] = tri["適性順位変動"].map(lambda x: f"↑{int(x)}" if x>0 else (f"↓{abs(int(x))}" if x<0 else "→0"))
+            st.dataframe(tri[["馬番","馬名","従来","倍率補正","適性追加","適性の変動","適性対象過去走","適性追加指数"]],
+                         use_container_width=True,hide_index=True)
+            best=tri.sort_values(["適性追加","馬番"]).iloc[0]
+            st.info(f"適性追加版◎：{best['馬番']}番 {best['馬名']}（従来{int(best['従来'])}位 → 適性{int(best['適性追加'])}位）")
+            st.caption("適性追加指数は仮説ベースの比較スコア。複勝確率として扱わない。対象過去走が0なら中立補正。坂や直線長を直接測った値ではない。")
+            st.metric("適性追加版で順位が変わった馬",f"{int((tri['適性順位変動']!=0).sum())}頭")
+            sp=geo.get("suitability_payload")
+            if isinstance(sp,dict):
+                with st.expander("コース適性の計算内訳（過去走のみ）",expanded=False):
+                    rows=[]
+                    for h in sp.get("horses",[]):
+                        d={"馬番":h.get("umaban"),"過去走数":h.get("matched_count"),"同競馬場":h.get("same_venue_count"),"適性補正":h.get("course_fit")}
+                        d.update(h.get("components") or {})
+                        rows.append(d)
+                    st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
+            snapshot=geo.get("abc_snapshot")
+            if isinstance(snapshot,dict):
+                st.caption("3方式の予想記録: "+("新規保存" if snapshot.get("saved") else "保存済み/対象外")+" / "+str(snapshot.get("reason","")))
 
     return
 
