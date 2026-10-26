@@ -4916,6 +4916,19 @@ if new_data and new_data.get("ok"):
     x3.metric("総払戻", f"{ov.get('払戻',0):,}円")
     x4.metric("回収率", f"{ov.get('回収率',0):.1f}%")
     st.metric("収支", f"{ov.get('収支',0):+,}円")
+    st.markdown("#### 🎯 印別予想精度｜◎〜☆")
+    st.caption("28点方式の検証対象レースにおける、当時保存された印と確定着順の照合結果。着順不明の馬は分母から除外します。")
+    mark_data = new_data.get("by_mark", {})
+    if mark_data:
+        mark_rows=[]
+        for mark in ["◎","○","▲","△","☆"]:
+            v=mark_data.get(mark,{})
+            mark_rows.append({"印":mark,"対象R":v.get("対象R",0),"勝率":f"{v.get('勝率',0):.1f}%", "連対率":f"{v.get('連対率',0):.1f}%", "複勝率":f"{v.get('複勝率',0):.1f}%", "1着":v.get("1着",0),"2着以内":v.get("2着以内",0),"3着以内":v.get("3着以内",0)})
+        st.dataframe(pd.DataFrame(mark_rows),use_container_width=True,hide_index=True)
+        if any(v.get("対象R",0)<new_data.get("eligible_races",0) for v in mark_data.values()):
+            st.warning("一部の印に確定着順の欠損があります。該当馬は印別成績から除外しています。")
+    else:
+        st.info("印別成績を表示するにはAPI側も更新してください。")
     st.markdown("#### 券種別回収率")
     new_rows=[]
     for name in ["単勝","複勝","馬連","馬単","3連複","3連単"]:
