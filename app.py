@@ -3397,6 +3397,42 @@ def display_geo_prediction(geo):
         _cards.append(f'<div class="geo-pick"><span class="geo-pick-mark" style="color:{_colors[_i]}">{_marks[_i]}</span><div class="geo-pick-main"><span class="geo-pick-role">{_roles[_i]} · {_i+1}位</span><strong>{_num}番 {_name}</strong></div><span class="geo-pick-score">{_score_text}<small>INDEX</small></span></div>')
     st.markdown('<div class="geo-picks">' + ''.join(_cards) + '</div>', unsafe_allow_html=True)
     st.caption("上位5頭は現行正式モデルの順位。指数は勝率・複勝率ではありません。買い目と保存内容は従来どおりです。")
+
+    # Model-native explainability: raw feature values and exact signed logit terms.
+    # Never approximate a breakdown by multiplying displayed INDEX by importance %.
+    _joint_details = geo.get('joint_payload') or {}
+    if _joint_details.get('status') == 'trained':
+        _by_num = {int(h['umaban']): h for h in _joint_details.get('horses', []) if 'umaban' in h}
+        _feature_names = {'ability_recent':'直近能力','ability_similar':'類似条件能力',
+            'jockey':'騎手','forward':'先行力','lead':'逃げ能力',
+            'hill_sessions':'坂路調教','wood_sessions':'ウッド調教',
+            'sire_condition_edge':'血統適性','course_fit':'コース適性',
+            'closing_kick':'末脚力'}
+        with st.expander('🔍 各馬の10項目採点内訳（学習済みモデル）', expanded=False):
+            _options = [(int(r['馬番']), str(r['馬名'])) for _,r in df.iterrows()]
+            _chosen = st.selectbox('内訳を表示する馬', options=_options,
+                format_func=lambda x: f'{x[0]}番 {x[1]}', key='geo_feature_breakdown_horse')
+            _detail = _by_num.get(_chosen[0], {})
+            _parts = _detail.get('feature_breakdown') or {}
+            if _parts:
+                _rows = []
+                for _key,_name in _feature_names.items():
+                    _part = _parts.get(_key, {})
+                    _rows.append({'項目':_name,'採点値（内部値）':_part.get('raw'),
+                        '標準化後':_part.get('standardized'),
+                        '指数への寄与（logit）':_part.get('logit_contribution'),
+                        '欠損値補完': 'あり' if _part.get('imputed') else ''})
+                st.dataframe(pd.DataFrame(_rows), hide_index=True, use_container_width=True)
+                st.caption(f"切片：{_detail.get('logit_intercept', 0):+.4f} ／ "
+                           f"寄与合計＋切片：{_detail.get('logit_total', 0):+.4f} ／ "
+                           f"表示INDEX：{float(_detail.get('ranking_score',0))*100:.1f}")
+                st.caption('寄与は学習係数×標準化後の値。プラスは指数を押し上げ、マイナスは押し下げます。'
+                           ' 10項目の寄与と切片を合算し、sigmoid変換してINDEXを算出します。'
+                           ' INDEXは校正済み勝率・複勝率ではありません。')
+                st.caption('騎手の4項目内訳は現行APIでは個別出力していません。ここに表示する騎手は4項目統合後の値です。')
+            else:
+                st.info('APIから採点内訳が返されていません。内訳対応版APIの反映後に表示されます。')
+
     st.markdown("---")
     # Phase18.5: only show jointly trained model after real pre-race snapshots have settled.
     joint=geo.get('joint_payload')
