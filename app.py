@@ -3401,6 +3401,8 @@ def display_geo_prediction(geo):
     # Model-native explainability: raw feature values and exact signed logit terms.
     # Never approximate a breakdown by multiplying displayed INDEX by importance %.
     _joint_details = geo.get('joint_payload') or {}
+    if _joint_details.get('pedigree_method') == 'father_offspring_six_conditions_pre_race_v1':
+        st.caption('🧬 学習10項目の血統は父産駒6条件（競馬場・芝ダ・距離・馬場状態）に統一。過去レースは発走前の成績だけで再計算。')
     if _joint_details.get('status') == 'trained':
         _by_num = {int(h['umaban']): h for h in _joint_details.get('horses', []) if 'umaban' in h}
         _feature_names = {'ability_recent':'直近能力','ability_similar':'類似条件能力',
