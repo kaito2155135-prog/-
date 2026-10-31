@@ -15,6 +15,21 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 API_BASE = os.environ.get("JRA_VAN_API_BASE", "https://dealers-sullivan-floating-aircraft.trycloudflare.com").strip().rstrip("/")
 
 
+# Shared tier-to-tier class transfer policy (mirrors Flask API).
+_GEO_CLASS_DISCOUNT = (0.0, 0.08, 0.16, 0.23, 0.30, 0.36, 0.41, 0.45, 0.49)
+_GEO_CLASS_POLICY_VERSION = 'class_transfer_progressive_v1_20261101'
+
+def geo_class_transfer(past_tier, target_tier):
+    if past_tier is None or target_tier is None:
+        return 0.0
+    try:
+        p, q = int(past_tier), int(target_tier)
+        if not (0 <= p <= 8 and 0 <= q <= 8):
+            return 0.0
+    except (TypeError, ValueError):
+        return 0.0
+    return round(_GEO_CLASS_DISCOUNT[8-q] - _GEO_CLASS_DISCOUNT[8-p], 6)
+
 def normalize_horse_name(name):
     if not isinstance(name, str):
         return ""
@@ -1631,7 +1646,7 @@ def run_integrated_simulation(
         horse_soha_class_diagnostics = {}
 
         class_rank_map = {
-            "新馬": 1,
+            "新馬": 0,
             "未勝利": 1,
             "1勝": 2,
             "1勝クラス": 2,
@@ -1807,26 +1822,13 @@ def run_integrated_simulation(
                 ):
                     past_course_multiplier = 0.99
 
-                past_c_rank = class_rank_map.get(
-                    r_class.replace(
-                        "クラス",
-                        ""
-                    ),
-                    1
-                )
+                past_c_rank = class_rank_map.get(r_class.replace("クラス", ""))
 
-                target_c_rank = class_rank_map.get(
-                    target_cls.replace(
-                        "クラス",
-                        ""
-                    ),
-                    2
-                )
+                target_c_rank = class_rank_map.get(target_cls.replace("クラス", ""))
 
-                class_diff = (
-                    target_c_rank
-                    - past_c_rank
-                )
+                class_diff = ((target_c_rank - past_c_rank)
+                              if target_c_rank is not None and past_c_rank is not None else 0)
+                class_transfer = geo_class_transfer(past_c_rank, target_c_rank)
 
                 converted_time = np.nan
 
@@ -1854,9 +1856,9 @@ def run_integrated_simulation(
                     # 追加の距離延長・短縮補正は適用しない。
                     distance_penalty_or_bonus = 0.0
 
-                    # v48: 1階級につき±0.4秒（例：1勝→3勝は+0.8秒）。
+                    # v49: API共通の段階的クラス補正。0.08を0.4秒に換算。
                     # 連勝によるクラス補正免除は廃止（表示のみ残す）。
-                    class_level_penalty = 0.40 * class_diff
+                    class_level_penalty = -5.0 * class_transfer
 
                     time_diff = (
                         past_base_time
@@ -1907,8 +1909,8 @@ def run_integrated_simulation(
                             "今回基準参照元": target_soha_source,
                             "今回基準タイム": round(float(target_base_seconds), 3),
                             "換算走破タイム": round(float(converted_time), 3),
-                            "0.4秒補正なし換算": round(float(converted_time - class_level_penalty), 3),
-                            "0.4秒補正の影響": round(float(class_level_penalty), 3),
+                            "クラス補正なし換算": round(float(converted_time - class_level_penalty), 3),
+                            "クラス補正の影響": round(float(class_level_penalty), 3),
 
                         })
                             
@@ -1950,10 +1952,10 @@ def run_integrated_simulation(
                     f3_class_adjustment = 0.0
 
                     if r_surface_keyword == "ダート":
-                        if class_diff > 0:
-                            f3_class_adjustment = class_diff * 0.15
-                        elif class_diff < 0:
-                            f3_class_adjustment = class_diff * 0.1
+                        if class_transfer < 0:
+                            f3_class_adjustment = -class_transfer * (0.15 / 0.08)
+                        elif class_transfer > 0:
+                            f3_class_adjustment = -class_transfer * (0.10 / 0.08)
 
                     converted_f3 = (
                         target_base_f3
@@ -3881,7 +3883,7 @@ def display_geo_prediction(geo):
                     _kind = "昇級・格上" if _diff > 0 else ("降級・格下" if _diff < 0 else "同階級")
                     _with = _p.get("換算走破タイム")
                     _pen = _p.get("クラス補正秒", 0)
-                    _without = _p.get("0.4秒補正なし換算")
+                    _without = _p.get("クラス補正なし換算")
                     if _without is None and _with is not None:
                         try:
                             _without = round(float(_with) - float(_pen), 3)
