@@ -3409,7 +3409,7 @@ def display_geo_prediction(geo):
         _by_num = {int(h['umaban']): h for h in _joint_details.get('horses', []) if 'umaban' in h}
         _feature_names = {'ability_recent':'直近能力','ability_similar':'類似条件能力',
             'jockey':'騎手','forward':'先行力','lead':'逃げ能力',
-            'hill_sessions':'坂路調教','wood_sessions':'ウッド調教',
+            'hill_sessions':'坂路4F PB更新','wood_sessions':'ウッド6F PB更新',
             'sire_condition_edge':'血統適性','course_fit':'コース適性',
             'closing_kick':'末脚力'}
         with st.expander('🔍 各馬の10項目採点内訳（学習済みモデル）', expanded=False):
@@ -3451,7 +3451,7 @@ def display_geo_prediction(geo):
             st.dataframe(trained[['印','馬番','馬名','学習10項目順位','学習指数']],hide_index=True,use_container_width=True)
             imp=joint.get('importance_percent') or {}
             if imp:
-                names={'ability_recent':'直近能力','ability_similar':'類似条件能力','jockey':'騎手','forward':'先行力','lead':'逃げ能力','hill_sessions':'坂路調教','wood_sessions':'ウッド調教','sire_condition_edge':'血統適性','course_fit':'コース適性','closing_kick':'末脚力'}
+                names={'ability_recent':'直近能力','ability_similar':'類似条件能力','jockey':'騎手','forward':'先行力','lead':'逃げ能力','hill_sessions':'坂路4F PB更新','wood_sessions':'ウッド6F PB更新','sire_condition_edge':'血統適性','course_fit':'コース適性','closing_kick':'末脚力'}
                 st.dataframe(pd.DataFrame([{'項目':names.get(k,k),'標準化係数の絶対値割合 (%)':v,'学習係数':(joint.get('weights') or {}).get(k)} for k,v in imp.items()]),hide_index=True,use_container_width=True)
             st.caption('割合は標準化係数の絶対値を100%換算した参考値。実際の精度貢献率ではありません。学習指数は校正済み複勝確率ではありません。')
         else:
