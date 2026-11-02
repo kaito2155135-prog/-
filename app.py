@@ -53,6 +53,21 @@ st.set_page_config(
     initial_sidebar_state="auto",
 )
 
+st.markdown("""<style>
+/* GEO VISION / RACING LAB — genuine workspace layout */
+:root{--vision-cyan:#39e1e8;--vision-panel:#0d1d2e}
+[data-testid="stAppViewContainer"]{background:radial-gradient(ellipse at 80% 0%,#17354b 0%,#071321 48%,#050d17 100%)!important}
+.block-container{max-width:1850px!important;padding-top:1rem!important}
+.vision-workspace-title{font-size:12px;letter-spacing:.15em;color:#45e2e7;font-weight:800;margin:16px 0 12px}.vision-workspace-title span{color:#678ba2}
+.vision-panel-heading{color:#46e2e8;font-size:12px;letter-spacing:.12em;font-weight:850;padding:12px 14px;margin-bottom:12px;border-bottom:1px solid #24475a;background:#0c2435;border-radius:10px}
+.vision-empty{border:1px solid #244257;border-radius:17px;background:linear-gradient(130deg,#112638,#0b1827);padding:55px 20px;text-align:center;font-size:22px;font-weight:800;color:#cbe6f0;min-height:270px}.vision-empty small{font-size:12px;font-weight:400;color:#87a9ba}.vision-compact{min-height:180px;padding:38px 10px;font-size:14px}
+.vision-hero-pick{padding:25px 22px;border-radius:17px;background:radial-gradient(ellipse at 85% 100%,#35316c,transparent 56%),linear-gradient(115deg,#10424b,#0d1a30);border:1px solid #1e9fac;box-shadow:0 15px 38px #0005;margin-bottom:13px}
+.vision-hero-kicker{font-size:12px;font-weight:850;color:#e9c676;letter-spacing:.09em}.vision-hero-name{font-size:clamp(18px,2.2vw,30px);font-weight:900;color:white;margin:13px 0}.vision-hero-name span{color:#f0ce83}.vision-hero-score{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:#9ecdd8;letter-spacing:.1em}.vision-hero-score strong{font-size:42px;color:white;letter-spacing:0}
+.vision-rank-list{background:#0b1b2b;border:1px solid #24435b;border-radius:15px;overflow:hidden}.vision-rank-row{display:flex;align-items:center;gap:10px;padding:14px 12px;border-bottom:1px solid #20364a}.vision-rank-row:first-child{background:#103c49}.vision-rank-row:last-child{border:0}.vision-mark{font-size:20px;color:#6be9eb;width:26px;text-align:center}.vision-number{border-radius:6px;background:#1355a6;color:white;padding:3px 8px;font-weight:900}.vision-horse{flex:1;font-weight:800;color:#f3f8ff;min-width:0;overflow-wrap:anywhere}.vision-rank-row strong{color:#e7f9ff;font-size:18px}.vision-meter{width:48px;height:7px;border-radius:9px;background:#34465c;overflow:hidden}.vision-meter i{display:block;height:100%;background:#3be1e8;border-radius:9px}
+.vision-analysis-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:17px 15px;background:#0e2b3d;border:1px solid #24607a;border-radius:13px;color:white;font-weight:850;margin:6px 0 12px}.vision-analysis-head strong{color:#53e4e9;font-size:27px}.vision-feature-list{padding:8px 14px;border:1px solid #274155;background:#0b1b2b;border-radius:13px}.vision-feature{display:grid;grid-template-columns:minmax(90px,1.2fr) minmax(55px,1fr) 55px;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #1e3448;font-size:12px;color:#d6e8f1}.vision-feature:last-child{border:0}.vision-feature b{text-align:right;color:#69e2e7}.vision-feature-track{height:8px;border-radius:8px;background:#2c4156;overflow:hidden}.vision-feature-track i{height:100%;display:block;background:#39d8df;border-radius:8px}.vision-small-note{font-size:10px;color:#91aebe;margin:10px 2px 14px}
+@media(max-width:950px){.vision-rank-row{gap:6px;padding:11px 7px}.vision-meter{display:none}.vision-hero-pick{padding:18px 12px}.vision-hero-score strong{font-size:30px}}
+@media(max-width:640px){.block-container{padding:12px 10px 80px!important}.vision-hero-name{font-size:22px}.vision-rank-row{padding:12px}.vision-meter{display:block}}
+</style>""",unsafe_allow_html=True)
 
 st.markdown(
     """
@@ -241,18 +256,7 @@ html { scroll-behavior:smooth; }
     unsafe_allow_html=True,
 )
 
-st.markdown(
-    """<div class="vision-masthead">
-<div class="vision-brand"><div class="vision-symbol">◈</div><div><div class="vision-name">GEO <span>VISION</span></div><div class="vision-sub">RACING AI ANALYSIS SYSTEM</div></div></div>
-<div class="vision-live"><i></i> PHASE 18.5 / AI SYSTEM</div>
-</div>
-<nav class="geo-command-nav" aria-label="画面内ショートカット">
-<a href="#geo-race"><span class="geo-nav-number">01</span>レース選択</a>
-<a href="#geo-predict"><span class="geo-nav-number">02</span>予想・分析</a>
-<a href="#geo-batch"><span class="geo-nav-number">03</span>全レース</a>
-<a href="#geo-results"><span class="geo-nav-number">04</span>成績・学習</a>
-</nav>""", unsafe_allow_html=True,
-)
+st.markdown("""<div class="vision-masthead"><div class="vision-brand"><div class="vision-symbol">♞</div><div><div class="vision-name">GEO <span>VISION</span></div><div class="vision-sub">RACING INTELLIGENCE · RACING LAB</div></div></div><div class="vision-live"><i></i> GEO AI / MODEL STATUS IN ANALYSIS</div></div><nav class="geo-command-nav"><a href="#geo-race">01　レース選択</a><a href="#geo-predict">02　予想実行</a><a href="#geo-batch">03　全レース</a><a href="#geo-results">04　成績・学習</a></nav>""", unsafe_allow_html=True)
 
 
 # =========================================================
@@ -586,7 +590,14 @@ race_list = load_race_list()
 # サイドバー
 # =========================================================
 
-st.sidebar.markdown("### 🎯 レース選択 / RACE SELECT")
+# GEO VISION: actual three-column workspace. All controls remain native Streamlit.
+st.markdown('<span id="geo-race"></span><div class="vision-workspace-title">RACE CONTROL <span> / PREDICTION / TELEMETRY</span></div>', unsafe_allow_html=True)
+_vision_left, _vision_middle, _vision_right = st.columns([1.05, 1.38, 1.38], gap="small")
+_vision_middle_slot = _vision_middle.empty()
+_vision_right_slot = _vision_right.empty()
+with _vision_left:
+    st.markdown('<div class="vision-panel-heading">01 / レースを選択</div>', unsafe_allow_html=True)
+
 
 
 if not race_list:
@@ -615,24 +626,25 @@ def race_display_name(r):
     )
 
 
-# GEO VISION: race discovery controls (presentation only; race IDs are unchanged).
-_race_dates = sorted({str(r.get("date") or "") for r in race_list if r.get("date")}, reverse=True)
-if _race_dates:
-    _race_date = st.sidebar.selectbox("開催日", _race_dates, key="vision_date")
-    _day_races = [r for r in race_list if str(r.get("date") or "") == _race_date]
-else:
-    _day_races = race_list
-_venue_options = sorted({str(r.get("venue") or r.get("place") or "不明") for r in _day_races})
-_venue = st.sidebar.selectbox("競馬場", ["すべて"] + _venue_options, key="vision_venue")
-_visible_races = [r for r in _day_races if _venue == "すべて" or str(r.get("venue") or r.get("place") or "不明") == _venue]
-if not _visible_races:
-    _visible_races = _day_races
-race_options = [race_display_name(r) for r in _visible_races]
-selected_race_label = st.sidebar.selectbox("レース", race_options, key="vision_race")
+with _vision_left:
+    # GEO VISION: race discovery controls (presentation only; race IDs are unchanged).
+    _race_dates = sorted({str(r.get("date") or "") for r in race_list if r.get("date")}, reverse=True)
+    if _race_dates:
+        _race_date = st.selectbox("開催日", _race_dates, key="vision_date")
+        _day_races = [r for r in race_list if str(r.get("date") or "") == _race_date]
+    else:
+        _day_races = race_list
+    _venue_options = sorted({str(r.get("venue") or r.get("place") or "不明") for r in _day_races})
+    _venue = st.segmented_control("競馬場", ["すべて"] + _venue_options, key="vision_venue", default="すべて")
+    _visible_races = [r for r in _day_races if _venue == "すべて" or str(r.get("venue") or r.get("place") or "不明") == _venue]
+    if not _visible_races:
+        _visible_races = _day_races
+    race_options = [f"{r.get('race_no','')}R  {r.get('name') or '通常競走'}  · {r.get('post_time') or ''}" for r in _visible_races]
+    selected_race_label = st.selectbox("レース", race_options, key="vision_race")
 
 
-selected_index = race_options.index(selected_race_label)
-selected_race_summary = _visible_races[selected_index]
+    selected_index = race_options.index(selected_race_label)
+    selected_race_summary = _visible_races[selected_index]
 
 
 race_id = selected_race_summary.get(
@@ -4689,8 +4701,66 @@ if st.button(
 # ボタンの押下状態ではなく、保存済みの予想とレースIDを基準に表示を維持する。
 _cached_geo = st.session_state.get("geo_prediction")
 _cached_race_id = st.session_state.get("geo_prediction_race_id")
+# GEO VISION telemetry uses only existing prediction outputs; no recalculation.
+def _vision_render_workspace(geo):
+    if not isinstance(geo, dict) or not isinstance(geo.get("df_geo"), pd.DataFrame):
+        with _vision_middle_slot.container():
+            st.markdown('<div class="vision-panel-heading">02 / GEO PREDICTION</div><div class="vision-empty">予想待機中<br><small>下の「統合シミュレーション」→「ジオにレースを分析させる」を実行</small></div>', unsafe_allow_html=True)
+        with _vision_right_slot.container():
+            st.markdown('<div class="vision-panel-heading">03 / RACING LAB</div><div class="vision-empty">分析データ待機中<br><small>予想実行後に10項目の内訳を表示します</small></div>', unsafe_allow_html=True)
+        return
+    frame=geo["df_geo"]
+    rank="学習10項目順位" if str(geo.get("prediction_model", "")).startswith("Phase18.5") else "正式10項目順位"
+    score="学習10項目スコア" if rank=="学習10項目順位" else "正式10項目スコア"
+    if rank not in frame.columns: return
+    frame=frame.sort_values([rank,"馬番"]).head(5)
+    if frame.empty: return
+    lead=frame.iloc[0]
+    esc=lambda x: html.escape(str(x))
+    def score_text(v):
+        n=pd.to_numeric(v,errors="coerce")
+        return f"{float(n)*100:.1f}" if pd.notna(n) else "—"
+    with _vision_middle_slot.container():
+        st.markdown('<div class="vision-panel-heading">02 / GEO PREDICTION</div>',unsafe_allow_html=True)
+        st.markdown(f'<div class="vision-hero-pick"><div class="vision-hero-kicker">♛　GEO TOP PICK / 本命</div><div class="vision-hero-name"><span>◎</span> {esc(lead.get("馬番",""))}番　{esc(lead.get("馬名",""))}</div><div class="vision-hero-score">GEO INDEX <strong>{score_text(lead.get(score))}</strong></div></div>',unsafe_allow_html=True)
+        marks=['◎','○','▲','△','☆']
+        cards=[]
+        for i,(_,horse) in enumerate(frame.iterrows()):
+            n=pd.to_numeric(horse.get(score),errors="coerce")
+            width=max(0,min(100,float(n)*100)) if pd.notna(n) else 0
+            cards.append(f'<div class="vision-rank-row"><b class="vision-mark">{marks[i]}</b><span class="vision-number">{esc(horse.get("馬番",""))}</span><span class="vision-horse">{esc(horse.get("馬名",""))}</span><strong>{score_text(n)}</strong><span class="vision-meter"><i style="width:{width:.1f}%"></i></span></div>')
+        st.markdown('<div class="vision-rank-list">'+''.join(cards)+'</div><div class="vision-small-note">正式モデル順位。指数は勝率ではありません。</div>',unsafe_allow_html=True)
+    with _vision_right_slot.container():
+        st.markdown('<div class="vision-panel-heading">03 / RACING LAB</div>',unsafe_allow_html=True)
+        names=[f"{r.get('馬番','')}番 {r.get('馬名','')}" for _,r in frame.iterrows()]
+        choice=st.selectbox("分析対象馬",range(len(names)),format_func=lambda i:names[i],key="vision_analysis_horse")
+        chosen=frame.iloc[choice]
+        st.markdown(f'<div class="vision-analysis-head"><span>{esc(chosen.get("馬番",""))}番　{esc(chosen.get("馬名",""))}</span><strong>{score_text(chosen.get(score))}</strong></div>',unsafe_allow_html=True)
+        payload=geo.get('joint_payload') or {}
+        horses=payload.get('horses') or []
+        selected_num=pd.to_numeric(chosen.get('馬番'),errors='coerce')
+        details=next((h for h in horses if pd.to_numeric(h.get('umaban'),errors='coerce')==selected_num),{})
+        parts=details.get('feature_breakdown') or {}
+        labels={'ability_recent':'直近能力','ability_similar':'類似条件能力','jockey':'騎手','forward':'先行力','lead':'逃げ能力','hill_sessions':'坂路4F 調教','wood_sessions':'ウッド6F 調教','sire_condition_edge':'血統適性','course_fit':'コース適性','closing_kick':'末脚力'}
+        if parts:
+            rows=[]
+            for key,label in labels.items():
+                part=parts.get(key) or {}
+                raw=pd.to_numeric(part.get('raw'),errors='coerce')
+                val='—' if pd.isna(raw) else f'{raw:.3f}'
+                contrib=pd.to_numeric(part.get('logit_contribution'),errors='coerce')
+                bar=min(100,max(0,50+(float(contrib)*60))) if pd.notna(contrib) else 50
+                rows.append(f'<div class="vision-feature"><span>{label}</span><div class="vision-feature-track"><i style="width:{bar:.1f}%"></i></div><b>{val}</b></div>')
+            st.markdown('<div class="vision-feature-list">'+''.join(rows)+'</div><div class="vision-small-note">数値はモデルの生特徴量。棒はlogit寄与を相対表示（中央が0）。</div>',unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="vision-empty vision-compact">10項目の詳細データがありません。<br><small>モデルの内訳が返った場合に表示します。</small></div>',unsafe_allow_html=True)
+        st.caption('モデル：'+str(geo.get('prediction_model') or '不明'))
+
+_vision_render_workspace(_cached_geo if _cached_race_id == str(race_id) else None)
+
 if _cached_geo is not None and _cached_race_id == str(race_id):
-    display_geo_prediction(_cached_geo)
+    with st.expander("📊 全評価内訳・従来の詳細データを開く", expanded=False):
+        display_geo_prediction(_cached_geo)
 elif not st.session_state.get("sim_executed", False):
     st.info(
         "👆 ペース・バイアス等を設定して、"
