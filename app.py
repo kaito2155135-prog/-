@@ -50,7 +50,7 @@ def api_get(path, timeout=20):
 st.set_page_config(
     page_title="GEO AI | Racing Intelligence",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 
 
@@ -140,6 +140,86 @@ html, body, .stApp, [data-testid="stAppViewContainer"] {color:#F3F8FF !important
 padding:14px 18px;border-radius:12px;margin:14px 0 10px;color:#F1FAFF;}
 .geo-v13-banner strong {color:#53EDE8;font-size:17px;}
 .geo-v13-preset {color:#C5E5F1;font-size:12px;margin-top:5px;}
+
+/* ==========================================================
+   GEO COMMAND × GEO FLOW | UI-only responsive enhancement
+   All model, API, and training calls remain unchanged.
+   ========================================================== */
+:root { --command-accent:#56E4DD; --command-line:#28465A; --command-muted:#AFC6D8; }
+html { scroll-behavior:smooth; }
+.stApp { background:radial-gradient(ellipse at 80% -10%,#15354B 0%,#081322 42%,#070F1C 100%) !important; }
+.block-container { max-width:1560px; padding-top:1.15rem; padding-bottom:4rem; }
+.geo-hero { border-radius:22px; padding:27px 32px; border:1px solid #376178;
+ box-shadow:0 14px 42px #020B1755; background-position:center !important; }
+.geo-hero::after { content:""; position:absolute; right:22px;top:20px;width:9px;height:9px;
+ border-radius:50%;background:#51E3B6;box-shadow:0 0 0 6px #51E3B622,0 0 22px #51E3B688; }
+.geo-eyebrow { color:#80E8E2; font-size:11px;letter-spacing:.18em; }
+.geo-name { font-size:clamp(35px,5vw,60px); letter-spacing:-.035em; }
+.geo-tag { font-size:13px;color:#B9D1E0; }
+.geo-command-nav { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:0 0 20px; }
+.geo-command-nav a { display:flex;align-items:center;justify-content:center;gap:8px;min-height:51px;
+ border:1px solid #31546A; border-radius:13px; background:linear-gradient(155deg,#142B3D,#0E1E30);
+ color:#D7EDF7 !important; text-decoration:none !important; font-size:13px;font-weight:750;
+ box-shadow:0 5px 16px #0000001C; transition:background .15s,border-color .15s,transform .15s; }
+.geo-command-nav a:hover { background:#1A3B50;border-color:#59D7DC;transform:translateY(-1px); }
+.geo-command-nav a:first-child { border-color:#3BAEB4;color:#7FF3EC !important; }
+.geo-command-nav .geo-nav-number { font-size:10px;color:#73DCD8;letter-spacing:.07em; }
+.geo-anchor {display:block;position:relative;top:-20px;visibility:hidden;height:0;}
+.geo-status-strip {display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px;}
+.geo-status-strip span {padding:6px 10px;background:#11293A;border:1px solid #315167;border-radius:999px;
+ font-size:11px;font-weight:700;color:#B9D8E7;}
+.geo-status-strip b {color:#71E6E1;}
+.race-info-box { border-radius:18px;border-color:#365A70;padding:22px 26px;
+ box-shadow:0 8px 24px #010A1530; }
+.geo-race-title {font-size:clamp(20px,2.5vw,27px);letter-spacing:-.025em;}
+.geo-pill {border-radius:999px;padding:8px 13px;}
+.geo-horse-card {border-radius:17px;box-shadow:0 8px 22px #00000020;}
+.geo-panel-title {font-size:17px;letter-spacing:-.015em;}
+[data-testid="stVerticalBlockBorderWrapper"]:has(> div [data-testid="stMetric"]) {border-radius:16px;}
+[data-testid="stMetric"] {background:linear-gradient(150deg,#142D40,#101E30);border-color:#2C5267 !important;
+ box-shadow:0 5px 15px #00000020;}
+[data-testid="stMetricValue"] {font-size:clamp(20px,2.5vw,32px) !important;letter-spacing:-.04em;}
+[data-testid="stExpander"] {border-color:#315268 !important;background:#0D2133A6 !important;}
+[data-testid="stExpander"] summary {min-height:48px;}
+.stButton>button {min-height:48px;white-space:normal !important;line-height:1.35 !important;}
+.stButton>button[kind="primary"] {background:linear-gradient(110deg,#058D94,#08759B) !important;
+ border:1px solid #63E8E2 !important;box-shadow:0 8px 25px #058D9440 !important;}
+[data-testid="stDataFrame"] {overflow:hidden;border-radius:13px;}
+[data-testid="stTabs"] [data-baseweb="tab-list"] {overflow-x:auto;scrollbar-width:thin;flex-wrap:nowrap;}
+[data-testid="stTabs"] button[role="tab"] {flex-shrink:0;white-space:nowrap;}
+[data-testid="stSidebar"] {border-right:1px solid #305066 !important;}
+[data-testid="stSidebar"] [data-testid="stSidebarContent"] {padding-top:20px;}
+@media(max-width:800px) {
+ .block-container {padding:1rem .8rem 5rem !important;}
+ .geo-hero {padding:20px 18px;min-height:135px;margin-bottom:13px;border-radius:17px;}
+ .geo-name {font-size:38px;}
+ .geo-eyebrow {font-size:9px;letter-spacing:.1em;}
+ .geo-tag {font-size:11px;max-width:270px;line-height:1.5;}
+ .geo-command-nav {grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin-bottom:13px;}
+ .geo-command-nav a {min-height:47px;flex-direction:column;gap:2px;font-size:10px;padding:5px 2px;border-radius:10px;}
+ .geo-command-nav .geo-nav-number {font-size:9px;}
+ .geo-status-strip {gap:5px;margin-bottom:12px;}
+ .geo-status-strip span {font-size:10px;padding:5px 8px;}
+ .race-info-box {padding:16px 14px;margin:10px 0 15px;border-radius:14px;}
+ .geo-race-title {font-size:19px;line-height:1.4;}
+ .geo-pill {font-size:11px;padding:6px 9px;}
+ .geo-horse-card {min-height:unset;padding:14px;}
+ .geo-horse-name {font-size:17px;}
+ [data-testid="stMetric"] {padding:10px 8px;}
+ [data-testid="stMetricValue"] {font-size:21px !important;}
+ [data-testid="stMetricLabel"] p {font-size:11px !important;}
+ [data-testid="stHorizontalBlock"] {gap:.6rem;}
+ [data-testid="stDataFrame"] {max-width:100%;}
+ .stButton>button {min-height:48px;font-size:13px;padding:.55rem .65rem !important;}
+ [data-testid="stTabs"] button[role="tab"] {font-size:12px !important;padding:9px 11px !important;}
+ h2 {font-size:1.28rem !important;}
+ h3 {font-size:1.05rem !important;}
+}
+@media(max-width:400px) {
+ .geo-command-nav a {font-size:9px;}
+ .geo-hero {min-height:115px;}
+ .geo-name {font-size:34px;}
+}
 </style>
     """,
     unsafe_allow_html=True,
@@ -150,7 +230,14 @@ st.markdown(
 <div class="geo-eyebrow">GEO INTELLIGENCE SYSTEM · JRA-VAN</div>
 <div class="geo-name">GEO <span>AI</span></div>
 <div class="geo-tag">RACING INTELLIGENCE / 展開予測・血統解析・自己学習</div>
-</div>""",
+</div>
+<nav class="geo-command-nav" aria-label="画面内ショートカット">
+<a href="#geo-race"><span class="geo-nav-number">01</span>レース選択</a>
+<a href="#geo-predict"><span class="geo-nav-number">02</span>AI予想</a>
+<a href="#geo-batch"><span class="geo-nav-number">03</span>全レース</a>
+<a href="#geo-results"><span class="geo-nav-number">04</span>成績・学習</a>
+</nav>
+<div class="geo-status-strip"><span><b>●</b> GEO COMMAND</span><span>JRA-VAN連携</span><span>PC / MOBILE</span><span>Phase 18.x</span></div>""",
     unsafe_allow_html=True,
 )
 
@@ -486,7 +573,7 @@ race_list = load_race_list()
 # サイドバー
 # =========================================================
 
-st.sidebar.markdown("### 🏇 JRA-VANからレースを選択")
+st.sidebar.markdown("### 🎯 レース選択 / RACE SELECT")
 
 
 if not race_list:
@@ -993,6 +1080,7 @@ st.sidebar.info(
 )
 
 
+st.markdown('<span id="geo-race" class="geo-anchor"></span>', unsafe_allow_html=True)
 st.markdown(
     f"""<div class="race-info-box">
 <div class="geo-section-label">RACE INTELLIGENCE / JRA-VAN DATA CONNECTED</div>
@@ -4456,6 +4544,8 @@ if (
 # =========================================================
 # 🧠 ジオ予想実行
 # =========================================================
+st.markdown('<span id="geo-predict" class="geo-anchor"></span>', unsafe_allow_html=True)
+st.markdown('<div class="geo-section-label">02 / GEO PREDICTION</div>', unsafe_allow_html=True)
 
 if (
     st.session_state.get("sim_executed", False)
@@ -4712,6 +4802,8 @@ def geo_auto_detect_pace(df):
     return "M（ミドル）"
 
 
+st.markdown('<span id="geo-batch" class="geo-anchor"></span>', unsafe_allow_html=True)
+st.markdown('<div class="geo-section-label">03 / BATCH PREDICTION</div>', unsafe_allow_html=True)
 if st.button("🏇 開催日全レース自動予想", key="geo_all_race_auto_predict", type="primary", use_container_width=True):
     # 払い戻し・結果確定とは完全分離した「予想だけ」の一括処理
     def _normalize_date(value):
@@ -4905,6 +4997,8 @@ if st.button("🏇 開催日全レース自動予想", key="geo_all_race_auto_pr
 # Geo自動馬券検証に成績管理を一本化
 # =========================================================
 
+st.markdown('<span id="geo-results" class="geo-anchor"></span>', unsafe_allow_html=True)
+st.markdown('<div class="geo-section-label">04 / RESULTS & LEARNING</div>', unsafe_allow_html=True)
 st.markdown("<h2>🎯 Geo自動馬券検証</h2>", unsafe_allow_html=True)
 
 # 採点ボードは廃止し、自動馬券検証へ一本化
