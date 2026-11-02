@@ -256,7 +256,7 @@ html { scroll-behavior:smooth; }
     unsafe_allow_html=True,
 )
 
-st.markdown("""<div class="vision-masthead"><div class="vision-brand"><div class="vision-symbol">♞</div><div><div class="vision-name">GEO <span>VISION</span></div><div class="vision-sub">RACING INTELLIGENCE · RACING LAB</div></div></div><div class="vision-live"><i></i> GEO AI / MODEL STATUS IN ANALYSIS</div></div><nav class="geo-command-nav"><a href="#geo-race">01　レース選択</a><a href="#geo-predict">02　予想実行</a><a href="#geo-batch">03　全レース</a><a href="#geo-results">04　成績・学習</a></nav>""", unsafe_allow_html=True)
+st.markdown("""<div class="vision-masthead"><div class="vision-brand"><div class="vision-symbol">♞</div><div><div class="vision-name">GEO <span>VISION</span></div><div class="vision-sub">RACING INTELLIGENCE · RACING LAB</div></div></div><div class="vision-live"><i></i> GEO AI / MODEL STATUS IN ANALYSIS</div></div>""", unsafe_allow_html=True)
 
 
 # =========================================================
@@ -591,4228 +591,4234 @@ race_list = load_race_list()
 # =========================================================
 
 # GEO VISION: actual three-column workspace. All controls remain native Streamlit.
-# Mobile view switcher: changes presentation only, never prediction/model state.
-_geo_mobile_mode = st.segmented_control(
-    "モバイル画面", ["予想", "10項目分析", "全レース", "成績・学習"],
-    default="予想", key="geo_mobile_mode", label_visibility="collapsed",
-)
-_geo_mobile_mode = _geo_mobile_mode or "予想"
-_geo_mobile_class = {"予想": "prediction", "10項目分析": "analysis", "全レース": "batch", "成績・学習": "results"}[_geo_mobile_mode]
-st.markdown(f"""<style>
-/* Mobile-only switch: preserve all native Streamlit widgets and their state. */
-@media (min-width: 901px) {{ [data-testid="stSegmentedControl"]:has([aria-label="モバイル画面"]) {{display:none!important}} }}
-@media (max-width: 900px) {{
-  .geo-mobile-bottom {{display:flex!important}}
-  .block-container {{padding-bottom:96px!important}}
-  /* This is the workspace's only horizontal block containing its section headings. */
-  div[data-testid="stHorizontalBlock"]:has(.vision-panel-heading) {{display:block!important}}
-  div[data-testid="stHorizontalBlock"]:has(.vision-panel-heading) > div[data-testid="stColumn"] {{width:100%!important;min-width:0!important;flex:1 1 100%!important}}
-  {('div[data-testid="stHorizontalBlock"]:has(.vision-panel-heading) > div[data-testid="stColumn"]:nth-child(3){display:none!important}' if _geo_mobile_class == 'prediction' else '')}
-  {('div[data-testid="stHorizontalBlock"]:has(.vision-panel-heading) > div[data-testid="stColumn"]:nth-child(-n+2){display:none!important}' if _geo_mobile_class == 'analysis' else '')}
-  {('div[data-testid="stHorizontalBlock"]:has(.vision-panel-heading){display:none!important}' if _geo_mobile_class in ('batch','results') else '')}
-}}
-</style>""", unsafe_allow_html=True)
-st.markdown("""<nav class="geo-mobile-bottom" aria-label="画面移動">
-<a href="#geo-race">🏇<small>予想</small></a><a href="#geo-lab-mobile">📊<small>分析</small></a>
-<a href="#geo-batch">⚡<small>全レース</small></a><a href="#geo-results">📈<small>成績・学習</small></a>
-</nav>""", unsafe_allow_html=True)
-
-
+# Native Streamlit tabs provide actual independent views, not anchor scrolling.
+# All tab bodies execute, preserving existing prediction state and background computations.
+_geo_tabs = st.tabs(["🏇 予想", "📊 10項目分析", "⚡ 全レース", "📈 成績・学習"])
 st.markdown("""<style>
-.geo-mobile-bottom{display:none;position:fixed;bottom:0;left:0;right:0;z-index:99999;background:#081827f5;border-top:1px solid #24647a;padding:8px 8px max(9px,env(safe-area-inset-bottom));gap:4px;justify-content:space-around;backdrop-filter:blur(16px)}
-.geo-mobile-bottom a{flex:1;text-align:center;text-decoration:none!important;color:#64e6ea!important;font-size:19px;line-height:1.15;padding:6px 0;border-radius:10px}
-.geo-mobile-bottom a small{display:block;color:#e4f3fc;font-size:10px;margin-top:3px;font-weight:700}
-@media(max-width:900px){.vision-workspace-title{font-size:10px}.vision-hero-pick{padding:18px 15px}.vision-rank-row{gap:8px}.vision-feature{grid-template-columns:minmax(88px,1.1fr) minmax(50px,1fr) 55px}}
+/* GEO VISION mobile-first polish */
+.geo-command-nav,.geo-mobile-bottom{display:none!important}
+[data-testid="stTabs"] [data-baseweb="tab-list"]{position:sticky;top:0;z-index:80;background:#071522f5;padding:8px 3px;border-bottom:1px solid #24495c;backdrop-filter:blur(16px);gap:5px;overflow-x:auto}
+[data-testid="stTabs"] button[role="tab"]{background:#112337!important;color:#c5e1ef!important;border:1px solid #28475a!important;border-radius:12px!important;min-height:47px;padding:9px 13px!important;font-weight:750!important;flex:1 0 auto}
+[data-testid="stTabs"] button[role="tab"][aria-selected="true"]{background:linear-gradient(115deg,#087e8b,#0e566d)!important;color:white!important;border-color:#41dbe0!important}
+[data-testid="stTabs"] [data-baseweb="tab-highlight"], [data-testid="stTabs"] [data-baseweb="tab-border"]{display:none!important}
+[data-testid="stDataFrame"]{max-width:100%;overflow:auto}
+@media(max-width:760px){
+  .block-container{padding:12px 10px 25px!important}
+  [data-testid="stTabs"] button[role="tab"]{font-size:12px!important;padding:8px 7px!important;min-height:49px}
+  [data-testid="stMetric"]{padding:10px!important}
+  [data-testid="stMetricValue"]{font-size:clamp(20px,5vw,27px)!important}
+  .vision-workspace-title{font-size:11px;margin-top:6px!important}
+  .vision-hero-pick{padding:17px 15px!important}
+  .vision-rank-row{gap:7px!important}
+  .vision-rank-row .vision-horse{font-size:clamp(12px,3.6vw,17px)!important}
+  .vision-feature{grid-template-columns:minmax(90px,1.2fr) minmax(45px,1fr) 52px!important}
+  div[data-testid="stHorizontalBlock"]:has(.vision-panel-heading)>div[data-testid="stColumn"]:nth-child(3){display:none!important}
+  div[data-testid="stHorizontalBlock"]:has(.vision-panel-heading){display:block!important}
+  div[data-testid="stHorizontalBlock"]:has(.vision-panel-heading)>div[data-testid="stColumn"]{width:100%!important;min-width:0!important}
+}
 </style>""",unsafe_allow_html=True)
 
-st.markdown('<span id="geo-race"></span><div class="vision-workspace-title">RACE CONTROL <span> / PREDICTION / TELEMETRY</span></div>', unsafe_allow_html=True)
-_vision_left, _vision_middle, _vision_right = st.columns([1.05, 1.38, 1.38], gap="small")
-_vision_middle_slot = _vision_middle.empty()
-_vision_right_slot = _vision_right.empty()
-with _vision_left:
-    st.markdown('<div class="vision-panel-heading">01 / レースを選択</div>', unsafe_allow_html=True)
+with _geo_tabs[0]:
+    st.markdown('<span id="geo-race"></span><div class="vision-workspace-title">RACE CONTROL <span> / PREDICTION / TELEMETRY</span></div>', unsafe_allow_html=True)
+    _vision_left, _vision_middle, _vision_right = st.columns([1.05, 1.38, 1.38], gap="small")
+    _vision_middle_slot = _vision_middle.empty()
+    _vision_right_slot = _vision_right.empty()
+    with _vision_left:
+        st.markdown('<div class="vision-panel-heading">01 / レースを選択</div>', unsafe_allow_html=True)
 
 
 
-if not race_list:
-    st.error(
-        "JRA-VANからレースデータを取得できませんでした。\n"
-        "Windows側のFlask APIとCloudflare Tunnelが起動しているか確認してください。"
+    if not race_list:
+        st.error(
+            "JRA-VANからレースデータを取得できませんでした。\n"
+            "Windows側のFlask APIとCloudflare Tunnelが起動しているか確認してください。"
+        )
+        st.stop()
+
+
+    def race_display_name(r):
+        race_id = r.get("race_id", r.get("id", r.get("race_code", "")))
+        date = r.get("date", r.get("kaisai_date", ""))
+        place = r.get("place", r.get("場所", ""))
+        race_no = r.get("race_no", r.get("race_bango", ""))
+
+        name = r.get(
+            "name",
+            r.get("kyosomei_hondai", "")
+        )
+
+        return (
+            f"{date} {place} "
+            f"{race_no}R {name} "
+            f"[{race_id}]"
+        )
+
+
+    with _vision_left:
+        # GEO VISION: race discovery controls (presentation only; race IDs are unchanged).
+        _race_dates = sorted({str(r.get("date") or "") for r in race_list if r.get("date")}, reverse=True)
+        if _race_dates:
+            _race_date = st.selectbox("開催日", _race_dates, key="vision_date")
+            _day_races = [r for r in race_list if str(r.get("date") or "") == _race_date]
+        else:
+            _day_races = race_list
+        _venue_options = sorted({str(r.get("venue") or r.get("place") or "不明") for r in _day_races})
+        _venue = st.segmented_control("競馬場", ["すべて"] + _venue_options, key="vision_venue", default="すべて")
+        _visible_races = [r for r in _day_races if _venue == "すべて" or str(r.get("venue") or r.get("place") or "不明") == _venue]
+        if not _visible_races:
+            _visible_races = _day_races
+        race_options = [f"{r.get('race_no','')}R  {r.get('name') or '通常競走'}  · {r.get('post_time') or ''}" for r in _visible_races]
+        selected_race_label = st.selectbox("レース", race_options, key="vision_race")
+
+
+        selected_index = race_options.index(selected_race_label)
+        selected_race_summary = _visible_races[selected_index]
+
+
+    race_id = selected_race_summary.get(
+        "race_id",
+        selected_race_summary.get(
+            "id",
+            selected_race_summary.get("race_code")
+        )
     )
-    st.stop()
+
+    # =========================================================
+    # 選択中レースIDを保存
+    # =========================================================
+
+    race_id = str(race_id)
+
+    st.session_state["current_race_id"] = race_id
+    # 別レースの前回シミュレーション結果を新しいレースとして表示しない。
+    if st.session_state.get("geo_simulation_race_id") not in (None, race_id):
+        st.session_state.pop("df_simulated", None)
+        st.session_state.pop("master_data_jv", None)
+        st.session_state["sim_executed"] = False
+    st.session_state["geo_simulation_race_id"] = race_id
+
+    # =========================================================
+    # 選択レース詳細
+    # =========================================================
+
+    race_detail = api_get(f"/race/{race_id}")
 
 
-def race_display_name(r):
-    race_id = r.get("race_id", r.get("id", r.get("race_code", "")))
-    date = r.get("date", r.get("kaisai_date", ""))
-    place = r.get("place", r.get("場所", ""))
-    race_no = r.get("race_no", r.get("race_bango", ""))
-
-    name = r.get(
-        "name",
-        r.get("kyosomei_hondai", "")
-    )
-
-    return (
-        f"{date} {place} "
-        f"{race_no}R {name} "
-        f"[{race_id}]"
-    )
+    if not race_detail:
+        st.error("選択したレースの詳細データを取得できませんでした。")
+        st.stop()
 
 
-with _vision_left:
-    # GEO VISION: race discovery controls (presentation only; race IDs are unchanged).
-    _race_dates = sorted({str(r.get("date") or "") for r in race_list if r.get("date")}, reverse=True)
-    if _race_dates:
-        _race_date = st.selectbox("開催日", _race_dates, key="vision_date")
-        _day_races = [r for r in race_list if str(r.get("date") or "") == _race_date]
+    if isinstance(race_detail, dict) and isinstance(
+        race_detail.get("race"), dict
+    ):
+        race_meta = race_detail["race"]
     else:
-        _day_races = race_list
-    _venue_options = sorted({str(r.get("venue") or r.get("place") or "不明") for r in _day_races})
-    _venue = st.segmented_control("競馬場", ["すべて"] + _venue_options, key="vision_venue", default="すべて")
-    _visible_races = [r for r in _day_races if _venue == "すべて" or str(r.get("venue") or r.get("place") or "不明") == _venue]
-    if not _visible_races:
-        _visible_races = _day_races
-    race_options = [f"{r.get('race_no','')}R  {r.get('name') or '通常競走'}  · {r.get('post_time') or ''}" for r in _visible_races]
-    selected_race_label = st.selectbox("レース", race_options, key="vision_race")
+        race_meta = race_detail
+
+    horses = race_detail.get("horses", [])
 
 
-    selected_index = race_options.index(selected_race_label)
-    selected_race_summary = _visible_races[selected_index]
+    if not horses:
+        st.error("出走馬データが取得できませんでした。")
+        st.stop()
 
 
-race_id = selected_race_summary.get(
-    "race_id",
-    selected_race_summary.get(
-        "id",
-        selected_race_summary.get("race_code")
-    )
-)
+    # =========================================================
+    # 現在レースのdf_race作成
+    # =========================================================
 
-# =========================================================
-# 選択中レースIDを保存
-# =========================================================
-
-race_id = str(race_id)
-
-st.session_state["current_race_id"] = race_id
-# 別レースの前回シミュレーション結果を新しいレースとして表示しない。
-if st.session_state.get("geo_simulation_race_id") not in (None, race_id):
-    st.session_state.pop("df_simulated", None)
-    st.session_state.pop("master_data_jv", None)
-    st.session_state["sim_executed"] = False
-st.session_state["geo_simulation_race_id"] = race_id
-
-# =========================================================
-# 選択レース詳細
-# =========================================================
-
-race_detail = api_get(f"/race/{race_id}")
-
-
-if not race_detail:
-    st.error("選択したレースの詳細データを取得できませんでした。")
-    st.stop()
-
-
-if isinstance(race_detail, dict) and isinstance(
-    race_detail.get("race"), dict
-):
-    race_meta = race_detail["race"]
-else:
-    race_meta = race_detail
-
-horses = race_detail.get("horses", [])
-
-
-if not horses:
-    st.error("出走馬データが取得できませんでした。")
-    st.stop()
-
-
-# =========================================================
-# 現在レースのdf_race作成
-# =========================================================
-
-race_name = race_meta.get(
-    "name",
-    race_meta.get(
-        "kyosomei_hondai",
-        selected_race_summary.get("name", "")
-    )
-)
-
-
-race_place = str(
-    race_meta.get(
-        "venue",
+    race_name = race_meta.get(
+        "name",
         race_meta.get(
-            "place",
-            race_meta.get(
-                "場所",
-                selected_race_summary.get(
-                    "venue",
-                    selected_race_summary.get(
-                        "place",
-                        "不明"
-                    )
-                )
-            )
+            "kyosomei_hondai",
+            selected_race_summary.get("name", "")
         )
     )
-).strip()
 
 
-try:
-    race_distance = int(
-        float(
+    race_place = str(
+        race_meta.get(
+            "venue",
             race_meta.get(
-                "distance",
+                "place",
                 race_meta.get(
-                    "kyori",
-                    selected_race_summary.get("distance", 1600)
-                )
-            )
-        )
-    )
-except Exception:
-    race_distance = 1600
-
-
-race_surface = surface_from_race(race_meta)
-grade_code = str(race_meta.get("grade_code", "")).strip()
-
-race_class = detect_class(
-    race_name,
-    grade_code,
-    condition_code=race_meta.get("condition_code", "")
-)
-
-surface_condition_code = (
-    race_meta.get("shiba_babajotai_code")
-    if race_surface == "芝"
-    else race_meta.get("dirt_babajotai_code")
-)
-
-default_baba = condition_from_code(surface_condition_code)
-
-race_rows = []
-
-for h in horses:
-    row = {
-        "枠番": h.get("枠番", h.get("wakuban", 1)),
-        "馬番": h.get("馬番", h.get("umaban", 1)),
-        "馬名": h.get("馬名", h.get("bamei", "")),
-        "血統登録番号": h.get(
-          "血統登録番号",
-          h.get("ketto_toroku_bango", "")
-        ),
-        "オッズ": format_odds(
-            h.get("オッズ", h.get("odds"))
-        ),
-        "人気": h.get(
-            "人気",
-            h.get("ninki")
-        ),
-        "脚質": style_from_value(
-            h.get(
-                "脚質",
-                h.get(
-                    "kyakushitsu_hantei",
-                    h.get(
-                        "kyakushitsu",
-                        3
+                    "場所",
+                    selected_race_summary.get(
+                        "venue",
+                        selected_race_summary.get(
+                            "place",
+                            "不明"
+                        )
                     )
                 )
             )
-        ),
-        "得意馬場": "指定なし",
-        "場所": race_place,
-        "距離": race_distance,
-        "芝・ダ": race_surface,
-        "クラス": race_class,
-        "馬場状態": default_baba,
-        "当日の馬場": default_baba,
-    }
-    race_rows.append(row)
-
-
-df_race = pd.DataFrame(race_rows)
-df_race["レースID"] = race_id
-
-
-df_race["馬名"] = df_race["馬名"].apply(normalize_horse_name)
-df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
-
-# =========================================================
-# 血統情報取得 & 血統適性算出
-# =========================================================
-
-@st.cache_data(ttl=3600)
-def get_pedigree(ketto_toroku_bango, race_surface="", race_distance="", going="", venue_code=""):
-    ketto_toroku_bango = str(
-        ketto_toroku_bango
+        )
     ).strip()
 
-    if not ketto_toroku_bango:
-        return {
-            "父": "",
-            "母": "",
-            "父血統登録番号": "",
-            "母血統登録番号": "",
-        }
 
     try:
-        url = (
-            API_BASE.rstrip("/")
-            + f"/geo/bloodline-aptitude/{ketto_toroku_bango}"
+        race_distance = int(
+            float(
+                race_meta.get(
+                    "distance",
+                    race_meta.get(
+                        "kyori",
+                        selected_race_summary.get("distance", 1600)
+                    )
+                )
+            )
         )
+    except Exception:
+        race_distance = 1600
 
-        params = {
-            "surface": race_surface or "",
-            "distance": race_distance or "",
-            "going": going or "",
-            "venue": venue_code or "",
+
+    race_surface = surface_from_race(race_meta)
+    grade_code = str(race_meta.get("grade_code", "")).strip()
+
+    race_class = detect_class(
+        race_name,
+        grade_code,
+        condition_code=race_meta.get("condition_code", "")
+    )
+
+    surface_condition_code = (
+        race_meta.get("shiba_babajotai_code")
+        if race_surface == "芝"
+        else race_meta.get("dirt_babajotai_code")
+    )
+
+    default_baba = condition_from_code(surface_condition_code)
+
+    race_rows = []
+
+    for h in horses:
+        row = {
+            "枠番": h.get("枠番", h.get("wakuban", 1)),
+            "馬番": h.get("馬番", h.get("umaban", 1)),
+            "馬名": h.get("馬名", h.get("bamei", "")),
+            "血統登録番号": h.get(
+              "血統登録番号",
+              h.get("ketto_toroku_bango", "")
+            ),
+            "オッズ": format_odds(
+                h.get("オッズ", h.get("odds"))
+            ),
+            "人気": h.get(
+                "人気",
+                h.get("ninki")
+            ),
+            "脚質": style_from_value(
+                h.get(
+                    "脚質",
+                    h.get(
+                        "kyakushitsu_hantei",
+                        h.get(
+                            "kyakushitsu",
+                            3
+                        )
+                    )
+                )
+            ),
+            "得意馬場": "指定なし",
+            "場所": race_place,
+            "距離": race_distance,
+            "芝・ダ": race_surface,
+            "クラス": race_class,
+            "馬場状態": default_baba,
+            "当日の馬場": default_baba,
         }
-
-        r = requests.get(
-            url,
-            params=params,
-            timeout=30
-        )
-
-        r.raise_for_status()
-
-        data = r.json()
-
-        # 血統実績APIは father / mother、従来APIは parent1 / parent2 を返すため
-        # 両方に対応する。
-        parent1 = (
-            data.get("parent1")
-            or data.get("father")
-            or {}
-        )
-
-        parent2 = (
-            data.get("parent2")
-            or data.get("mother")
-            or {}
-        )
-
-        bloodline_score = data.get("bloodline_score") or {
-            "score": 50.0,
-            "confidence": "低",
-            "grade": "B",
-            "note": "血統実績データなし"
-        }
-
-        return {
-            "父": parent1.get("bamei") or parent1.get("name") or "",
-            "母": parent2.get("bamei") or parent2.get("name") or "",
-            "父血統登録番号": parent1.get("ketto_toroku_bango") or parent1.get("id") or "",
-            "母血統登録番号": parent2.get("ketto_toroku_bango") or parent2.get("id") or "",
-            "血統適性": bloodline_score,
-        }
-
-    except Exception as e:
-        return {
-            "父": "",
-            "母": "",
-            "父血統登録番号": "",
-            "母血統登録番号": "",
-            "血統適性": {"score": 50.0, "confidence": "低", "grade": "C", "note": "血統API取得失敗"},
-        }
+        race_rows.append(row)
 
 
-@st.cache_data(ttl=3600)
-def get_pedigree_bulk(targets, race_surface="", race_distance="", going="", venue_code=""):
-    """複数頭の血統適性を1回のAPI呼び出しで取得。開催日全レース用。"""
-    clean_targets = []
-    for x in targets or []:
-        x = str(x or "").strip()
-        if x:
-            clean_targets.append(x)
-    clean_targets = list(dict.fromkeys(clean_targets))
-    if not clean_targets:
-        return {}
-    try:
-        r = requests.post(
-            API_BASE.rstrip("/") + "/geo/bloodline-aptitude-bulk",
-            json={
-                "ketto_toroku_bangos": clean_targets,
+    df_race = pd.DataFrame(race_rows)
+    df_race["レースID"] = race_id
+
+
+    df_race["馬名"] = df_race["馬名"].apply(normalize_horse_name)
+    df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
+
+    # =========================================================
+    # 血統情報取得 & 血統適性算出
+    # =========================================================
+
+    @st.cache_data(ttl=3600)
+    def get_pedigree(ketto_toroku_bango, race_surface="", race_distance="", going="", venue_code=""):
+        ketto_toroku_bango = str(
+            ketto_toroku_bango
+        ).strip()
+
+        if not ketto_toroku_bango:
+            return {
+                "父": "",
+                "母": "",
+                "父血統登録番号": "",
+                "母血統登録番号": "",
+            }
+
+        try:
+            url = (
+                API_BASE.rstrip("/")
+                + f"/geo/bloodline-aptitude/{ketto_toroku_bango}"
+            )
+
+            params = {
                 "surface": race_surface or "",
                 "distance": race_distance or "",
                 "going": going or "",
                 "venue": venue_code or "",
-            },
-            timeout=120,
-        )
-        r.raise_for_status()
-        data = r.json()
-        if data.get("ok"):
-            raw_results = data.get("results", {}) or {}
-            if raw_results:
-                # 一括APIは father/mother 形式、既存のGeo側は 父/母 形式なのでここで統一する。
-                results = {}
-                for target, item in raw_results.items():
-                    item = item or {}
-                    father = item.get("father") or {}
-                    mother = item.get("mother") or {}
-                    bloodline_score = item.get("bloodline_score")
-                    if not isinstance(bloodline_score, dict):
-                        bloodline_score = {
-                            "score": float(bloodline_score) if bloodline_score is not None else 50.0,
-                            "confidence": "低",
-                            "grade": "C",
+            }
+
+            r = requests.get(
+                url,
+                params=params,
+                timeout=30
+            )
+
+            r.raise_for_status()
+
+            data = r.json()
+
+            # 血統実績APIは father / mother、従来APIは parent1 / parent2 を返すため
+            # 両方に対応する。
+            parent1 = (
+                data.get("parent1")
+                or data.get("father")
+                or {}
+            )
+
+            parent2 = (
+                data.get("parent2")
+                or data.get("mother")
+                or {}
+            )
+
+            bloodline_score = data.get("bloodline_score") or {
+                "score": 50.0,
+                "confidence": "低",
+                "grade": "B",
+                "note": "血統実績データなし"
+            }
+
+            return {
+                "父": parent1.get("bamei") or parent1.get("name") or "",
+                "母": parent2.get("bamei") or parent2.get("name") or "",
+                "父血統登録番号": parent1.get("ketto_toroku_bango") or parent1.get("id") or "",
+                "母血統登録番号": parent2.get("ketto_toroku_bango") or parent2.get("id") or "",
+                "血統適性": bloodline_score,
+            }
+
+        except Exception as e:
+            return {
+                "父": "",
+                "母": "",
+                "父血統登録番号": "",
+                "母血統登録番号": "",
+                "血統適性": {"score": 50.0, "confidence": "低", "grade": "C", "note": "血統API取得失敗"},
+            }
+
+
+    @st.cache_data(ttl=3600)
+    def get_pedigree_bulk(targets, race_surface="", race_distance="", going="", venue_code=""):
+        """複数頭の血統適性を1回のAPI呼び出しで取得。開催日全レース用。"""
+        clean_targets = []
+        for x in targets or []:
+            x = str(x or "").strip()
+            if x:
+                clean_targets.append(x)
+        clean_targets = list(dict.fromkeys(clean_targets))
+        if not clean_targets:
+            return {}
+        try:
+            r = requests.post(
+                API_BASE.rstrip("/") + "/geo/bloodline-aptitude-bulk",
+                json={
+                    "ketto_toroku_bangos": clean_targets,
+                    "surface": race_surface or "",
+                    "distance": race_distance or "",
+                    "going": going or "",
+                    "venue": venue_code or "",
+                },
+                timeout=120,
+            )
+            r.raise_for_status()
+            data = r.json()
+            if data.get("ok"):
+                raw_results = data.get("results", {}) or {}
+                if raw_results:
+                    # 一括APIは father/mother 形式、既存のGeo側は 父/母 形式なのでここで統一する。
+                    results = {}
+                    for target, item in raw_results.items():
+                        item = item or {}
+                        father = item.get("father") or {}
+                        mother = item.get("mother") or {}
+                        bloodline_score = item.get("bloodline_score")
+                        if not isinstance(bloodline_score, dict):
+                            bloodline_score = {
+                                "score": float(bloodline_score) if bloodline_score is not None else 50.0,
+                                "confidence": "低",
+                                "grade": "C",
+                            }
+                        results[str(target).strip()] = {
+                            "父": father.get("name") or father.get("bamei") or "",
+                            "母": mother.get("name") or mother.get("bamei") or "",
+                            "父血統登録番号": father.get("hanshoku_toroku_bango") or father.get("ketto_toroku_bango") or father.get("id") or "",
+                            "母血統登録番号": mother.get("hanshoku_toroku_bango") or mother.get("ketto_toroku_bango") or mother.get("id") or "",
+                            "血統適性": bloodline_score,
                         }
-                    results[str(target).strip()] = {
-                        "父": father.get("name") or father.get("bamei") or "",
-                        "母": mother.get("name") or mother.get("bamei") or "",
-                        "父血統登録番号": father.get("hanshoku_toroku_bango") or father.get("ketto_toroku_bango") or father.get("id") or "",
-                        "母血統登録番号": mother.get("hanshoku_toroku_bango") or mother.get("ketto_toroku_bango") or mother.get("id") or "",
-                        "血統適性": bloodline_score,
-                    }
-                return results
+                    return results
 
-        # 一括APIが古いFlaskのまま/404/一括SQL失敗でも全レースを止めない。
-        # 従来APIを最大8並列でフォールバックする。
-        def _fallback(target):
-            try:
-                return target, get_pedigree(
-                    target,
-                    race_surface=race_surface,
-                    race_distance=race_distance,
-                    going=going,
-                    venue_code=venue_code,
-                )
-            except Exception:
-                return target, {}
+            # 一括APIが古いFlaskのまま/404/一括SQL失敗でも全レースを止めない。
+            # 従来APIを最大8並列でフォールバックする。
+            def _fallback(target):
+                try:
+                    return target, get_pedigree(
+                        target,
+                        race_surface=race_surface,
+                        race_distance=race_distance,
+                        going=going,
+                        venue_code=venue_code,
+                    )
+                except Exception:
+                    return target, {}
 
-        results = {}
-        with ThreadPoolExecutor(max_workers=min(8, max(1, len(clean_targets)))) as ex:
-            futures = [ex.submit(_fallback, target) for target in clean_targets]
-            for future in as_completed(futures):
-                target, result = future.result()
-                if result:
-                    results[target] = result
-        return results
+            results = {}
+            with ThreadPoolExecutor(max_workers=min(8, max(1, len(clean_targets)))) as ex:
+                futures = [ex.submit(_fallback, target) for target in clean_targets]
+                for future in as_completed(futures):
+                    target, result = future.result()
+                    if result:
+                        results[target] = result
+            return results
 
-    except Exception:
-        # HTTPエラー時も同じフォールバックを実行
-        def _fallback(target):
-            try:
-                return target, get_pedigree(
-                    target,
-                    race_surface=race_surface,
-                    race_distance=race_distance,
-                    going=going,
-                    venue_code=venue_code,
-                )
-            except Exception:
-                return target, {}
+        except Exception:
+            # HTTPエラー時も同じフォールバックを実行
+            def _fallback(target):
+                try:
+                    return target, get_pedigree(
+                        target,
+                        race_surface=race_surface,
+                        race_distance=race_distance,
+                        going=going,
+                        venue_code=venue_code,
+                    )
+                except Exception:
+                    return target, {}
 
-        results = {}
-        with ThreadPoolExecutor(max_workers=min(8, max(1, len(clean_targets)))) as ex:
-            futures = [ex.submit(_fallback, target) for target in clean_targets]
-            for future in as_completed(futures):
-                target, result = future.result()
-                if result:
-                    results[target] = result
-        return results
+            results = {}
+            with ThreadPoolExecutor(max_workers=min(8, max(1, len(clean_targets)))) as ex:
+                futures = [ex.submit(_fallback, target) for target in clean_targets]
+                for future in as_completed(futures):
+                    target, result = future.result()
+                    if result:
+                        results[target] = result
+            return results
 
 
-# 各馬の父・母・血統適性を一括取得（API往復を頭数分から1回へ削減）
-pedigree_targets = [
-    str(row.get("血統登録番号", "") or "").strip()
-    for _, row in df_race.iterrows()
-]
-pedigree_map = get_pedigree_bulk(
-    pedigree_targets,
-    race_surface=race_surface,
-    race_distance=race_distance,
-    going=default_baba,
-    venue_code=race_meta.get("venue_code", "")
-)
-pedigree_rows = [
-    pedigree_map.get(target, {
-        "父": "", "母": "", "父血統登録番号": "", "母血統登録番号": "",
-        "血統適性": {"score": 50.0, "confidence": "低", "grade": "C", "note": "血統一括API結果なし"}
-    })
-    for target in pedigree_targets
-]
-
-
-pedigree_df = pd.DataFrame(
-    pedigree_rows,
-    index=df_race.index
-)
-
-
-df_race = pd.concat(
-    [
-        df_race,
-        pedigree_df
-    ],
-    axis=1
-)
-
-
-# 血統適性はJRA-VANの産駒実績からAPIで算出済み。
-# API取得に失敗した馬だけ50点・低信頼でフォールバックする。
-if "血統適性" not in df_race.columns:
-    df_race["血統適性"] = [{"score": 50.0, "confidence": "低"} for _ in range(len(df_race))]
-else:
-    df_race["血統適性"] = df_race["血統適性"].apply(
-        lambda x: x if isinstance(x, dict) else {"score": 50.0, "confidence": "低"}
+    # 各馬の父・母・血統適性を一括取得（API往復を頭数分から1回へ削減）
+    pedigree_targets = [
+        str(row.get("血統登録番号", "") or "").strip()
+        for _, row in df_race.iterrows()
+    ]
+    pedigree_map = get_pedigree_bulk(
+        pedigree_targets,
+        race_surface=race_surface,
+        race_distance=race_distance,
+        going=default_baba,
+        venue_code=race_meta.get("venue_code", "")
     )
-
-
-# =========================================================
-# 直線・コース補正
-# =========================================================
-
-straight_lengths_dict = {
-    "芝": {
-        "新潟": 659.9,
-        "東京": 525.9,
-        "阪神": 473.6,
-        "中京": 412.5,
-        "京都": 403.9,
-        "中山": 310.0,
-        "小倉": 293.0,
-        "函館": 262.1,
-        "福島": 292.0,
-        "札幌": 266.1,
-    },
-    "ダ": {
-        "新潟": 353.9,
-        "東京": 501.6,
-        "阪神": 352.7,
-        "中京": 410.7,
-        "京都": 329.1,
-        "中山": 308.0,
-        "小倉": 291.0,
-        "函館": 260.1,
-        "福島": 295.7,
-        "札幌": 264.3,
-    },
-}
-
-
-toughness_dict = {
-    "中山": 1.10,
-    "札幌": 1.15,
-    "函館": 1.20,
-    "阪神": 1.00,
-    "福島": 1.10,
-    "京都": 1.00,
-    "中京": 1.05,
-    "小倉": 1.05,
-    "東京": 0.95,
-    "新潟": 0.90,
-}
-
-
-surface_key = "ダ" if "ダ" in race_surface else "芝"
-straight_len = 400.0
-
-for k, v in straight_lengths_dict[surface_key].items():
-    if k in race_place:
-        straight_len = v
-        break
-
-
-course_toughness = 1.10
-
-for k, v in toughness_dict.items():
-    if k in race_place:
-        course_toughness = v
-        break
-
-
-# =========================================================
-# 表示
-# =========================================================
-
-st.sidebar.markdown("---")
-
-st.sidebar.info(
-    f"**{race_place} {race_class}**\n\n"
-    f"{race_distance}m {race_surface}\n\n"
-    f"馬場: {default_baba}\n\n"
-    f"頭数: {len(df_race)}頭"
-)
-
-
-st.markdown('<span id="geo-race" class="geo-anchor"></span>', unsafe_allow_html=True)
-st.markdown(
-    f"""<section class="vision-race">
-<div class="vision-overline">RACE CONTROL / {html.escape(str(selected_race_summary.get('date','')))}</div>
-<div class="vision-race-name">{html.escape(str(race_place))} <span>{html.escape(str(selected_race_summary.get('race_no','')))}R</span> · {html.escape(str(selected_race_summary.get('name') or race_class))}</div>
-<div class="vision-race-metadata"><span>{html.escape(str(race_surface))} {html.escape(str(race_distance))}m</span><span>{html.escape(str(race_class))}</span><span>馬場 {html.escape(str(default_baba))}</span><span>{len(df_race)}頭</span><span>直線 {straight_len}m</span></div>
-</section>""", unsafe_allow_html=True,
-)
-with st.expander("🏁 同開催日のレース一覧 / クイック確認", expanded=False):
-    _quick = []
-    for _r in _day_races:
-        _quick.append({"競馬場":_r.get('venue') or _r.get('place') or '', "R":str(_r.get('race_no') or ''), "レース":_r.get('name') or '', "発走":_r.get('post_time') or ''})
-    st.dataframe(pd.DataFrame(_quick), use_container_width=True, hide_index=True)
-
-
-# =========================================================
-# 出馬表編集
-# =========================================================
-
-for c in [
-    "枠番",
-    "馬番",
-    "馬名",
-    "オッズ",
-    "脚質",
-    "得意馬場",
-]:
-    if c not in df_race.columns:
-        if c == "脚質":
-            df_race[c] = "差し"
-        elif c == "得意馬場":
-            df_race[c] = "指定なし"
-        elif c == "オッズ":
-            df_race[c] = 10.0
-        else:
-            df_race[c] = 1
-
-
-edit_columns = [
-    "枠番",
-    "馬番",
-    "馬名",
-    "父",
-    "母",
-    "オッズ",
-    "脚質",
-    "得意馬場",
-]
-
-
-with st.expander("出馬表の確認・編集（必要な場合のみ開く）", expanded=False):
-    edited_df = st.data_editor(
-        df_race[edit_columns],
-        column_config={
-            "脚質": st.column_config.SelectboxColumn(
-                "脚質",
-                options=["逃げ", "先行", "差し", "追込"],
-                required=True,
-            ),
-            "得意馬場": st.column_config.SelectboxColumn(
-                "得意馬場",
-                options=[
-                    "指定なし",
-                    "良",
-                    "稍重",
-                    "重",
-                    "不良",
-                ],
-                required=True,
-            ),
-            "オッズ": st.column_config.NumberColumn(
-                "オッズ",
-                format="%.1f",
-            ),
-        },
-        use_container_width=True,
-        hide_index=True,
-        key="race_data_editor",
-    )
-
-
-for col in edit_columns:
-    df_race[col] = edited_df[col]
-
-
-df_race["馬名"] = df_race["馬名"].apply(normalize_horse_name)
-df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
-
-
-# =========================================================
-# ペース・バイアス・馬場
-# =========================================================
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("### ⚙️ 予想設定")
-selected_pace = st.sidebar.radio(
-    "ペース想定", ["S（スロー）", "M（ミドル）", "H（ハイ）"],
-    index=1, key="geo_v13_pace",
-)
-selected_bias = st.sidebar.radio(
-    "トラックバイアス", ["フラット", "内有利", "外有利"],
-    index=0, key="geo_v13_bias",
-)
-baba_default_idx = {"良": 0, "稍重": 1, "重": 2, "不良": 3}.get(default_baba, 0)
-selected_condition = st.sidebar.selectbox(
-    "当日の馬場状態", ["良", "稍重", "重", "不良"],
-    index=baba_default_idx, key="geo_v13_condition",
-)
-
-
-# =========================================================
-# 距離カテゴリー
-# =========================================================
-
-if race_distance <= 1400:
-    race_category = "短距離"
-elif race_distance <= 1800:
-    race_category = "マイル"
-elif race_distance <= 2200:
-    race_category = "中距離"
-else:
-    race_category = "長距離"
-
-
-st.markdown("---")
-
-
-def format_time(seconds):
-    m = int(seconds // 60)
-    s = seconds % 60
-
-    if m > 0:
-        return f"{m}分{s:04.1f}秒"
-
-    return f"{s:.1f}秒"
-
-
-# =========================================================
-# JRA-VAN → 既存master_data形式
-# =========================================================
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_horse_history(horse_name, schema_version="v16_grounding"):
-    encoded_name = requests.utils.quote(
-        horse_name,
-        safe=""
-    )
-
-    data = api_get(
-        f"/horse/{encoded_name}/history",
-        timeout=30
-    )
-
-    if isinstance(data, dict):
-        history = data.get(
-            "history",
-            data.get("races", [])
-        )
-    elif isinstance(data, list):
-        history = data
-    else:
-        history = []
-
-    return history
-
-
-def build_master_data_from_jv(df_current):
-    all_history = []
-
-    progress = st.progress(
-        0,
-        text="JRA-VANから過去走データを取得中..."
-    )
-
-    total = len(df_current)
-
-    # 過去走も1頭ずつ直列取得すると時間がかかるため8並列。
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
-    horse_names = [
-        normalize_horse_name(x)
-        for x in df_current["馬名"].tolist()
+    pedigree_rows = [
+        pedigree_map.get(target, {
+            "父": "", "母": "", "父血統登録番号": "", "母血統登録番号": "",
+            "血統適性": {"score": 50.0, "confidence": "低", "grade": "C", "note": "血統一括API結果なし"}
+        })
+        for target in pedigree_targets
     ]
 
-    def _fetch_history(item):
-        i, horse_name = item
-        return i, horse_name, load_horse_history(horse_name)
 
-    histories = [None] * total
-    completed = 0
+    pedigree_df = pd.DataFrame(
+        pedigree_rows,
+        index=df_race.index
+    )
 
-    with ThreadPoolExecutor(max_workers=min(12, max(1, total))) as executor:
-        futures = [executor.submit(_fetch_history, item) for item in enumerate(horse_names)]
-        for future in as_completed(futures):
-            i, horse_name, history = future.result()
-            histories[i] = history or []
-            completed += 1
-            progress.progress(
-                completed / max(total, 1),
-                text=(
-                    f"過去走取得中 {completed}/{total}頭: {horse_name}"
+
+    df_race = pd.concat(
+        [
+            df_race,
+            pedigree_df
+        ],
+        axis=1
+    )
+
+
+    # 血統適性はJRA-VANの産駒実績からAPIで算出済み。
+    # API取得に失敗した馬だけ50点・低信頼でフォールバックする。
+    if "血統適性" not in df_race.columns:
+        df_race["血統適性"] = [{"score": 50.0, "confidence": "低"} for _ in range(len(df_race))]
+    else:
+        df_race["血統適性"] = df_race["血統適性"].apply(
+            lambda x: x if isinstance(x, dict) else {"score": 50.0, "confidence": "低"}
+        )
+
+
+    # =========================================================
+    # 直線・コース補正
+    # =========================================================
+
+    straight_lengths_dict = {
+        "芝": {
+            "新潟": 659.9,
+            "東京": 525.9,
+            "阪神": 473.6,
+            "中京": 412.5,
+            "京都": 403.9,
+            "中山": 310.0,
+            "小倉": 293.0,
+            "函館": 262.1,
+            "福島": 292.0,
+            "札幌": 266.1,
+        },
+        "ダ": {
+            "新潟": 353.9,
+            "東京": 501.6,
+            "阪神": 352.7,
+            "中京": 410.7,
+            "京都": 329.1,
+            "中山": 308.0,
+            "小倉": 291.0,
+            "函館": 260.1,
+            "福島": 295.7,
+            "札幌": 264.3,
+        },
+    }
+
+
+    toughness_dict = {
+        "中山": 1.10,
+        "札幌": 1.15,
+        "函館": 1.20,
+        "阪神": 1.00,
+        "福島": 1.10,
+        "京都": 1.00,
+        "中京": 1.05,
+        "小倉": 1.05,
+        "東京": 0.95,
+        "新潟": 0.90,
+    }
+
+
+    surface_key = "ダ" if "ダ" in race_surface else "芝"
+    straight_len = 400.0
+
+    for k, v in straight_lengths_dict[surface_key].items():
+        if k in race_place:
+            straight_len = v
+            break
+
+
+    course_toughness = 1.10
+
+    for k, v in toughness_dict.items():
+        if k in race_place:
+            course_toughness = v
+            break
+
+
+    # =========================================================
+    # 表示
+    # =========================================================
+
+    st.sidebar.markdown("---")
+
+    st.sidebar.info(
+        f"**{race_place} {race_class}**\n\n"
+        f"{race_distance}m {race_surface}\n\n"
+        f"馬場: {default_baba}\n\n"
+        f"頭数: {len(df_race)}頭"
+    )
+
+
+    st.markdown('<span id="geo-race" class="geo-anchor"></span>', unsafe_allow_html=True)
+    st.markdown(
+        f"""<section class="vision-race">
+    <div class="vision-overline">RACE CONTROL / {html.escape(str(selected_race_summary.get('date','')))}</div>
+    <div class="vision-race-name">{html.escape(str(race_place))} <span>{html.escape(str(selected_race_summary.get('race_no','')))}R</span> · {html.escape(str(selected_race_summary.get('name') or race_class))}</div>
+    <div class="vision-race-metadata"><span>{html.escape(str(race_surface))} {html.escape(str(race_distance))}m</span><span>{html.escape(str(race_class))}</span><span>馬場 {html.escape(str(default_baba))}</span><span>{len(df_race)}頭</span><span>直線 {straight_len}m</span></div>
+    </section>""", unsafe_allow_html=True,
+    )
+    with st.expander("🏁 同開催日のレース一覧 / クイック確認", expanded=False):
+        _quick = []
+        for _r in _day_races:
+            _quick.append({"競馬場":_r.get('venue') or _r.get('place') or '', "R":str(_r.get('race_no') or ''), "レース":_r.get('name') or '', "発走":_r.get('post_time') or ''})
+        st.dataframe(pd.DataFrame(_quick), use_container_width=True, hide_index=True)
+
+
+    # =========================================================
+    # 出馬表編集
+    # =========================================================
+
+    for c in [
+        "枠番",
+        "馬番",
+        "馬名",
+        "オッズ",
+        "脚質",
+        "得意馬場",
+    ]:
+        if c not in df_race.columns:
+            if c == "脚質":
+                df_race[c] = "差し"
+            elif c == "得意馬場":
+                df_race[c] = "指定なし"
+            elif c == "オッズ":
+                df_race[c] = 10.0
+            else:
+                df_race[c] = 1
+
+
+    edit_columns = [
+        "枠番",
+        "馬番",
+        "馬名",
+        "父",
+        "母",
+        "オッズ",
+        "脚質",
+        "得意馬場",
+    ]
+
+
+    with st.expander("出馬表の確認・編集（必要な場合のみ開く）", expanded=False):
+        edited_df = st.data_editor(
+            df_race[edit_columns],
+            column_config={
+                "脚質": st.column_config.SelectboxColumn(
+                    "脚質",
+                    options=["逃げ", "先行", "差し", "追込"],
+                    required=True,
+                ),
+                "得意馬場": st.column_config.SelectboxColumn(
+                    "得意馬場",
+                    options=[
+                        "指定なし",
+                        "良",
+                        "稍重",
+                        "重",
+                        "不良",
+                    ],
+                    required=True,
+                ),
+                "オッズ": st.column_config.NumberColumn(
+                    "オッズ",
+                    format="%.1f",
+                ),
+            },
+            use_container_width=True,
+            hide_index=True,
+            key="race_data_editor",
+        )
+
+
+    for col in edit_columns:
+        df_race[col] = edited_df[col]
+
+
+    df_race["馬名"] = df_race["馬名"].apply(normalize_horse_name)
+    df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
+
+
+    # =========================================================
+    # ペース・バイアス・馬場
+    # =========================================================
+
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### ⚙️ 予想設定")
+    selected_pace = st.sidebar.radio(
+        "ペース想定", ["S（スロー）", "M（ミドル）", "H（ハイ）"],
+        index=1, key="geo_v13_pace",
+    )
+    selected_bias = st.sidebar.radio(
+        "トラックバイアス", ["フラット", "内有利", "外有利"],
+        index=0, key="geo_v13_bias",
+    )
+    baba_default_idx = {"良": 0, "稍重": 1, "重": 2, "不良": 3}.get(default_baba, 0)
+    selected_condition = st.sidebar.selectbox(
+        "当日の馬場状態", ["良", "稍重", "重", "不良"],
+        index=baba_default_idx, key="geo_v13_condition",
+    )
+
+
+    # =========================================================
+    # 距離カテゴリー
+    # =========================================================
+
+    if race_distance <= 1400:
+        race_category = "短距離"
+    elif race_distance <= 1800:
+        race_category = "マイル"
+    elif race_distance <= 2200:
+        race_category = "中距離"
+    else:
+        race_category = "長距離"
+
+
+    st.markdown("---")
+
+
+    def format_time(seconds):
+        m = int(seconds // 60)
+        s = seconds % 60
+
+        if m > 0:
+            return f"{m}分{s:04.1f}秒"
+
+        return f"{s:.1f}秒"
+
+
+    # =========================================================
+    # JRA-VAN → 既存master_data形式
+    # =========================================================
+
+    @st.cache_data(ttl=3600, show_spinner=False)
+    def load_horse_history(horse_name, schema_version="v16_grounding"):
+        encoded_name = requests.utils.quote(
+            horse_name,
+            safe=""
+        )
+
+        data = api_get(
+            f"/horse/{encoded_name}/history",
+            timeout=30
+        )
+
+        if isinstance(data, dict):
+            history = data.get(
+                "history",
+                data.get("races", [])
+            )
+        elif isinstance(data, list):
+            history = data
+        else:
+            history = []
+
+        return history
+
+
+    def build_master_data_from_jv(df_current):
+        all_history = []
+
+        progress = st.progress(
+            0,
+            text="JRA-VANから過去走データを取得中..."
+        )
+
+        total = len(df_current)
+
+        # 過去走も1頭ずつ直列取得すると時間がかかるため8並列。
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        horse_names = [
+            normalize_horse_name(x)
+            for x in df_current["馬名"].tolist()
+        ]
+
+        def _fetch_history(item):
+            i, horse_name = item
+            return i, horse_name, load_horse_history(horse_name)
+
+        histories = [None] * total
+        completed = 0
+
+        with ThreadPoolExecutor(max_workers=min(12, max(1, total))) as executor:
+            futures = [executor.submit(_fetch_history, item) for item in enumerate(horse_names)]
+            for future in as_completed(futures):
+                i, horse_name, history = future.result()
+                histories[i] = history or []
+                completed += 1
+                progress.progress(
+                    completed / max(total, 1),
+                    text=(
+                        f"過去走取得中 {completed}/{total}頭: {horse_name}"
+                    )
+                )
+
+        for history in histories:
+            for h in history or []:
+                all_history.append(h)
+
+        progress.empty()
+
+        if not all_history:
+            return pd.DataFrame()
+
+        rows = []
+
+        for h in all_history:
+            horse_name = normalize_horse_name(
+                h.get(
+                    "馬名",
+                    h.get("bamei", "")
                 )
             )
 
-    for history in histories:
-        for h in history or []:
-            all_history.append(h)
+            if not horse_name:
+                continue
 
-    progress.empty()
-
-    if not all_history:
-        return pd.DataFrame()
-
-    rows = []
-
-    for h in all_history:
-        horse_name = normalize_horse_name(
-            h.get(
-                "馬名",
-                h.get("bamei", "")
-            )
-        )
-
-        if not horse_name:
-            continue
-
-        place = h.get(
-            "場所",
-            h.get(
-                "place",
-                h.get("keibajo_name", "")
-            )
-        )
-
-        distance = h.get(
-            "距離",
-            h.get(
-                "kyori",
-                0
-            )
-        )
-
-        try:
-            distance = float(distance)
-        except Exception:
-            distance = np.nan
-
-        surface = h.get(
-            "芝・ダ",
-            h.get(
-                "surface_name",
-                ""
-            )
-        )
-
-        surface = str(surface)
-
-        if "ダ" in surface:
-            surface = "ダート"
-        elif "芝" in surface:
-            surface = "芝"
-
-        race_name = h.get(
-            "kyosomei_hondai",
-            h.get(
-                "レース名",
+            place = h.get(
+                "場所",
                 h.get(
-                    "name",
+                    "place",
+                    h.get("keibajo_name", "")
+                )
+            )
+
+            distance = h.get(
+                "距離",
+                h.get(
+                    "kyori",
+                    0
+                )
+            )
+
+            try:
+                distance = float(distance)
+            except Exception:
+                distance = np.nan
+
+            surface = h.get(
+                "芝・ダ",
+                h.get(
+                    "surface_name",
                     ""
                 )
             )
-        )
 
-        historical_class = detect_class(
-            race_name,
-            h.get("grade_code", ""),
-            condition_code=h.get("condition_code", "")
-        )
+            surface = str(surface)
 
-        baba = h.get("馬場状態") or h.get("馬場") or ""
-        if str(baba).strip() not in ("良", "稍重", "重", "不良"):
-            baba = ""
-        # 古いキャッシュや一部APIの未設定値は芝/ダート別コードから補完する。
-        if not baba:
-            track_code = str(
-                h.get("track_code", "")
+            if "ダ" in surface:
+                surface = "ダート"
+            elif "芝" in surface:
+                surface = "芝"
+
+            race_name = h.get(
+                "kyosomei_hondai",
+                h.get(
+                    "レース名",
+                    h.get(
+                        "name",
+                        ""
+                    )
+                )
             )
 
-            if track_code.startswith("1"):
-                baba_code = h.get(
-                    "shiba_babajotai_code"
-                )
-            else:
-                baba_code = h.get(
-                    "dirt_babajotai_code"
-                )
-
-            baba = condition_from_code(
-                baba_code
+            historical_class = detect_class(
+                race_name,
+                h.get("grade_code", ""),
+                condition_code=h.get("condition_code", "")
             )
 
-        raw_soha_time = h.get("走破タイム", h.get("soha_time", np.nan))
-        soha_time = np.nan
+            baba = h.get("馬場状態") or h.get("馬場") or ""
+            if str(baba).strip() not in ("良", "稍重", "重", "不良"):
+                baba = ""
+            # 古いキャッシュや一部APIの未設定値は芝/ダート別コードから補完する。
+            if not baba:
+                track_code = str(
+                    h.get("track_code", "")
+                )
 
-        try:
-            if pd.notna(raw_soha_time):
-                s_val = str(raw_soha_time).strip()
-                
-                if ":" in s_val:
-                    parts = s_val.split(":")
-                    if len(parts) == 2:
-                        soha_time = float(parts[0]) * 60.0 + float(parts[1])
+                if track_code.startswith("1"):
+                    baba_code = h.get(
+                        "shiba_babajotai_code"
+                    )
                 else:
-                    import re
-                    match = re.search(r'\d+', s_val)
-                    if match:
-                        num_str = match.group(0)
-                        num = int(num_str)
-                        
-                        if 1000 <= num < 10000:
-                            minutes = num // 1000
-                            seconds = (num % 1000) / 10.0
-                            soha_time = minutes * 60.0 + seconds
-                        elif 100 <= num < 300:
-                            minutes = num // 100
-                            seconds = num - minutes * 100
-                            soha_time = minutes * 60.0 + seconds
-                        else:
-                            soha_time = float(num)
-        except Exception:
+                    baba_code = h.get(
+                        "dirt_babajotai_code"
+                    )
+
+                baba = condition_from_code(
+                    baba_code
+                )
+
+            raw_soha_time = h.get("走破タイム", h.get("soha_time", np.nan))
             soha_time = np.nan
-       
-        f3 = h.get(
-            "上がり3Fタイム",
-            h.get(
-                "kohan_3f",
-                np.nan
-            )
-        )
-
-        # JRA-VAN上がり3Fは332=33.2秒のような1/10秒単位で届く場合がある。
-        # 既に33.2秒で届くデータを再度10で割らないよう、値域で判定する。
-        try:
-            f3 = float(f3)
-            if 250 <= f3 <= 700:
-                f3 /= 10.0
-            elif not (25.0 <= f3 <= 70.0):
-                f3 = np.nan  # 不正値を計算に使わない
-        except (TypeError, ValueError):
-            f3 = np.nan
-
-        raw_finish = h.get(
-            "着順",
-            h.get(
-                "kakutei_chakujun",
-                np.nan
-            )
-        )
-        finish = np.nan
-        try:
-            if pd.notna(raw_finish):
-                import re
-                f_str = unicodedata.normalize("NFKC", str(raw_finish))
-                match_f = re.search(r'\d+', f_str)
-                if match_f:
-                    finish = float(match_f.group(0))
-        except Exception:
-            finish = np.nan
-
-        date_value = h.get(
-            "date",
-            h.get(
-                "kaisai_date",
-                ""
-            )
-        )
-
-        year = h.get("年", np.nan)
-        month = h.get("月", np.nan)
-        day = h.get("日", np.nan)
-
-        if (
-            pd.isna(year)
-            or pd.isna(month)
-            or pd.isna(day)
-        ):
-            date_str = str(date_value).strip()
 
             try:
-                dt = pd.to_datetime(
-                    date_str,
-                    errors="coerce"
-                )
-
-                if not pd.isna(dt):
-                    year = dt.year
-                    month = dt.month
-                    day = dt.day
-
-            except Exception:
-                pass
-
-        rows.append(
-            {
-                "馬名": horse_name,
-                "馬名_clean": horse_name,
-                "場所": str(place),
-                "距離": distance,
-                "走破タイム": soha_time,
-                "上がり3Fタイム": f3,
-                "馬場状態": str(baba) if baba else "不明",
-                "芝・ダ": surface,
-                "race_code": str(h.get("race_code") or ""),
-                "馬場状態コード": str(h.get("馬場状態コード") or ""),
-                "shiba_babajotai_code": str(h.get("shiba_babajotai_code") or ""),
-                "dirt_babajotai_code": str(h.get("dirt_babajotai_code") or ""),
-                "略レース名": historical_class,
-                "クラス": historical_class,
-                "着順": finish,
-                "年": year,
-                "月": month,
-                "日": day,
-                "脚質": style_from_value(
-                    h.get(
-                        "kyakushitsu_hantei",
-                        3
-                    )
-                ),
-                "斤量": format_weight(
-                    h.get("斤量", h.get("futan_juryo"))
-                ),
-            }
-        )
-
-    master_df = pd.DataFrame(rows)
-
-    if master_df.empty:
-        return master_df
-
-    if "race_code" in master_df.columns:
-        master_df["_valid_f3"] = pd.to_numeric(master_df["上がり3Fタイム"], errors="coerce").gt(0)
-        master_df["_valid_finish"] = pd.to_numeric(master_df["着順"], errors="coerce").ge(1)
-        master_df = (master_df.sort_values(["_valid_finish", "_valid_f3"], ascending=[False, False])
-                     .drop_duplicates(subset=["馬名_clean", "race_code"], keep="first")
-                     .drop(columns=["_valid_f3", "_valid_finish"]))
-    if "着順" in master_df.columns:
-        master_df = master_df[
-            pd.to_numeric(
-                master_df["着順"],
-                errors="coerce"
-            ) >= 1
-        ].copy()
-        
-    jra_places = [
-        "東京",
-        "中山",
-        "京都",
-        "阪神",
-        "中京",
-        "札幌",
-        "函館",
-        "福島",
-        "新潟",
-        "小倉",
-    ]
-
-    if "場所" in master_df.columns:
-        master_df = master_df[
-            master_df["場所"]
-            .astype(str)
-            .str.contains(
-                "|".join(jra_places),
-                na=False
-            )
-        ].copy()
-
-    sort_cols = [
-        c
-        for c in ["年", "月", "日"]
-        if c in master_df.columns
-    ]
-
-    if sort_cols:
-        master_df = master_df.sort_values(
-            sort_cols,
-            ascending=False
-        )
-
-    return master_df
-
-
-# =========================================================
-# 既存の予想エンジン
-# =========================================================
-
-def run_integrated_simulation(
-    df_r,
-    pace,
-    bias,
-    condition,
-    master_data,
-    target_cat,
-    straight_length,
-    place_name,
-    surface_type,
-    toughness_val,
-    target_cls,
-    base_master_df,
-    f3_master_df,
-):
-    res_df = df_r.copy()
-
-    try:
-        target_distance = float(
-            res_df.iloc[0].get(
-                "距離",
-                1600.0
-            )
-        )
-    except Exception:
-        target_distance = 1600.0
-
-    surface = str(surface_type).strip()
-
-    surface_keyword = (
-        "ダート"
-        if "ダ" in surface
-        else "芝"
-    )
-
-    target_base_seconds, target_base_class = geo_soha_master_lookup(
-        base_master_df, place_name, surface, target_distance, target_cls, condition
-    )
-    target_soha_matched_class = target_base_class or "—"
-    target_soha_source = (
-        "Excel・クラス一致（重賞/LはOP）"
-        if target_base_seconds is not None else "Excel・該当条件なし（走破タイム評価対象外）"
-    )
-    # Excelにない条件では架空の基準タイムを使わない。
-    # 他の予測処理で数値が必要なため、欠損フラグを別途保持する。
-    target_soha_missing = target_base_seconds is None
-    if target_soha_missing:
-        target_base_seconds = 0.0
-
-    target_base_f3 = geo_f3_master_lookup(
-        f3_master_df, place_name, surface_keyword,
-        target_distance, target_base_class, condition
-    )
-    target_f3_missing = target_base_f3 is None
-    if target_f3_missing:
-        # 根拠のない34.5/37.0秒を使わない。3F評価のみスキップ。
-        target_base_f3 = 0.0
-
-    if "ダ" in surface:
-        f3_weight_factor = max(
-            0.5,
-            min(
-                1.15,
-                straight_length / 450.0
-            )
-        )
-    else:
-        f3_weight_factor = max(
-            0.4,
-            min(
-                1.6,
-                straight_length / 350.0
-            )
-        )
-
-    horse_ability_map = {}
-    horse_f3_theory_bonus_map = {}
-    horse_f3_diagnostics_map = {}
-    horse_course_fit_map = {}
-    horse_soha_theory_map = {}
-    horse_predicted_time_map = {}
-    rising_star_map = {}
-
-    if (
-        master_data is not None
-        and not master_data.empty
-        and "馬名_clean" in master_data.columns
-    ):
-        sort_cols = [
-            c
-            for c in ["年", "月", "日"]
-            if c in master_data.columns
-        ]
-
-        if sort_cols:
-            master_data = master_data.sort_values(
-                by=sort_cols,
-                ascending=False
-            )
-
-        if "芝・ダ" in master_data.columns:
-            if "ダ" in surface_keyword:
-                filtered_master = master_data[
-                    master_data["芝・ダ"]
-                    .astype(str)
-                    .str.contains(
-                        "ダ",
-                        na=False
-                    )
-                ].copy()
-            else:
-                filtered_master = master_data[
-                    ~master_data["芝・ダ"]
-                    .astype(str)
-                    .str.contains(
-                        "ダ",
-                        na=False
-                    )
-                ].copy()
-        else:
-            filtered_master = master_data.copy()
-
-        recent_master_data = (
-            filtered_master
-            .groupby("馬名_clean")
-            .head(6)
-            .copy()
-        )
-
-        style_map = {}
-
-        for horse_name, group in recent_master_data.groupby("馬名_clean"):
-            styles = group["脚質"].astype(str).tolist()
-            weights = list(range(len(styles), 0, -1))
-
-            style_scores = {
-                "逃げ": 0,
-                "先行": 0,
-                "差し": 0,
-                "追込": 0,
-            }
-
-            for style, weight in zip(styles, weights):
-                if style in style_scores:
-                    style_scores[style] += weight
-
-            if max(style_scores.values()) > 0:
-                base_style = max(
-                    style_scores,
-                    key=style_scores.get
-                )
-            else:
-                base_style = "差し"
-
-            style_map[horse_name] = base_style
-            
-        # v20: 走破タイムのクラス・基準タイム採用履歴（診断表示用）
-        horse_soha_class_diagnostics = {}
-
-        class_rank_map = {
-            "新馬": 0,
-            "未勝利": 1,
-            "1勝": 2,
-            "1勝クラス": 2,
-            "2勝": 3,
-            "2勝クラス": 3,
-            "3勝": 4,
-            "3勝クラス": 4,
-            "OP": 5,
-            "オープン": 5,
-            "リステッド": 5,
-            "G3": 6,
-            "G2": 7,
-            "G1": 8,
-        }
-
-        for hname, group in filtered_master.groupby("馬名_clean"):
-            sort_cols = [c for c in ["年", "月", "日"] if c in group.columns]
-            if sort_cols:
-                group_sorted = group.sort_values(sort_cols, ascending=False)
-            else:
-                group_sorted = group
-
-            if "着順" in group_sorted.columns and len(group_sorted) >= 2:
-                top2 = group_sorted.head(2)
-                finishes = []
-                for val in top2["着順"].tolist():
-                    try:
-                        f_str = unicodedata.normalize("NFKC", str(val))
+                if pd.notna(raw_soha_time):
+                    s_val = str(raw_soha_time).strip()
+                
+                    if ":" in s_val:
+                        parts = s_val.split(":")
+                        if len(parts) == 2:
+                            soha_time = float(parts[0]) * 60.0 + float(parts[1])
+                    else:
                         import re
-                        match_f = re.search(r'\d+', f_str)
-                        if match_f:
-                            finishes.append(int(match_f.group(0)))
-                        else:
-                            finishes.append(99)
-                    except Exception:
-                        finishes.append(99)
-
-                if len(finishes) == 2 and finishes[0] == 1 and finishes[1] == 1:
-                    rising_star_map[hname] = True
-                else:
-                    rising_star_map[hname] = False
-            else:
-                rising_star_map[hname] = False
-
-        def calc_theories_score(group):
-            if (
-                "馬名_clean" in group.columns
-                and not group["馬名_clean"].empty
-            ):
-                h_name = str(
-                    group["馬名_clean"].iloc[0]
+                        match = re.search(r'\d+', s_val)
+                        if match:
+                            num_str = match.group(0)
+                            num = int(num_str)
+                        
+                            if 1000 <= num < 10000:
+                                minutes = num // 1000
+                                seconds = (num % 1000) / 10.0
+                                soha_time = minutes * 60.0 + seconds
+                            elif 100 <= num < 300:
+                                minutes = num // 100
+                                seconds = num - minutes * 100
+                                soha_time = minutes * 60.0 + seconds
+                            else:
+                                soha_time = float(num)
+            except Exception:
+                soha_time = np.nan
+       
+            f3 = h.get(
+                "上がり3Fタイム",
+                h.get(
+                    "kohan_3f",
+                    np.nan
                 )
-            elif (
-                "馬名" in group.columns
-                and not group["馬名"].empty
-            ):
-                h_name = normalize_horse_name(
-                    str(group["馬名"].iloc[0])
-                )
-            else:
-                h_name = (
-                    str(group.name)
-                    if group.name
-                    else "不明"
-                )
-
-            is_rising = rising_star_map.get(
-                h_name,
-                False
             )
 
-            soha_class_rows = []
-            derived_times = []
-            derived_f3s = []
-            f3_history_rows = []
-            f3_skipped_no_excel = 0
-            f3_skipped_reasons = {}
-            f3_rejected_samples = []
+            # JRA-VAN上がり3Fは332=33.2秒のような1/10秒単位で届く場合がある。
+            # 既に33.2秒で届くデータを再度10で割らないよう、値域で判定する。
+            try:
+                f3 = float(f3)
+                if 250 <= f3 <= 700:
+                    f3 /= 10.0
+                elif not (25.0 <= f3 <= 70.0):
+                    f3 = np.nan  # 不正値を計算に使わない
+            except (TypeError, ValueError):
+                f3 = np.nan
 
-            for _, row in group.iterrows():
-                r_course = str(
-                    row.get(
-                        "場所",
-                        row.get(
-                            "競馬場",
-                            place_name
-                        )
-                    )
-                ).strip()
-
-                r_dist = pd.to_numeric(
-                    row.get(
-                        "距離",
-                        0
-                    ),
-                    errors="coerce"
+            raw_finish = h.get(
+                "着順",
+                h.get(
+                    "kakutei_chakujun",
+                    np.nan
                 )
+            )
+            finish = np.nan
+            try:
+                if pd.notna(raw_finish):
+                    import re
+                    f_str = unicodedata.normalize("NFKC", str(raw_finish))
+                    match_f = re.search(r'\d+', f_str)
+                    if match_f:
+                        finish = float(match_f.group(0))
+            except Exception:
+                finish = np.nan
 
-                r_time = pd.to_numeric(
-                    row.get(
-                        "走破タイム",
-                        0
-                    ),
-                    errors="coerce"
+            date_value = h.get(
+                "date",
+                h.get(
+                    "kaisai_date",
+                    ""
                 )
+            )
 
-                r_f3_time = pd.to_numeric(
-                    row.get(
-                        "上がり3Fタイム",
-                        0
-                    ),
-                    errors="coerce"
-                )
+            year = h.get("年", np.nan)
+            month = h.get("月", np.nan)
+            day = h.get("日", np.nan)
 
-                r_baba = str(
-                    row.get(
-                        "馬場状態",
-                        row.get(
-                            "馬場",
-                            "不明"
-                        )
-                    )
-                ).strip()
+            if (
+                pd.isna(year)
+                or pd.isna(month)
+                or pd.isna(day)
+            ):
+                date_str = str(date_value).strip()
 
-                r_surface = str(
-                    row.get(
-                        "芝・ダ",
-                        surface
-                    )
-                ).strip()
-
-                r_class = str(
-                    row.get(
-                        "略レース名",
-                        row.get(
-                            "クラス",
-                            "OP"
-                        )
-                    )
-                ).strip()
-
-                r_class_keyword = (
-                    str(r_class)
-                    .strip()
-                    .replace("クラス", "")
-                )
-   
-                r_surface_keyword = (
-                    "ダート"
-                    if "ダ" in r_surface
-                    else "芝"
-                )
-
-                r_surface_short = (
-                    "ダ"
-                    if "ダ" in r_surface
-                    else "芝"
-                )
-
-                if (
-                    pd.isna(r_dist)
-                    or r_dist <= 0
-                ):
-                    continue
-
-                past_course_multiplier = 1.0
-
-                if "小倉" in r_course:
-                    past_course_multiplier = 1.0
-                elif (
-                    "函館" in r_course
-                    or "札幌" in r_course
-                ):
-                    past_course_multiplier = 0.99
-
-                past_c_rank = class_rank_map.get(r_class.replace("クラス", ""))
-
-                target_c_rank = class_rank_map.get(target_cls.replace("クラス", ""))
-
-                class_diff = ((target_c_rank - past_c_rank)
-                              if target_c_rank is not None and past_c_rank is not None else 0)
-                class_transfer = geo_class_transfer(past_c_rank, target_c_rank)
-
-                converted_time = np.nan
-
-                if (
-                    not pd.isna(r_time)
-                    and r_time > 0
-                ):
-                    adjusted_r_time = (
-                        r_time
-                        * past_course_multiplier
+                try:
+                    dt = pd.to_datetime(
+                        date_str,
+                        errors="coerce"
                     )
 
-                    past_base_time, past_soha_matched_class = geo_soha_master_lookup(
-                        base_master_df, r_course, r_surface_short, r_dist,
-                        r_class, r_baba
-                    )
-                    past_soha_source = (
-                        "Excel・クラス一致（重賞/LはOP）"
-                        if past_base_time is not None else "Excel・該当条件なし（評価除外）"
-                    )
-                    if past_base_time is None or target_soha_missing:
-                        continue
+                    if not pd.isna(dt):
+                        year = dt.year
+                        month = dt.month
+                        day = dt.day
 
-                    # v22: Excelの距離別基準タイムで換算済みのため、
-                    # 追加の距離延長・短縮補正は適用しない。
-                    distance_penalty_or_bonus = 0.0
+                except Exception:
+                    pass
 
-                    # v49: API共通の段階的クラス補正。0.08を0.4秒に換算。
-                    # 連勝によるクラス補正免除は廃止（表示のみ残す）。
-                    class_level_penalty = -5.0 * class_transfer
-
-                    time_diff = (
-                        past_base_time
-                        - adjusted_r_time
-                    )
-
-                    converted_time = (
-                        target_base_seconds
-                        - time_diff
-                        + distance_penalty_or_bonus
-                        + class_level_penalty
-                    )
-
-
-                    if (
-                        not pd.isna(converted_time)
-                        and converted_time > 0
-                    ):
-                        derived_times.append(
-                            converted_time
-                        )
-                        soha_class_rows.append({
-                            "過去年": row.get("年"),
-                            "過去月": row.get("月"),
-                            "過去日": row.get("日"),
-                            "過去着順": row.get("着順"),
-                            "過去実走秒": round(float(r_time), 3),
-                            "過去競馬場": r_course,
-                            "過去距離": r_dist,
-                            "過去クラス": r_class,
-                            "過去クラス階級": past_c_rank,
-                            "今回クラス": target_cls,
-                            "今回クラス階級": target_c_rank,
-                            "階級差": class_diff,
-                            "追加距離補正秒": 0.0,
-                            "クラス補正秒": round(float(class_level_penalty), 3),
-                            "連勝補正秒": 0.0,
-                            "過去走馬場状態": r_baba,
-                            "Excel参照馬場状態": r_baba if r_baba in ("良", "稍重", "重", "不良") else "参照不可",
-                            "過去走馬場状態コード": str(row.get("馬場状態コード", "")),
-                            "過去走芝馬場コード": str(row.get("shiba_babajotai_code", "")),
-                            "過去走ダート馬場コード": str(row.get("dirt_babajotai_code", "")),
-                            "馬場照合結果": "一致" if r_baba in ("良", "稍重", "重", "不良") else "要確認",
-                            "過去基準採用クラス": past_soha_matched_class,
-                            "過去基準参照元": past_soha_source,
-                            "過去基準タイム": round(float(past_base_time), 3),
-                            "今回基準採用クラス": target_soha_matched_class,
-                            "今回基準参照元": target_soha_source,
-                            "今回基準タイム": round(float(target_base_seconds), 3),
-                            "換算走破タイム": round(float(converted_time), 3),
-                            "クラス補正なし換算": round(float(converted_time - class_level_penalty), 3),
-                            "クラス補正の影響": round(float(class_level_penalty), 3),
-
-                        })
-                            
-                if (
-                    not pd.isna(r_f3_time)
-                    and r_f3_time > 0
-                ):
-                    past_base_f3 = geo_f3_master_lookup(
-                        f3_master_df, r_course, r_surface_keyword,
-                        r_dist, r_class_keyword, r_baba
-                    )
-                    if past_base_f3 is None or target_f3_missing:
-                        # 原因を分離。予想値の代替値への置換はしない。
-                        if target_f3_missing:
-                            reason = "対象レースExcel基準なし"
-                        elif r_baba not in ("良", "稍重", "重", "不良"):
-                            reason = "過去馬場状態が不明"
-                        else:
-                            reason = "過去走Excel条件不一致（競馬場/距離/クラス/馬場）"
-                        f3_skipped_reasons[reason] = f3_skipped_reasons.get(reason, 0) + 1
-                        f3_skipped_no_excel += 1
-                        if len(f3_rejected_samples) < 12:
-                            f3_rejected_samples.append({
-                                "除外理由": reason, "race_code": row.get("race_code"),
-                                "競馬場": r_course, "芝ダ": r_surface_keyword,
-                                "距離": r_dist, "クラス": r_class_keyword, "馬場": r_baba,
-                                "馬場コード": row.get("馬場状態コード"),
-                                "芝コード": row.get("shiba_babajotai_code"),
-                                "ダートコード": row.get("dirt_babajotai_code"),
-                                "上がり3F": r_f3_time,
-                            })
-                        continue
-
-                    f3_diff = (
-                        r_f3_time
-                        - past_base_f3
-                    )
-
-                    f3_class_adjustment = 0.0
-
-                    if r_surface_keyword == "ダート":
-                        if class_transfer < 0:
-                            f3_class_adjustment = -class_transfer * (0.15 / 0.08)
-                        elif class_transfer > 0:
-                            f3_class_adjustment = -class_transfer * (0.10 / 0.08)
-
-                    converted_f3 = (
-                        target_base_f3
-                        + f3_diff
-                        + f3_class_adjustment
-                    )
-
-                    derived_f3s.append(
-                        converted_f3
-                    )
-
-                    f3_history_rows.append({
-                        "過去競馬場": r_course,
-                        "過去芝ダ": r_surface_keyword,
-                        "過去距離": int(r_dist),
-                        "過去クラス": r_class_keyword,
-                        "過去馬場": r_baba,
-                        "実測上がり3F": float(r_f3_time),
-                        "過去基準3F": float(past_base_f3),
-                        "過去基準差": float(f3_diff),
-                        "クラス補正秒": float(f3_class_adjustment),
-                        "換算上がり3F": float(converted_f3),
-                        "過去基準フォールバック疑い": False,
-                    })
-
-            soha_score = 0.0
-            if derived_times and not target_soha_missing:
-                # v46: newest valid past run has weight 1.0, then -0.20 per run.
-                # The 6th valid run is 0; use the original newest-to-oldest order.
-                _v46_weights = [max(0.0, 1.0 - 0.20 * i) for i in range(len(derived_times))]
-                val_to_use = float(np.average(derived_times, weights=_v46_weights))
-
-                horse_predicted_time_map[h_name] = val_to_use
-
-                time_advantage = (
-                    target_base_seconds
-                    - val_to_use
-                )
-
-                soha_score = max(
-                    -5.0,
-                    min(
-                        12.0,
-                        time_advantage * 3.0
-                    )
-                )
-
-            horse_soha_class_diagnostics[h_name] = {
-                "対象クラス": target_cls,
-                "対象基準採用クラス": target_soha_matched_class,
-                "対象基準参照元": target_soha_source,
-                "有効過去走数": len(soha_class_rows),
-                "v46走破集約": "直近加重平均（減少幅0.20）",
-                "過去走詳細": soha_class_rows,
-            }
-
-            f3_score = 0.0
-            f3_val_to_use = None
-            f3_advantage = None
-            f3_raw_score = None
-
-            if derived_f3s and not target_f3_missing:
-                sorted_f3s = sorted(
-                    derived_f3s
-                )
-
-                f3_val_to_use = float(
-                    np.median(
-                        sorted_f3s
-                    )
-                )
-
-                f3_advantage = (
-                    target_base_f3
-                    - f3_val_to_use
-                )
-
-                f3_raw_score = (
-                    f3_advantage * 2.5 * f3_weight_factor
-                )
-                f3_score = max(-3.0, min(10.0, f3_raw_score))
-            horse_f3_diagnostics_map[h_name] = {
-                "対象基準3F": float(target_base_f3),
-                "対象競馬場": str(place_name),
-                "対象芝ダ": str(surface_keyword),
-                "対象距離": int(target_distance),
-                "対象クラス": str(target_base_class),
-                "対象馬場": str(condition),
-                "対象基準フォールバック疑い": False,
-                "対象基準Excel一致": not target_f3_missing,
-                "有効過去走数": len(derived_f3s),
-                "Excel不一致で除外した過去走": f3_skipped_no_excel,
-                "除外理由別件数": f3_skipped_reasons,
-                "除外された過去走の例": f3_rejected_samples,
-                "換算3F中央値": f3_val_to_use,
-                "基準との差（秒）": f3_advantage,
-                "3F重み係数": float(f3_weight_factor),
-                "制限前の3F点": f3_raw_score,
-                "制限後の3F点": float(f3_score),
-                "下限-3に到達": bool(f3_raw_score is not None and f3_raw_score <= -3.0),
-                "過去走詳細": f3_history_rows,
-            }
-
-            if straight_length < 320:
-                combined_score = (
-                    soha_score * 0.75
-                    + f3_score * 0.25
-                )
-            elif 320 <= straight_length < 400:
-                combined_score = (
-                    soha_score * 0.7
-                    + f3_score * 0.3
-                )
-            else:
-                combined_score = (
-                    soha_score * 0.6
-                    + f3_score * 0.4
-                )
-
-            return pd.Series(
+            rows.append(
                 {
-                    "soha_score": soha_score,
-                    "f3_score": f3_score,
-                    "combined_score": combined_score,
-                    "is_rising_star": is_rising,
+                    "馬名": horse_name,
+                    "馬名_clean": horse_name,
+                    "場所": str(place),
+                    "距離": distance,
+                    "走破タイム": soha_time,
+                    "上がり3Fタイム": f3,
+                    "馬場状態": str(baba) if baba else "不明",
+                    "芝・ダ": surface,
+                    "race_code": str(h.get("race_code") or ""),
+                    "馬場状態コード": str(h.get("馬場状態コード") or ""),
+                    "shiba_babajotai_code": str(h.get("shiba_babajotai_code") or ""),
+                    "dirt_babajotai_code": str(h.get("dirt_babajotai_code") or ""),
+                    "略レース名": historical_class,
+                    "クラス": historical_class,
+                    "着順": finish,
+                    "年": year,
+                    "月": month,
+                    "日": day,
+                    "脚質": style_from_value(
+                        h.get(
+                            "kyakushitsu_hantei",
+                            3
+                        )
+                    ),
+                    "斤量": format_weight(
+                        h.get("斤量", h.get("futan_juryo"))
+                    ),
                 }
             )
 
-        theories_df = (
-            recent_master_data
-            .groupby("馬名_clean")
-            .apply(
-                calc_theories_score
-            )
-        )
+        master_df = pd.DataFrame(rows)
 
-        if not theories_df.empty:
-            if "soha_score" in theories_df.columns:
-                horse_soha_theory_map = (
-                    theories_df[
-                        "soha_score"
-                    ].to_dict()
+        if master_df.empty:
+            return master_df
+
+        if "race_code" in master_df.columns:
+            master_df["_valid_f3"] = pd.to_numeric(master_df["上がり3Fタイム"], errors="coerce").gt(0)
+            master_df["_valid_finish"] = pd.to_numeric(master_df["着順"], errors="coerce").ge(1)
+            master_df = (master_df.sort_values(["_valid_finish", "_valid_f3"], ascending=[False, False])
+                         .drop_duplicates(subset=["馬名_clean", "race_code"], keep="first")
+                         .drop(columns=["_valid_f3", "_valid_finish"]))
+        if "着順" in master_df.columns:
+            master_df = master_df[
+                pd.to_numeric(
+                    master_df["着順"],
+                    errors="coerce"
+                ) >= 1
+            ].copy()
+        
+        jra_places = [
+            "東京",
+            "中山",
+            "京都",
+            "阪神",
+            "中京",
+            "札幌",
+            "函館",
+            "福島",
+            "新潟",
+            "小倉",
+        ]
+
+        if "場所" in master_df.columns:
+            master_df = master_df[
+                master_df["場所"]
+                .astype(str)
+                .str.contains(
+                    "|".join(jra_places),
+                    na=False
                 )
+            ].copy()
 
-            if "f3_score" in theories_df.columns:
-                horse_f3_theory_bonus_map = (
-                    theories_df[
-                        "f3_score"
-                    ].to_dict()
-                )
+        sort_cols = [
+            c
+            for c in ["年", "月", "日"]
+            if c in master_df.columns
+        ]
 
-            if "combined_score" in theories_df.columns:
-                horse_course_fit_map = (
-                    theories_df[
-                        "combined_score"
-                    ].to_dict()
-                )
-
-        if "着順" in recent_master_data.columns:
-            recent_master_data[
-                "着順_num"
-            ] = pd.to_numeric(
-                recent_master_data["着順"],
-                errors="coerce"
+        if sort_cols:
+            master_df = master_df.sort_values(
+                sort_cols,
+                ascending=False
             )
 
-            avg_finishes = (
-                recent_master_data
-                .groupby("馬名_clean")[
-                    "着順_num"
-                ]
-                .mean()
-                .to_dict()
-            )
+        return master_df
 
-            for hname, af in avg_finishes.items():
-                if not pd.isna(af):
-                    horse_ability_map[hname] = max(
-                        0.0,
-                        (
-                            15.0
-                            - (af - 1) * 1.2
-                        ) * 0.5
-                    )
 
-    # v18: 初芝・初ダートを「過去走全体」から判定（予想点数には影響させない）。
-    # データが取得できない馬を初挑戦と誤判定しないよう「要確認」とする。
-    first_surface_map = {}
-    if master_data is not None and not master_data.empty and "馬名_clean" in master_data.columns:
-        for _horse_name, _all_runs in master_data.groupby("馬名_clean"):
-            _surface_series = _all_runs.get("芝・ダ")
-            if _surface_series is None:
-                first_surface_map[str(_horse_name)] = {"判定": "要確認", "同種過去走": 0, "異種過去走": 0, "判定理由": "芝ダ区分なし"}
-                continue
-            _surface_str = _surface_series.astype(str).str.strip()
-            _known = _surface_str.str.contains("芝|ダ", regex=True, na=False)
-            _same = _surface_str.str.contains("ダ", na=False) if surface_keyword == "ダート" else (_surface_str.eq("芝"))
-            _other = _surface_str.eq("芝") if surface_keyword == "ダート" else _surface_str.str.contains("ダ", na=False)
-            _same_count = int((_same & _known).sum())
-            _other_count = int((_other & _known).sum())
-            _unknown_count = int((~_known).sum())
-            if _same_count > 0:
-                _status = "経験あり"
-                _reason = "今回と同じ芝ダ区分の過去走あり"
-            elif _other_count > 0 and _unknown_count == 0:
-                _status = "初ダート" if surface_keyword == "ダート" else "初芝"
-                _reason = "異なる芝ダ区分の過去走のみ"
-            else:
-                _status = "要確認"
-                _reason = "過去走未取得・区分不明・新馬の可能性"
-            first_surface_map[str(_horse_name)] = {
-                "判定": _status, "同種過去走": _same_count,
-                "異種過去走": _other_count, "区分不明過去走": _unknown_count,
-                "判定理由": _reason,
-            }
+    # =========================================================
+    # 既存の予想エンジン
+    # =========================================================
 
-    # v19: 芝ダ初挑戦の専用評価に使う、異種馬場での過去走能力の代理指数。
-    # 過去の「当時の統合指数」はDBに保存されていないため、着順から代理値を作る。
-    # 将来、過去レースの指数が取得可能になったら差し替えを検討する。
-    first_surface_input_map = {}
-    if master_data is not None and not master_data.empty and "馬名_clean" in master_data.columns:
-        for _name, _runs in master_data.groupby("馬名_clean"):
-            _diag = first_surface_map.get(str(_name), {})
-            if _diag.get("判定") not in ("初芝", "初ダート"):
-                continue
-            _other_runs = _runs.copy()
-            if "芝・ダ" in _other_runs.columns:
-                _surface_values = _other_runs["芝・ダ"].astype(str).str.strip()
-                _other_runs = _other_runs[_surface_values.eq("芝") if surface_keyword == "ダート" else _surface_values.str.contains("ダ", na=False)]
-            if _other_runs.empty:
-                continue
-            _recent = _other_runs.head(6)
-            _finishes = pd.to_numeric(_recent["着順"], errors="coerce") if "着順" in _recent.columns else pd.Series(dtype=float)
-            _finishes = _finishes[(_finishes >= 1) & (_finishes <= 18)]
-            if _finishes.empty:
-                continue
-            _avg_finish = float(_finishes.mean())
-            # 仮説：平均1着→85点、平均6着→70点、平均11着→55点。
-            _proxy_index = 70.0 + max(-15.0, min(15.0, (6.0 - _avg_finish) * 3.0))
-            _distance_col = next((c for c in ("距離", "距離_num") if c in _recent.columns), None)
-            _distances = pd.to_numeric(_recent[_distance_col], errors="coerce") if _distance_col else pd.Series(dtype=float)
-            _distances = _distances[(_distances >= 800) & (_distances <= 4000)]
-            _median_distance = float(_distances.median()) if not _distances.empty else None
-            first_surface_input_map[str(_name)] = {
-                "代理能力指数": _proxy_index, "平均着順": _avg_finish,
-                "能力使用走数": int(len(_finishes)), "異種馬場の中央値距離": _median_distance,
-            }
-
-    scored_horses = []
-    index_breakdowns = []
-    rising_star_flags = []
-    inferred_styles = []
-
-    for idx, r in res_df.iterrows():
-        hname_clean = str(
-            r.get(
-                "馬名_clean",
-                ""
-            )
-        )
-
-        kyakushitsu = style_map.get(
-            r.get("馬名_clean"),
-            "差し"
-        )
-
-        inferred_styles.append(
-            kyakushitsu
-        )
-
-        tokui_baba = str(
-            r.get(
-                "得意馬場",
-                "指定なし"
-            )
-        )
+    def run_integrated_simulation(
+        df_r,
+        pace,
+        bias,
+        condition,
+        master_data,
+        target_cat,
+        straight_length,
+        place_name,
+        surface_type,
+        toughness_val,
+        target_cls,
+        base_master_df,
+        f3_master_df,
+    ):
+        res_df = df_r.copy()
 
         try:
-            wakuban = int(
-                r.get(
-                    "枠番",
-                    1
+            target_distance = float(
+                res_df.iloc[0].get(
+                    "距離",
+                    1600.0
                 )
             )
         except Exception:
-            wakuban = 1
+            target_distance = 1600.0
 
-        ability_bonus = horse_ability_map.get(
-            hname_clean,
-            2.5
+        surface = str(surface_type).strip()
+
+        surface_keyword = (
+            "ダート"
+            if "ダ" in surface
+            else "芝"
         )
 
-        soha_theory_bonus = (
-            horse_soha_theory_map.get(
-                hname_clean,
-                0.0
-            )
+        target_base_seconds, target_base_class = geo_soha_master_lookup(
+            base_master_df, place_name, surface, target_distance, target_cls, condition
         )
-
-        f3_theory_bonus = (
-            horse_f3_theory_bonus_map.get(
-                hname_clean,
-                0.0
-            )
+        target_soha_matched_class = target_base_class or "—"
+        target_soha_source = (
+            "Excel・クラス一致（重賞/LはOP）"
+            if target_base_seconds is not None else "Excel・該当条件なし（走破タイム評価対象外）"
         )
+        # Excelにない条件では架空の基準タイムを使わない。
+        # 他の予測処理で数値が必要なため、欠損フラグを別途保持する。
+        target_soha_missing = target_base_seconds is None
+        if target_soha_missing:
+            target_base_seconds = 0.0
 
-        combined_theory_bonus = (
-            horse_course_fit_map.get(
-                hname_clean,
-                0.0
-            )
+        target_base_f3 = geo_f3_master_lookup(
+            f3_master_df, place_name, surface_keyword,
+            target_distance, target_base_class, condition
         )
+        target_f3_missing = target_base_f3 is None
+        if target_f3_missing:
+            # 根拠のない34.5/37.0秒を使わない。3F評価のみスキップ。
+            target_base_f3 = 0.0
 
-        is_rising = rising_star_map.get(
-            hname_clean,
-            False
-        )
-
-        rising_star_flags.append(
-            "🌟 2連勝中"
-            if is_rising
-            else "-"
-        )
-
-        toughness_effect = (
-            toughness_val - 1.0
-        ) * 4.0
-
-        # GEO基礎統合指数：実際の加点・減点を予想時点で記録する。
-        # 表示のための再計算ではなく、計算そのものと同じ内訳を保存する。
-        components = {
-            "基礎点": 70.0,
-            "着順能力": float(ability_bonus),
-            "コース適性": float(combined_theory_bonus),
-            "走破タイム": float(soha_theory_bonus) * 1.2,
-            "上がり3F": float(f3_theory_bonus),
-            "連勝": 0.0,
-            "タフネス": 0.0,
-            "直線・脚質": 0.0,
-            "ペース": 0.0,
-            "馬場バイアス": 0.0,
-            "得意馬場": 0.0,
-        }
-
-        if toughness_val >= 1.2 and kyakushitsu in ["逃げ", "先行"]:
-            components["タフネス"] = float(toughness_effect) * 1.5
-
-        if straight_length < 320:
-            if kyakushitsu in ["逃げ", "先行"]:
-                components["直線・脚質"] = 5.0
-            elif kyakushitsu in ["差し", "追込"]:
-                components["直線・脚質"] = -2.0
-
-        if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
-            components["ペース"] = 3.0
-        elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
-            components["ペース"] = 4.5 + float(f3_theory_bonus) * 0.5
-
-        if bias == "内有利" and wakuban <= 3:
-            components["馬場バイアス"] = 3.0
-        elif bias == "外有利" and wakuban >= 6:
-            components["馬場バイアス"] = 3.0
-
-        if tokui_baba == condition:
-            components["得意馬場"] = 5.0
-
-        # v37: 初芝・初ダートは異種馬場の過去走から作った代理能力の
-        # 基礎点70からの差を70%転用。統合指数に反映し、最終評価では二重加点しない。
-        _first_diag_for_index = first_surface_map.get(str(hname_clean), {})
-        _first_material_for_index = first_surface_input_map.get(str(hname_clean), {})
-        _transfer_ability_for_index = 0.0
-        if _first_diag_for_index.get("判定") in ("初芝", "初ダート"):
-            _proxy = _first_material_for_index.get("代理能力指数")
-            if _proxy is not None:
-                _transfer_ability_for_index = max(-6.0, min(6.0, (float(_proxy) - 70.0) * 0.70))
-        # v38: 診断専用。既存の採点値や補正上限は一切変更しない。
-        if _first_diag_for_index.get("判定") in ("初芝", "初ダート"):
-            _proxy_for_debug = _first_material_for_index.get("代理能力指数")
-            if _proxy_for_debug is not None:
-                _raw_for_debug = (float(_proxy_for_debug) - 70.0) * 0.70
-                _first_material_for_index["転用前補正（上限前）"] = float(_raw_for_debug)
-                _first_material_for_index["転用補正（上限後）"] = float(_transfer_ability_for_index)
-                _first_material_for_index["上限到達"] = bool(abs(_raw_for_debug) > 6.0)
-                _first_material_for_index["診断状態"] = "算出成功"
-            else:
-                _first_material_for_index["診断状態"] = "代理能力算出不可（着順等を確認）"
-        components["初挑戦・転用能力"] = float(_transfer_ability_for_index)
-
-        raw_index = sum(components.values())
-        index_breakdowns.append(components)
-
-        scored_horses.append(
-            raw_index
-        )
-
-    res_df["芝ダ初挑戦診断"] = [
-        first_surface_map.get(str(name), {
-            "判定": "要確認", "同種過去走": 0, "異種過去走": 0,
-            "判定理由": "過去走データが取得できません",
-        })
-        for name in res_df["馬名_clean"]
-    ]
-    res_df["芝ダ経験"] = res_df["芝ダ初挑戦診断"].apply(lambda x: x.get("判定", "要確認"))
-    res_df["初挑戦能力材料"] = [first_surface_input_map.get(str(name), {}) for name in res_df["馬名_clean"]]
-    res_df["統合指数"] = scored_horses
-    res_df["統合指数内訳"] = index_breakdowns
-    res_df["走破タイムクラス診断"] = [
-        horse_soha_class_diagnostics.get(str(name), {
-            "対象クラス": target_cls, "有効過去走数": 0, "過去走詳細": [],
-            "対象基準参照元": target_soha_source,
-            "対象基準採用クラス": target_soha_matched_class,
-        })
-        for name in res_df["馬名_clean"]
-    ]
-    res_df["上がり3F診断"] = [
-        horse_f3_diagnostics_map.get(str(name), {
-            "有効過去走数": 0, "制限前の3F点": None,
-            "制限後の3F点": 0.0, "過去走詳細": [],
-            "診断": "該当する過去走データがありません",
-        })
-        for name in res_df["馬名_clean"]
-    ]
-    res_df["ライジングスター"] = rising_star_flags
-    res_df["脚質"] = inferred_styles
-
-    res_df = res_df.sort_values(
-        by="統合指数",
-        ascending=False
-    ).reset_index(
-        drop=True
-    )
-
-    res_df["着順予測"] = range(
-        1,
-        len(res_df) + 1
-    )
-
-    times = []
-
-    for i in range(len(res_df)):
-        hname_clean = str(
-            res_df.iloc[i].get(
-                "馬名_clean",
-                ""
-            )
-        )
-
-        predicted_time = horse_predicted_time_map.get(
-            hname_clean,
-            np.nan
-        )
-
-        if pd.isna(predicted_time):
-            predicted_time = target_base_seconds
-
-        times.append(
-            round(
-                float(predicted_time),
-                1
-            )
-        )
-
-    res_df["予測走破タイム"] = [
-        format_time(t)
-        for t in times
-    ]
-
-    return res_df
-
-
-# =========================================================
-# シミュレーション実行
-# =========================================================
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-
-if st.button(
-    "🚀 走破タイム×上がり3F完全統合シミュレーションを実行"
-):
-    with st.spinner(
-        "JRA-VANから各馬の過去走を取得し、"
-        "基準走破タイム・基準上がり3Fと照合しています..."
-    ):
-        master_data = build_master_data_from_jv(
-            df_race
-        )
-
-        if master_data.empty:
-            st.error(
-                "JRA-VANから過去走データを取得できませんでした。"
-            )
-            st.stop()
-
-        st.session_state[
-            "df_simulated"
-        ] = run_integrated_simulation(
-            df_race,
-            selected_pace,
-            selected_bias,
-            selected_condition,
-            master_data,
-            race_category,
-            straight_len,
-            race_place,
-            race_surface,
-            course_toughness,
-            race_class,
-            df_base_master,
-            df_f3_master,
-        )
-
-        st.session_state[
-            "sim_executed"
-        ] = True
-
-        st.session_state[
-            "master_data_jv"
-        ] = master_data
-
-        st.success(
-            f"JRA-VAN過去走 {len(master_data)}件を取得して計算しました。"
-        )
-
-# ============================================================
-# Geo予想をSQLiteへ自動保存
-# ============================================================
-
-def save_geo_prediction(
-    race_id,
-    geo,
-    pace,
-    bias,
-    condition,
-    race_info=None
-):
-
-    try:
-        race_id = str(
-            race_id or ""
-        ).strip()
-
-        if not race_id:
-            st.warning(
-                "⚠️ race_idが取得できないため、"
-                "Geo予想を保存できません"
-            )
-            return False
-
-        race_info = race_info or {}
-
-        honmei = geo.get("honmei")
-        taikou = geo.get("second")
-        tanaku = geo.get("third")
-
-        if honmei is None:
-            st.warning(
-                "⚠️ ジオ本命が取得できないため、"
-                "予想を保存できません"
-            )
-            return False
-
-        def get_umaban(horse):
-            if horse is None:
-                return ""
-            value = horse.get("馬番", "")
-            if pd.isna(value):
-                return ""
-            try:
-                if float(value).is_integer():
-                    return str(int(float(value)))
-            except Exception:
-                pass
-            return str(value).strip()
-
-        def get_bamei(horse):
-            if horse is None:
-                return ""
-            return str(horse.get("馬名", "")).strip()
-
-        def get_score(horse):
-            if horse is None:
-                return None
-            try:
-                value = horse.get("ジオ評価")
-                if value is None or pd.isna(value):
-                    return None
-                return float(value)
-            except Exception:
-                return None
-
-        tickets = geo.get("tickets", [])
-        ticket1 = str(tickets[0]).replace(" ", "") if len(tickets) >= 1 else ""
-        ticket2 = str(tickets[1]).replace(" ", "") if len(tickets) >= 2 else ""
-
-        payload = {
-            "race_id": race_id,
-            "race_date": race_info.get("date"),
-            "venue": race_info.get("venue"),
-            "race_no": race_info.get("race_no"),
-            "race_name": race_info.get("name"),
-            "pace": pace,
-            "bias": bias,
-            "condition": condition,
-            "honmei_umaban": get_umaban(honmei),
-            "honmei_bamei": get_bamei(honmei),
-            "honmei_score": get_score(honmei),
-            "taikou_umaban": get_umaban(taikou),
-            "taikou_bamei": get_bamei(taikou),
-            "taikou_score": get_score(taikou),
-            "tanaku_umaban": get_umaban(tanaku),
-            "tanaku_bamei": get_bamei(tanaku),
-            "tanaku_score": get_score(tanaku),
-            "confidence": geo.get("confidence", 0),
-            "decision": geo.get("decision", ""),
-            "ticket1": ticket1,
-            "ticket2": ticket2,
-            "runners": [],
-        }
-
-        # ◎○▲だけでなく全出走馬の予想時点特徴量を送信。着順など未来情報は含めない。
-        runner_df = geo.get("df_geo")
-        if isinstance(runner_df, pd.DataFrame) and not runner_df.empty:
-            excluded = {"着順", "確定着順", "着順予測", "実着順", "払戻", "配当", "結果", "top3", "win"}
-            for rank, (_, runner) in enumerate(runner_df.iterrows(), start=1):
-                features = {}
-                for col, value in runner.items():
-                    if str(col) in excluded or str(col) in {"馬番", "馬名", "ジオ評価"}:
-                        continue
-                    try:
-                        if value is None or pd.isna(value):
-                            continue
-                    except (TypeError, ValueError):
-                        pass
-                    if isinstance(value, (str, int, float, bool)):
-                        try:
-                            import math
-                            if isinstance(value, (int, float)) and not math.isfinite(float(value)):
-                                continue
-                        except (TypeError, ValueError, OverflowError):
-                            continue
-                        features[str(col)] = value
-                    elif hasattr(value, "item"):
-                        scalar = value.item()
-                        if isinstance(scalar, (str, int, float, bool)):
-                            features[str(col)] = scalar
-                    elif isinstance(value, dict):
-                        # 血統適性など辞書型の特徴量も予想時点の値だけ保存
-                        features[str(col)] = {str(k): v for k, v in value.items() if isinstance(v, (str, int, float, bool)) or v is None}
-                payload["runners"].append({
-                    "umaban": get_umaban(runner),
-                    "bamei": get_bamei(runner),
-                    "predicted_rank": rank,
-                    "geo_score": get_score(runner),
-                    "features": features,
-                })
-
-        response = requests.post(
-            f"{API_BASE}/geo/prediction",
-            json=payload,
-            timeout=10
-        )
-
-        if response.status_code == 200:
-            result = response.json()
-            if result.get("ok"):
-                if result.get("skipped_existing"):
-                    return True  # 既存予想を保護。全頭データを後付けで捏造しない。
-                saved_count = int(result.get("runner_count", -1))
-                expected_count = len(payload["runners"])
-                if saved_count != expected_count:
-                    st.warning(f"⚠️ v6 全頭保存の件数不一致: {saved_count}/{expected_count}")
-                    return False
-                return True
-            st.warning(f"⚠️ Geo予想保存失敗: {result.get('error')}")
-            return False
-
-        try:
-            reason = response.json().get("error", "")
-        except (ValueError, AttributeError):
-            reason = response.text[:250]
-        st.warning(f"⚠️ Geo予想保存APIエラー: {response.status_code} / {reason}")
-        return False
-
-    except Exception as e:
-        st.warning(f"⚠️ Geo予想保存エラー: {e}")
-        return False
-
-
-def apply_geo_learning_adjustment(df, pace, bias, condition, venue=""):
-    """最新APIの学習プロファイルによる補正を安全に適用する。"""
-    if df is None or df.empty:
-        return df
-    df = df.copy()
-    df["学習補正"] = 0.0
-    df["学習一致条件"] = ""
-    df["学習補正内訳"] = ""
-    try:
-        horses = []
-        for _, row in df.iterrows():
-            try:
-                score = float(row.get("ジオ評価", row.get("統合指数", 0)) or 0)
-            except Exception:
-                score = 0.0
-            horses.append({"umaban": str(row.get("馬番", "")).replace(".0", ""), "score": score})
-        response = requests.post(
-            f"{API_BASE.rstrip('/')}/geo/learning/adjustment",
-            json={"pace": pace, "bias": bias, "condition": condition, "venue": venue, "horses": horses},
-            timeout=15,
-        )
-        response.raise_for_status()
-        data = response.json()
-        if not data.get("ok"):
-            st.warning(f"自己学習APIがエラーを返しました: {data.get('error', '詳細なし')}")
-            return df
-        adjustment_map = {}
-        for item in data.get("adjustments", []) or []:
-            key = str(item.get("umaban", "")).replace(".0", "")
-            try:
-                adjustment = float(item.get("adjustment", 0) or 0)
-            except Exception:
-                adjustment = 0.0
-            matched = item.get("matched_effects") or []
-            if matched:
-                detail = "、".join(
-                    f"{x.get('feature_key', '?')}({float(x.get('effect', 0) or 0):+.2f}点・n={int(x.get('sample_count', 0) or 0)})"
-                    for x in matched
+        if "ダ" in surface:
+            f3_weight_factor = max(
+                0.5,
+                min(
+                    1.15,
+                    straight_length / 450.0
                 )
+            )
+        else:
+            f3_weight_factor = max(
+                0.4,
+                min(
+                    1.6,
+                    straight_length / 350.0
+                )
+            )
+
+        horse_ability_map = {}
+        horse_f3_theory_bonus_map = {}
+        horse_f3_diagnostics_map = {}
+        horse_course_fit_map = {}
+        horse_soha_theory_map = {}
+        horse_predicted_time_map = {}
+        rising_star_map = {}
+
+        if (
+            master_data is not None
+            and not master_data.empty
+            and "馬名_clean" in master_data.columns
+        ):
+            sort_cols = [
+                c
+                for c in ["年", "月", "日"]
+                if c in master_data.columns
+            ]
+
+            if sort_cols:
+                master_data = master_data.sort_values(
+                    by=sort_cols,
+                    ascending=False
+                )
+
+            if "芝・ダ" in master_data.columns:
+                if "ダ" in surface_keyword:
+                    filtered_master = master_data[
+                        master_data["芝・ダ"]
+                        .astype(str)
+                        .str.contains(
+                            "ダ",
+                            na=False
+                        )
+                    ].copy()
+                else:
+                    filtered_master = master_data[
+                        ~master_data["芝・ダ"]
+                        .astype(str)
+                        .str.contains(
+                            "ダ",
+                            na=False
+                        )
+                    ].copy()
             else:
-                detail = "一致条件なし"
-            adjustment_map[key] = {
-                "adjustment": adjustment,
-                "matched_features": item.get("matched_features") or [],
-                "detail": detail,
+                filtered_master = master_data.copy()
+
+            recent_master_data = (
+                filtered_master
+                .groupby("馬名_clean")
+                .head(6)
+                .copy()
+            )
+
+            style_map = {}
+
+            for horse_name, group in recent_master_data.groupby("馬名_clean"):
+                styles = group["脚質"].astype(str).tolist()
+                weights = list(range(len(styles), 0, -1))
+
+                style_scores = {
+                    "逃げ": 0,
+                    "先行": 0,
+                    "差し": 0,
+                    "追込": 0,
+                }
+
+                for style, weight in zip(styles, weights):
+                    if style in style_scores:
+                        style_scores[style] += weight
+
+                if max(style_scores.values()) > 0:
+                    base_style = max(
+                        style_scores,
+                        key=style_scores.get
+                    )
+                else:
+                    base_style = "差し"
+
+                style_map[horse_name] = base_style
+            
+            # v20: 走破タイムのクラス・基準タイム採用履歴（診断表示用）
+            horse_soha_class_diagnostics = {}
+
+            class_rank_map = {
+                "新馬": 0,
+                "未勝利": 1,
+                "1勝": 2,
+                "1勝クラス": 2,
+                "2勝": 3,
+                "2勝クラス": 3,
+                "3勝": 4,
+                "3勝クラス": 4,
+                "OP": 5,
+                "オープン": 5,
+                "リステッド": 5,
+                "G3": 6,
+                "G2": 7,
+                "G1": 8,
             }
-        for idx in df.index:
-            key = str(df.loc[idx].get("馬番", "")).replace(".0", "")
-            item = adjustment_map.get(key, {"adjustment": 0.0, "matched_features": [], "detail": "API応答なし"})
-            adjustment = max(-5.0, min(5.0, float(item["adjustment"]) * 2.0))
-            df.loc[idx, "学習補正"] = adjustment
-            df.loc[idx, "学習一致条件"] = "、".join(item["matched_features"]) or "一致条件なし"
-            df.loc[idx, "学習補正内訳"] = item["detail"]
-            details = df.at[idx, "最終評価内訳"] if "最終評価内訳" in df.columns else None
-            if isinstance(details, dict):
-                details = dict(details)
-                details["自己学習"] = adjustment
-                df.at[idx, "最終評価内訳"] = details
-            df.loc[idx, "ジオ評価"] = float(df.loc[idx, "ジオ評価"]) + adjustment
-        return df
-    except Exception as exc:
-        st.warning(f"自己学習補正の取得に失敗したため0点で続行: {type(exc).__name__}: {exc}")
-        return df
+
+            for hname, group in filtered_master.groupby("馬名_clean"):
+                sort_cols = [c for c in ["年", "月", "日"] if c in group.columns]
+                if sort_cols:
+                    group_sorted = group.sort_values(sort_cols, ascending=False)
+                else:
+                    group_sorted = group
+
+                if "着順" in group_sorted.columns and len(group_sorted) >= 2:
+                    top2 = group_sorted.head(2)
+                    finishes = []
+                    for val in top2["着順"].tolist():
+                        try:
+                            f_str = unicodedata.normalize("NFKC", str(val))
+                            import re
+                            match_f = re.search(r'\d+', f_str)
+                            if match_f:
+                                finishes.append(int(match_f.group(0)))
+                            else:
+                                finishes.append(99)
+                        except Exception:
+                            finishes.append(99)
+
+                    if len(finishes) == 2 and finishes[0] == 1 and finishes[1] == 1:
+                        rising_star_map[hname] = True
+                    else:
+                        rising_star_map[hname] = False
+                else:
+                    rising_star_map[hname] = False
+
+            def calc_theories_score(group):
+                if (
+                    "馬名_clean" in group.columns
+                    and not group["馬名_clean"].empty
+                ):
+                    h_name = str(
+                        group["馬名_clean"].iloc[0]
+                    )
+                elif (
+                    "馬名" in group.columns
+                    and not group["馬名"].empty
+                ):
+                    h_name = normalize_horse_name(
+                        str(group["馬名"].iloc[0])
+                    )
+                else:
+                    h_name = (
+                        str(group.name)
+                        if group.name
+                        else "不明"
+                    )
+
+                is_rising = rising_star_map.get(
+                    h_name,
+                    False
+                )
+
+                soha_class_rows = []
+                derived_times = []
+                derived_f3s = []
+                f3_history_rows = []
+                f3_skipped_no_excel = 0
+                f3_skipped_reasons = {}
+                f3_rejected_samples = []
+
+                for _, row in group.iterrows():
+                    r_course = str(
+                        row.get(
+                            "場所",
+                            row.get(
+                                "競馬場",
+                                place_name
+                            )
+                        )
+                    ).strip()
+
+                    r_dist = pd.to_numeric(
+                        row.get(
+                            "距離",
+                            0
+                        ),
+                        errors="coerce"
+                    )
+
+                    r_time = pd.to_numeric(
+                        row.get(
+                            "走破タイム",
+                            0
+                        ),
+                        errors="coerce"
+                    )
+
+                    r_f3_time = pd.to_numeric(
+                        row.get(
+                            "上がり3Fタイム",
+                            0
+                        ),
+                        errors="coerce"
+                    )
+
+                    r_baba = str(
+                        row.get(
+                            "馬場状態",
+                            row.get(
+                                "馬場",
+                                "不明"
+                            )
+                        )
+                    ).strip()
+
+                    r_surface = str(
+                        row.get(
+                            "芝・ダ",
+                            surface
+                        )
+                    ).strip()
+
+                    r_class = str(
+                        row.get(
+                            "略レース名",
+                            row.get(
+                                "クラス",
+                                "OP"
+                            )
+                        )
+                    ).strip()
+
+                    r_class_keyword = (
+                        str(r_class)
+                        .strip()
+                        .replace("クラス", "")
+                    )
+   
+                    r_surface_keyword = (
+                        "ダート"
+                        if "ダ" in r_surface
+                        else "芝"
+                    )
+
+                    r_surface_short = (
+                        "ダ"
+                        if "ダ" in r_surface
+                        else "芝"
+                    )
+
+                    if (
+                        pd.isna(r_dist)
+                        or r_dist <= 0
+                    ):
+                        continue
+
+                    past_course_multiplier = 1.0
+
+                    if "小倉" in r_course:
+                        past_course_multiplier = 1.0
+                    elif (
+                        "函館" in r_course
+                        or "札幌" in r_course
+                    ):
+                        past_course_multiplier = 0.99
+
+                    past_c_rank = class_rank_map.get(r_class.replace("クラス", ""))
+
+                    target_c_rank = class_rank_map.get(target_cls.replace("クラス", ""))
+
+                    class_diff = ((target_c_rank - past_c_rank)
+                                  if target_c_rank is not None and past_c_rank is not None else 0)
+                    class_transfer = geo_class_transfer(past_c_rank, target_c_rank)
+
+                    converted_time = np.nan
+
+                    if (
+                        not pd.isna(r_time)
+                        and r_time > 0
+                    ):
+                        adjusted_r_time = (
+                            r_time
+                            * past_course_multiplier
+                        )
+
+                        past_base_time, past_soha_matched_class = geo_soha_master_lookup(
+                            base_master_df, r_course, r_surface_short, r_dist,
+                            r_class, r_baba
+                        )
+                        past_soha_source = (
+                            "Excel・クラス一致（重賞/LはOP）"
+                            if past_base_time is not None else "Excel・該当条件なし（評価除外）"
+                        )
+                        if past_base_time is None or target_soha_missing:
+                            continue
+
+                        # v22: Excelの距離別基準タイムで換算済みのため、
+                        # 追加の距離延長・短縮補正は適用しない。
+                        distance_penalty_or_bonus = 0.0
+
+                        # v49: API共通の段階的クラス補正。0.08を0.4秒に換算。
+                        # 連勝によるクラス補正免除は廃止（表示のみ残す）。
+                        class_level_penalty = -5.0 * class_transfer
+
+                        time_diff = (
+                            past_base_time
+                            - adjusted_r_time
+                        )
+
+                        converted_time = (
+                            target_base_seconds
+                            - time_diff
+                            + distance_penalty_or_bonus
+                            + class_level_penalty
+                        )
 
 
-# ============================================================
-# メンバーレベル（過去レースの相手馬が、その後どれだけ走ったか）
-# ============================================================
+                        if (
+                            not pd.isna(converted_time)
+                            and converted_time > 0
+                        ):
+                            derived_times.append(
+                                converted_time
+                            )
+                            soha_class_rows.append({
+                                "過去年": row.get("年"),
+                                "過去月": row.get("月"),
+                                "過去日": row.get("日"),
+                                "過去着順": row.get("着順"),
+                                "過去実走秒": round(float(r_time), 3),
+                                "過去競馬場": r_course,
+                                "過去距離": r_dist,
+                                "過去クラス": r_class,
+                                "過去クラス階級": past_c_rank,
+                                "今回クラス": target_cls,
+                                "今回クラス階級": target_c_rank,
+                                "階級差": class_diff,
+                                "追加距離補正秒": 0.0,
+                                "クラス補正秒": round(float(class_level_penalty), 3),
+                                "連勝補正秒": 0.0,
+                                "過去走馬場状態": r_baba,
+                                "Excel参照馬場状態": r_baba if r_baba in ("良", "稍重", "重", "不良") else "参照不可",
+                                "過去走馬場状態コード": str(row.get("馬場状態コード", "")),
+                                "過去走芝馬場コード": str(row.get("shiba_babajotai_code", "")),
+                                "過去走ダート馬場コード": str(row.get("dirt_babajotai_code", "")),
+                                "馬場照合結果": "一致" if r_baba in ("良", "稍重", "重", "不良") else "要確認",
+                                "過去基準採用クラス": past_soha_matched_class,
+                                "過去基準参照元": past_soha_source,
+                                "過去基準タイム": round(float(past_base_time), 3),
+                                "今回基準採用クラス": target_soha_matched_class,
+                                "今回基準参照元": target_soha_source,
+                                "今回基準タイム": round(float(target_base_seconds), 3),
+                                "換算走破タイム": round(float(converted_time), 3),
+                                "クラス補正なし換算": round(float(converted_time - class_level_penalty), 3),
+                                "クラス補正の影響": round(float(class_level_penalty), 3),
 
-@st.cache_data(ttl=1800, show_spinner=False)
-def get_horse_field_quality(ketto_toroku_bango, asof_date, limit=3):
-    """指定日までに判明している過去レースのメンバーレベルを取得。
+                            })
+                            
+                    if (
+                        not pd.isna(r_f3_time)
+                        and r_f3_time > 0
+                    ):
+                        past_base_f3 = geo_f3_master_lookup(
+                            f3_master_df, r_course, r_surface_keyword,
+                            r_dist, r_class_keyword, r_baba
+                        )
+                        if past_base_f3 is None or target_f3_missing:
+                            # 原因を分離。予想値の代替値への置換はしない。
+                            if target_f3_missing:
+                                reason = "対象レースExcel基準なし"
+                            elif r_baba not in ("良", "稍重", "重", "不良"):
+                                reason = "過去馬場状態が不明"
+                            else:
+                                reason = "過去走Excel条件不一致（競馬場/距離/クラス/馬場）"
+                            f3_skipped_reasons[reason] = f3_skipped_reasons.get(reason, 0) + 1
+                            f3_skipped_no_excel += 1
+                            if len(f3_rejected_samples) < 12:
+                                f3_rejected_samples.append({
+                                    "除外理由": reason, "race_code": row.get("race_code"),
+                                    "競馬場": r_course, "芝ダ": r_surface_keyword,
+                                    "距離": r_dist, "クラス": r_class_keyword, "馬場": r_baba,
+                                    "馬場コード": row.get("馬場状態コード"),
+                                    "芝コード": row.get("shiba_babajotai_code"),
+                                    "ダートコード": row.get("dirt_babajotai_code"),
+                                    "上がり3F": r_f3_time,
+                                })
+                            continue
 
-    field-quality APIが利用できない場合はNoneを返し、従来予想を維持する。
-    """
-    horse_id = str(ketto_toroku_bango or "").strip()
-    if not horse_id:
-        return None
-    try:
-        from urllib.parse import quote
-        response = requests.get(
-            f"{API_BASE.rstrip('/')}/geo/field-quality/debug/{quote(horse_id, safe='')}",
-            params={"asof": str(asof_date), "limit": int(limit)},
-            timeout=(10, 90),
-        )
-        response.raise_for_status()
-        payload = response.json()
-        if not payload.get("ok"):
-            return None
-        runs = payload.get("runs", []) or []
-        # 取得された過去走のうち、スコアが算出できている直近最大3レースを平均。
-        valid = []
-        for run in runs:
-            fq = run.get("field_quality") or {}
-            value = fq.get("score")
+                        f3_diff = (
+                            r_f3_time
+                            - past_base_f3
+                        )
+
+                        f3_class_adjustment = 0.0
+
+                        if r_surface_keyword == "ダート":
+                            if class_transfer < 0:
+                                f3_class_adjustment = -class_transfer * (0.15 / 0.08)
+                            elif class_transfer > 0:
+                                f3_class_adjustment = -class_transfer * (0.10 / 0.08)
+
+                        converted_f3 = (
+                            target_base_f3
+                            + f3_diff
+                            + f3_class_adjustment
+                        )
+
+                        derived_f3s.append(
+                            converted_f3
+                        )
+
+                        f3_history_rows.append({
+                            "過去競馬場": r_course,
+                            "過去芝ダ": r_surface_keyword,
+                            "過去距離": int(r_dist),
+                            "過去クラス": r_class_keyword,
+                            "過去馬場": r_baba,
+                            "実測上がり3F": float(r_f3_time),
+                            "過去基準3F": float(past_base_f3),
+                            "過去基準差": float(f3_diff),
+                            "クラス補正秒": float(f3_class_adjustment),
+                            "換算上がり3F": float(converted_f3),
+                            "過去基準フォールバック疑い": False,
+                        })
+
+                soha_score = 0.0
+                if derived_times and not target_soha_missing:
+                    # v46: newest valid past run has weight 1.0, then -0.20 per run.
+                    # The 6th valid run is 0; use the original newest-to-oldest order.
+                    _v46_weights = [max(0.0, 1.0 - 0.20 * i) for i in range(len(derived_times))]
+                    val_to_use = float(np.average(derived_times, weights=_v46_weights))
+
+                    horse_predicted_time_map[h_name] = val_to_use
+
+                    time_advantage = (
+                        target_base_seconds
+                        - val_to_use
+                    )
+
+                    soha_score = max(
+                        -5.0,
+                        min(
+                            12.0,
+                            time_advantage * 3.0
+                        )
+                    )
+
+                horse_soha_class_diagnostics[h_name] = {
+                    "対象クラス": target_cls,
+                    "対象基準採用クラス": target_soha_matched_class,
+                    "対象基準参照元": target_soha_source,
+                    "有効過去走数": len(soha_class_rows),
+                    "v46走破集約": "直近加重平均（減少幅0.20）",
+                    "過去走詳細": soha_class_rows,
+                }
+
+                f3_score = 0.0
+                f3_val_to_use = None
+                f3_advantage = None
+                f3_raw_score = None
+
+                if derived_f3s and not target_f3_missing:
+                    sorted_f3s = sorted(
+                        derived_f3s
+                    )
+
+                    f3_val_to_use = float(
+                        np.median(
+                            sorted_f3s
+                        )
+                    )
+
+                    f3_advantage = (
+                        target_base_f3
+                        - f3_val_to_use
+                    )
+
+                    f3_raw_score = (
+                        f3_advantage * 2.5 * f3_weight_factor
+                    )
+                    f3_score = max(-3.0, min(10.0, f3_raw_score))
+                horse_f3_diagnostics_map[h_name] = {
+                    "対象基準3F": float(target_base_f3),
+                    "対象競馬場": str(place_name),
+                    "対象芝ダ": str(surface_keyword),
+                    "対象距離": int(target_distance),
+                    "対象クラス": str(target_base_class),
+                    "対象馬場": str(condition),
+                    "対象基準フォールバック疑い": False,
+                    "対象基準Excel一致": not target_f3_missing,
+                    "有効過去走数": len(derived_f3s),
+                    "Excel不一致で除外した過去走": f3_skipped_no_excel,
+                    "除外理由別件数": f3_skipped_reasons,
+                    "除外された過去走の例": f3_rejected_samples,
+                    "換算3F中央値": f3_val_to_use,
+                    "基準との差（秒）": f3_advantage,
+                    "3F重み係数": float(f3_weight_factor),
+                    "制限前の3F点": f3_raw_score,
+                    "制限後の3F点": float(f3_score),
+                    "下限-3に到達": bool(f3_raw_score is not None and f3_raw_score <= -3.0),
+                    "過去走詳細": f3_history_rows,
+                }
+
+                if straight_length < 320:
+                    combined_score = (
+                        soha_score * 0.75
+                        + f3_score * 0.25
+                    )
+                elif 320 <= straight_length < 400:
+                    combined_score = (
+                        soha_score * 0.7
+                        + f3_score * 0.3
+                    )
+                else:
+                    combined_score = (
+                        soha_score * 0.6
+                        + f3_score * 0.4
+                    )
+
+                return pd.Series(
+                    {
+                        "soha_score": soha_score,
+                        "f3_score": f3_score,
+                        "combined_score": combined_score,
+                        "is_rising_star": is_rising,
+                    }
+                )
+
+            theories_df = (
+                recent_master_data
+                .groupby("馬名_clean")
+                .apply(
+                    calc_theories_score
+                )
+            )
+
+            if not theories_df.empty:
+                if "soha_score" in theories_df.columns:
+                    horse_soha_theory_map = (
+                        theories_df[
+                            "soha_score"
+                        ].to_dict()
+                    )
+
+                if "f3_score" in theories_df.columns:
+                    horse_f3_theory_bonus_map = (
+                        theories_df[
+                            "f3_score"
+                        ].to_dict()
+                    )
+
+                if "combined_score" in theories_df.columns:
+                    horse_course_fit_map = (
+                        theories_df[
+                            "combined_score"
+                        ].to_dict()
+                    )
+
+            if "着順" in recent_master_data.columns:
+                recent_master_data[
+                    "着順_num"
+                ] = pd.to_numeric(
+                    recent_master_data["着順"],
+                    errors="coerce"
+                )
+
+                avg_finishes = (
+                    recent_master_data
+                    .groupby("馬名_clean")[
+                        "着順_num"
+                    ]
+                    .mean()
+                    .to_dict()
+                )
+
+                for hname, af in avg_finishes.items():
+                    if not pd.isna(af):
+                        horse_ability_map[hname] = max(
+                            0.0,
+                            (
+                                15.0
+                                - (af - 1) * 1.2
+                            ) * 0.5
+                        )
+
+        # v18: 初芝・初ダートを「過去走全体」から判定（予想点数には影響させない）。
+        # データが取得できない馬を初挑戦と誤判定しないよう「要確認」とする。
+        first_surface_map = {}
+        if master_data is not None and not master_data.empty and "馬名_clean" in master_data.columns:
+            for _horse_name, _all_runs in master_data.groupby("馬名_clean"):
+                _surface_series = _all_runs.get("芝・ダ")
+                if _surface_series is None:
+                    first_surface_map[str(_horse_name)] = {"判定": "要確認", "同種過去走": 0, "異種過去走": 0, "判定理由": "芝ダ区分なし"}
+                    continue
+                _surface_str = _surface_series.astype(str).str.strip()
+                _known = _surface_str.str.contains("芝|ダ", regex=True, na=False)
+                _same = _surface_str.str.contains("ダ", na=False) if surface_keyword == "ダート" else (_surface_str.eq("芝"))
+                _other = _surface_str.eq("芝") if surface_keyword == "ダート" else _surface_str.str.contains("ダ", na=False)
+                _same_count = int((_same & _known).sum())
+                _other_count = int((_other & _known).sum())
+                _unknown_count = int((~_known).sum())
+                if _same_count > 0:
+                    _status = "経験あり"
+                    _reason = "今回と同じ芝ダ区分の過去走あり"
+                elif _other_count > 0 and _unknown_count == 0:
+                    _status = "初ダート" if surface_keyword == "ダート" else "初芝"
+                    _reason = "異なる芝ダ区分の過去走のみ"
+                else:
+                    _status = "要確認"
+                    _reason = "過去走未取得・区分不明・新馬の可能性"
+                first_surface_map[str(_horse_name)] = {
+                    "判定": _status, "同種過去走": _same_count,
+                    "異種過去走": _other_count, "区分不明過去走": _unknown_count,
+                    "判定理由": _reason,
+                }
+
+        # v19: 芝ダ初挑戦の専用評価に使う、異種馬場での過去走能力の代理指数。
+        # 過去の「当時の統合指数」はDBに保存されていないため、着順から代理値を作る。
+        # 将来、過去レースの指数が取得可能になったら差し替えを検討する。
+        first_surface_input_map = {}
+        if master_data is not None and not master_data.empty and "馬名_clean" in master_data.columns:
+            for _name, _runs in master_data.groupby("馬名_clean"):
+                _diag = first_surface_map.get(str(_name), {})
+                if _diag.get("判定") not in ("初芝", "初ダート"):
+                    continue
+                _other_runs = _runs.copy()
+                if "芝・ダ" in _other_runs.columns:
+                    _surface_values = _other_runs["芝・ダ"].astype(str).str.strip()
+                    _other_runs = _other_runs[_surface_values.eq("芝") if surface_keyword == "ダート" else _surface_values.str.contains("ダ", na=False)]
+                if _other_runs.empty:
+                    continue
+                _recent = _other_runs.head(6)
+                _finishes = pd.to_numeric(_recent["着順"], errors="coerce") if "着順" in _recent.columns else pd.Series(dtype=float)
+                _finishes = _finishes[(_finishes >= 1) & (_finishes <= 18)]
+                if _finishes.empty:
+                    continue
+                _avg_finish = float(_finishes.mean())
+                # 仮説：平均1着→85点、平均6着→70点、平均11着→55点。
+                _proxy_index = 70.0 + max(-15.0, min(15.0, (6.0 - _avg_finish) * 3.0))
+                _distance_col = next((c for c in ("距離", "距離_num") if c in _recent.columns), None)
+                _distances = pd.to_numeric(_recent[_distance_col], errors="coerce") if _distance_col else pd.Series(dtype=float)
+                _distances = _distances[(_distances >= 800) & (_distances <= 4000)]
+                _median_distance = float(_distances.median()) if not _distances.empty else None
+                first_surface_input_map[str(_name)] = {
+                    "代理能力指数": _proxy_index, "平均着順": _avg_finish,
+                    "能力使用走数": int(len(_finishes)), "異種馬場の中央値距離": _median_distance,
+                }
+
+        scored_horses = []
+        index_breakdowns = []
+        rising_star_flags = []
+        inferred_styles = []
+
+        for idx, r in res_df.iterrows():
+            hname_clean = str(
+                r.get(
+                    "馬名_clean",
+                    ""
+                )
+            )
+
+            kyakushitsu = style_map.get(
+                r.get("馬名_clean"),
+                "差し"
+            )
+
+            inferred_styles.append(
+                kyakushitsu
+            )
+
+            tokui_baba = str(
+                r.get(
+                    "得意馬場",
+                    "指定なし"
+                )
+            )
+
             try:
-                value = float(value)
-            except (TypeError, ValueError):
-                continue
-            if 0 <= value <= 100:
-                valid.append((value, fq, run))
-            if len(valid) >= 3:
-                break
-        if not valid:
-            return {
-                "score": None,
-                "label": "判定材料不足",
-                "races_used": 0,
-                "asof": str(asof_date),
+                wakuban = int(
+                    r.get(
+                        "枠番",
+                        1
+                    )
+                )
+            except Exception:
+                wakuban = 1
+
+            ability_bonus = horse_ability_map.get(
+                hname_clean,
+                2.5
+            )
+
+            soha_theory_bonus = (
+                horse_soha_theory_map.get(
+                    hname_clean,
+                    0.0
+                )
+            )
+
+            f3_theory_bonus = (
+                horse_f3_theory_bonus_map.get(
+                    hname_clean,
+                    0.0
+                )
+            )
+
+            combined_theory_bonus = (
+                horse_course_fit_map.get(
+                    hname_clean,
+                    0.0
+                )
+            )
+
+            is_rising = rising_star_map.get(
+                hname_clean,
+                False
+            )
+
+            rising_star_flags.append(
+                "🌟 2連勝中"
+                if is_rising
+                else "-"
+            )
+
+            toughness_effect = (
+                toughness_val - 1.0
+            ) * 4.0
+
+            # GEO基礎統合指数：実際の加点・減点を予想時点で記録する。
+            # 表示のための再計算ではなく、計算そのものと同じ内訳を保存する。
+            components = {
+                "基礎点": 70.0,
+                "着順能力": float(ability_bonus),
+                "コース適性": float(combined_theory_bonus),
+                "走破タイム": float(soha_theory_bonus) * 1.2,
+                "上がり3F": float(f3_theory_bonus),
+                "連勝": 0.0,
+                "タフネス": 0.0,
+                "直線・脚質": 0.0,
+                "ペース": 0.0,
+                "馬場バイアス": 0.0,
+                "得意馬場": 0.0,
             }
-        score = round(sum(x[0] for x in valid) / len(valid), 1)
-        label = "強め" if score >= 65 else "標準" if score >= 45 else "弱め"
-        return {
-            "score": score,
-            "label": label,
-            "races_used": len(valid),
-            "asof": str(asof_date),
-            "latest_race_date": str(valid[0][2].get("kaisai_nen", "")) + str(valid[0][2].get("kaisai_gappi", "")),
-        }
-    except Exception as e:
-        return {"score": None, "label": "API取得失敗", "races_used": 0,
-                "asof": str(asof_date), "error": f"{type(e).__name__}: {e}"}
+
+            if toughness_val >= 1.2 and kyakushitsu in ["逃げ", "先行"]:
+                components["タフネス"] = float(toughness_effect) * 1.5
+
+            if straight_length < 320:
+                if kyakushitsu in ["逃げ", "先行"]:
+                    components["直線・脚質"] = 5.0
+                elif kyakushitsu in ["差し", "追込"]:
+                    components["直線・脚質"] = -2.0
+
+            if pace == "S（スロー）" and kyakushitsu in ["逃げ", "先行"]:
+                components["ペース"] = 3.0
+            elif pace == "H（ハイ）" and kyakushitsu in ["差し", "追込"]:
+                components["ペース"] = 4.5 + float(f3_theory_bonus) * 0.5
+
+            if bias == "内有利" and wakuban <= 3:
+                components["馬場バイアス"] = 3.0
+            elif bias == "外有利" and wakuban >= 6:
+                components["馬場バイアス"] = 3.0
+
+            if tokui_baba == condition:
+                components["得意馬場"] = 5.0
+
+            # v37: 初芝・初ダートは異種馬場の過去走から作った代理能力の
+            # 基礎点70からの差を70%転用。統合指数に反映し、最終評価では二重加点しない。
+            _first_diag_for_index = first_surface_map.get(str(hname_clean), {})
+            _first_material_for_index = first_surface_input_map.get(str(hname_clean), {})
+            _transfer_ability_for_index = 0.0
+            if _first_diag_for_index.get("判定") in ("初芝", "初ダート"):
+                _proxy = _first_material_for_index.get("代理能力指数")
+                if _proxy is not None:
+                    _transfer_ability_for_index = max(-6.0, min(6.0, (float(_proxy) - 70.0) * 0.70))
+            # v38: 診断専用。既存の採点値や補正上限は一切変更しない。
+            if _first_diag_for_index.get("判定") in ("初芝", "初ダート"):
+                _proxy_for_debug = _first_material_for_index.get("代理能力指数")
+                if _proxy_for_debug is not None:
+                    _raw_for_debug = (float(_proxy_for_debug) - 70.0) * 0.70
+                    _first_material_for_index["転用前補正（上限前）"] = float(_raw_for_debug)
+                    _first_material_for_index["転用補正（上限後）"] = float(_transfer_ability_for_index)
+                    _first_material_for_index["上限到達"] = bool(abs(_raw_for_debug) > 6.0)
+                    _first_material_for_index["診断状態"] = "算出成功"
+                else:
+                    _first_material_for_index["診断状態"] = "代理能力算出不可（着順等を確認）"
+            components["初挑戦・転用能力"] = float(_transfer_ability_for_index)
+
+            raw_index = sum(components.values())
+            index_breakdowns.append(components)
+
+            scored_horses.append(
+                raw_index
+            )
+
+        res_df["芝ダ初挑戦診断"] = [
+            first_surface_map.get(str(name), {
+                "判定": "要確認", "同種過去走": 0, "異種過去走": 0,
+                "判定理由": "過去走データが取得できません",
+            })
+            for name in res_df["馬名_clean"]
+        ]
+        res_df["芝ダ経験"] = res_df["芝ダ初挑戦診断"].apply(lambda x: x.get("判定", "要確認"))
+        res_df["初挑戦能力材料"] = [first_surface_input_map.get(str(name), {}) for name in res_df["馬名_clean"]]
+        res_df["統合指数"] = scored_horses
+        res_df["統合指数内訳"] = index_breakdowns
+        res_df["走破タイムクラス診断"] = [
+            horse_soha_class_diagnostics.get(str(name), {
+                "対象クラス": target_cls, "有効過去走数": 0, "過去走詳細": [],
+                "対象基準参照元": target_soha_source,
+                "対象基準採用クラス": target_soha_matched_class,
+            })
+            for name in res_df["馬名_clean"]
+        ]
+        res_df["上がり3F診断"] = [
+            horse_f3_diagnostics_map.get(str(name), {
+                "有効過去走数": 0, "制限前の3F点": None,
+                "制限後の3F点": 0.0, "過去走詳細": [],
+                "診断": "該当する過去走データがありません",
+            })
+            for name in res_df["馬名_clean"]
+        ]
+        res_df["ライジングスター"] = rising_star_flags
+        res_df["脚質"] = inferred_styles
+
+        res_df = res_df.sort_values(
+            by="統合指数",
+            ascending=False
+        ).reset_index(
+            drop=True
+        )
+
+        res_df["着順予測"] = range(
+            1,
+            len(res_df) + 1
+        )
+
+        times = []
+
+        for i in range(len(res_df)):
+            hname_clean = str(
+                res_df.iloc[i].get(
+                    "馬名_clean",
+                    ""
+                )
+            )
+
+            predicted_time = horse_predicted_time_map.get(
+                hname_clean,
+                np.nan
+            )
+
+            if pd.isna(predicted_time):
+                predicted_time = target_base_seconds
+
+            times.append(
+                round(
+                    float(predicted_time),
+                    1
+                )
+            )
+
+        res_df["予測走破タイム"] = [
+            format_time(t)
+            for t in times
+        ]
+
+        return res_df
 
 
-def enrich_with_field_quality(df, asof_date):
-    """v3: 全出走馬を一度のAPIリクエストで取得。取得失敗と材料不足を区別。"""
-    if df is None or df.empty:
-        return df
-    out = df.copy()
-    out["メンバーレベル"] = None
-    out["メンバーレベル判定"] = "判定材料不足"
-    out["メンバーレベル使用レース数"] = 0
-    out["メンバーレベル取得状況"] = "未取得"
-    out["メンバーレベル信頼度"] = None
-    out["メンバーレベル後続走数"] = None
-    targets = []
-    for idx, row in out.iterrows():
-        hid = str(row.get("血統登録番号", row.get("ketto_toroku_bango", "")) or "").strip()
-        if hid:
-            targets.append((idx, hid))
-    if targets:
+    # =========================================================
+    # シミュレーション実行
+    # =========================================================
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+
+    if st.button(
+        "🚀 走破タイム×上がり3F完全統合シミュレーションを実行"
+    ):
+        with st.spinner(
+            "JRA-VANから各馬の過去走を取得し、"
+            "基準走破タイム・基準上がり3Fと照合しています..."
+        ):
+            master_data = build_master_data_from_jv(
+                df_race
+            )
+
+            if master_data.empty:
+                st.error(
+                    "JRA-VANから過去走データを取得できませんでした。"
+                )
+                st.stop()
+
+            st.session_state[
+                "df_simulated"
+            ] = run_integrated_simulation(
+                df_race,
+                selected_pace,
+                selected_bias,
+                selected_condition,
+                master_data,
+                race_category,
+                straight_len,
+                race_place,
+                race_surface,
+                course_toughness,
+                race_class,
+                df_base_master,
+                df_f3_master,
+            )
+
+            st.session_state[
+                "sim_executed"
+            ] = True
+
+            st.session_state[
+                "master_data_jv"
+            ] = master_data
+
+            st.success(
+                f"JRA-VAN過去走 {len(master_data)}件を取得して計算しました。"
+            )
+
+    # ============================================================
+    # Geo予想をSQLiteへ自動保存
+    # ============================================================
+
+    def save_geo_prediction(
+        race_id,
+        geo,
+        pace,
+        bias,
+        condition,
+        race_info=None
+    ):
+
         try:
+            race_id = str(
+                race_id or ""
+            ).strip()
+
+            if not race_id:
+                st.warning(
+                    "⚠️ race_idが取得できないため、"
+                    "Geo予想を保存できません"
+                )
+                return False
+
+            race_info = race_info or {}
+
+            honmei = geo.get("honmei")
+            taikou = geo.get("second")
+            tanaku = geo.get("third")
+
+            if honmei is None:
+                st.warning(
+                    "⚠️ ジオ本命が取得できないため、"
+                    "予想を保存できません"
+                )
+                return False
+
+            def get_umaban(horse):
+                if horse is None:
+                    return ""
+                value = horse.get("馬番", "")
+                if pd.isna(value):
+                    return ""
+                try:
+                    if float(value).is_integer():
+                        return str(int(float(value)))
+                except Exception:
+                    pass
+                return str(value).strip()
+
+            def get_bamei(horse):
+                if horse is None:
+                    return ""
+                return str(horse.get("馬名", "")).strip()
+
+            def get_score(horse):
+                if horse is None:
+                    return None
+                try:
+                    value = horse.get("ジオ評価")
+                    if value is None or pd.isna(value):
+                        return None
+                    return float(value)
+                except Exception:
+                    return None
+
+            tickets = geo.get("tickets", [])
+            ticket1 = str(tickets[0]).replace(" ", "") if len(tickets) >= 1 else ""
+            ticket2 = str(tickets[1]).replace(" ", "") if len(tickets) >= 2 else ""
+
+            payload = {
+                "race_id": race_id,
+                "race_date": race_info.get("date"),
+                "venue": race_info.get("venue"),
+                "race_no": race_info.get("race_no"),
+                "race_name": race_info.get("name"),
+                "pace": pace,
+                "bias": bias,
+                "condition": condition,
+                "honmei_umaban": get_umaban(honmei),
+                "honmei_bamei": get_bamei(honmei),
+                "honmei_score": get_score(honmei),
+                "taikou_umaban": get_umaban(taikou),
+                "taikou_bamei": get_bamei(taikou),
+                "taikou_score": get_score(taikou),
+                "tanaku_umaban": get_umaban(tanaku),
+                "tanaku_bamei": get_bamei(tanaku),
+                "tanaku_score": get_score(tanaku),
+                "confidence": geo.get("confidence", 0),
+                "decision": geo.get("decision", ""),
+                "ticket1": ticket1,
+                "ticket2": ticket2,
+                "runners": [],
+            }
+
+            # ◎○▲だけでなく全出走馬の予想時点特徴量を送信。着順など未来情報は含めない。
+            runner_df = geo.get("df_geo")
+            if isinstance(runner_df, pd.DataFrame) and not runner_df.empty:
+                excluded = {"着順", "確定着順", "着順予測", "実着順", "払戻", "配当", "結果", "top3", "win"}
+                for rank, (_, runner) in enumerate(runner_df.iterrows(), start=1):
+                    features = {}
+                    for col, value in runner.items():
+                        if str(col) in excluded or str(col) in {"馬番", "馬名", "ジオ評価"}:
+                            continue
+                        try:
+                            if value is None or pd.isna(value):
+                                continue
+                        except (TypeError, ValueError):
+                            pass
+                        if isinstance(value, (str, int, float, bool)):
+                            try:
+                                import math
+                                if isinstance(value, (int, float)) and not math.isfinite(float(value)):
+                                    continue
+                            except (TypeError, ValueError, OverflowError):
+                                continue
+                            features[str(col)] = value
+                        elif hasattr(value, "item"):
+                            scalar = value.item()
+                            if isinstance(scalar, (str, int, float, bool)):
+                                features[str(col)] = scalar
+                        elif isinstance(value, dict):
+                            # 血統適性など辞書型の特徴量も予想時点の値だけ保存
+                            features[str(col)] = {str(k): v for k, v in value.items() if isinstance(v, (str, int, float, bool)) or v is None}
+                    payload["runners"].append({
+                        "umaban": get_umaban(runner),
+                        "bamei": get_bamei(runner),
+                        "predicted_rank": rank,
+                        "geo_score": get_score(runner),
+                        "features": features,
+                    })
+
             response = requests.post(
-                f"{API_BASE.rstrip('/')}/geo/field-quality/batch",
-                json={"horse_ids": list(dict.fromkeys(hid for _, hid in targets)),
-                      "asof": str(asof_date), "limit": 3},
+                f"{API_BASE}/geo/prediction",
+                json=payload,
+                timeout=10
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("ok"):
+                    if result.get("skipped_existing"):
+                        return True  # 既存予想を保護。全頭データを後付けで捏造しない。
+                    saved_count = int(result.get("runner_count", -1))
+                    expected_count = len(payload["runners"])
+                    if saved_count != expected_count:
+                        st.warning(f"⚠️ v6 全頭保存の件数不一致: {saved_count}/{expected_count}")
+                        return False
+                    return True
+                st.warning(f"⚠️ Geo予想保存失敗: {result.get('error')}")
+                return False
+
+            try:
+                reason = response.json().get("error", "")
+            except (ValueError, AttributeError):
+                reason = response.text[:250]
+            st.warning(f"⚠️ Geo予想保存APIエラー: {response.status_code} / {reason}")
+            return False
+
+        except Exception as e:
+            st.warning(f"⚠️ Geo予想保存エラー: {e}")
+            return False
+
+
+    def apply_geo_learning_adjustment(df, pace, bias, condition, venue=""):
+        """最新APIの学習プロファイルによる補正を安全に適用する。"""
+        if df is None or df.empty:
+            return df
+        df = df.copy()
+        df["学習補正"] = 0.0
+        df["学習一致条件"] = ""
+        df["学習補正内訳"] = ""
+        try:
+            horses = []
+            for _, row in df.iterrows():
+                try:
+                    score = float(row.get("ジオ評価", row.get("統合指数", 0)) or 0)
+                except Exception:
+                    score = 0.0
+                horses.append({"umaban": str(row.get("馬番", "")).replace(".0", ""), "score": score})
+            response = requests.post(
+                f"{API_BASE.rstrip('/')}/geo/learning/adjustment",
+                json={"pace": pace, "bias": bias, "condition": condition, "venue": venue, "horses": horses},
+                timeout=15,
+            )
+            response.raise_for_status()
+            data = response.json()
+            if not data.get("ok"):
+                st.warning(f"自己学習APIがエラーを返しました: {data.get('error', '詳細なし')}")
+                return df
+            adjustment_map = {}
+            for item in data.get("adjustments", []) or []:
+                key = str(item.get("umaban", "")).replace(".0", "")
+                try:
+                    adjustment = float(item.get("adjustment", 0) or 0)
+                except Exception:
+                    adjustment = 0.0
+                matched = item.get("matched_effects") or []
+                if matched:
+                    detail = "、".join(
+                        f"{x.get('feature_key', '?')}({float(x.get('effect', 0) or 0):+.2f}点・n={int(x.get('sample_count', 0) or 0)})"
+                        for x in matched
+                    )
+                else:
+                    detail = "一致条件なし"
+                adjustment_map[key] = {
+                    "adjustment": adjustment,
+                    "matched_features": item.get("matched_features") or [],
+                    "detail": detail,
+                }
+            for idx in df.index:
+                key = str(df.loc[idx].get("馬番", "")).replace(".0", "")
+                item = adjustment_map.get(key, {"adjustment": 0.0, "matched_features": [], "detail": "API応答なし"})
+                adjustment = max(-5.0, min(5.0, float(item["adjustment"]) * 2.0))
+                df.loc[idx, "学習補正"] = adjustment
+                df.loc[idx, "学習一致条件"] = "、".join(item["matched_features"]) or "一致条件なし"
+                df.loc[idx, "学習補正内訳"] = item["detail"]
+                details = df.at[idx, "最終評価内訳"] if "最終評価内訳" in df.columns else None
+                if isinstance(details, dict):
+                    details = dict(details)
+                    details["自己学習"] = adjustment
+                    df.at[idx, "最終評価内訳"] = details
+                df.loc[idx, "ジオ評価"] = float(df.loc[idx, "ジオ評価"]) + adjustment
+            return df
+        except Exception as exc:
+            st.warning(f"自己学習補正の取得に失敗したため0点で続行: {type(exc).__name__}: {exc}")
+            return df
+
+
+    # ============================================================
+    # メンバーレベル（過去レースの相手馬が、その後どれだけ走ったか）
+    # ============================================================
+
+    @st.cache_data(ttl=1800, show_spinner=False)
+    def get_horse_field_quality(ketto_toroku_bango, asof_date, limit=3):
+        """指定日までに判明している過去レースのメンバーレベルを取得。
+
+        field-quality APIが利用できない場合はNoneを返し、従来予想を維持する。
+        """
+        horse_id = str(ketto_toroku_bango or "").strip()
+        if not horse_id:
+            return None
+        try:
+            from urllib.parse import quote
+            response = requests.get(
+                f"{API_BASE.rstrip('/')}/geo/field-quality/debug/{quote(horse_id, safe='')}",
+                params={"asof": str(asof_date), "limit": int(limit)},
                 timeout=(10, 90),
             )
             response.raise_for_status()
             payload = response.json()
-            if not payload.get('ok'):
-                raise ValueError(payload.get('error', 'API応答異常'))
-            results = payload.get('results') or {}
-            for idx, hid in targets:
-                result = results.get(hid) or {}
-                score = result.get('score')
-                out.at[idx, 'メンバーレベル'] = score
-                out.at[idx, 'メンバーレベル判定'] = result.get('label', '判定材料不足')
-                out.at[idx, 'メンバーレベル使用レース数'] = int(result.get('races_used', 0) or 0)
-                out.at[idx, 'メンバーレベル取得状況'] = ('取得成功' if score is not None else '判定材料不足')
-                out.at[idx, 'メンバーレベル信頼度'] = result.get('confidence')
-                out.at[idx, 'メンバーレベル後続走数'] = result.get('followup_starts_used')
-            elapsed = payload.get('elapsed_seconds')
-        except Exception as exc:
-            error = f'{type(exc).__name__}: {exc}'[:180]
-            for idx, _ in targets:
-                out.at[idx, 'メンバーレベル判定'] = 'API取得失敗'
-                out.at[idx, 'メンバーレベル取得状況'] = error
+            if not payload.get("ok"):
+                return None
+            runs = payload.get("runs", []) or []
+            # 取得された過去走のうち、スコアが算出できている直近最大3レースを平均。
+            valid = []
+            for run in runs:
+                fq = run.get("field_quality") or {}
+                value = fq.get("score")
+                try:
+                    value = float(value)
+                except (TypeError, ValueError):
+                    continue
+                if 0 <= value <= 100:
+                    valid.append((value, fq, run))
+                if len(valid) >= 3:
+                    break
+            if not valid:
+                return {
+                    "score": None,
+                    "label": "判定材料不足",
+                    "races_used": 0,
+                    "asof": str(asof_date),
+                }
+            score = round(sum(x[0] for x in valid) / len(valid), 1)
+            label = "強め" if score >= 65 else "標準" if score >= 45 else "弱め"
+            return {
+                "score": score,
+                "label": label,
+                "races_used": len(valid),
+                "asof": str(asof_date),
+                "latest_race_date": str(valid[0][2].get("kaisai_nen", "")) + str(valid[0][2].get("kaisai_gappi", "")),
+            }
+        except Exception as e:
+            return {"score": None, "label": "API取得失敗", "races_used": 0,
+                    "asof": str(asof_date), "error": f"{type(e).__name__}: {e}"}
+
+
+    def enrich_with_field_quality(df, asof_date):
+        """v3: 全出走馬を一度のAPIリクエストで取得。取得失敗と材料不足を区別。"""
+        if df is None or df.empty:
+            return df
+        out = df.copy()
+        out["メンバーレベル"] = None
+        out["メンバーレベル判定"] = "判定材料不足"
+        out["メンバーレベル使用レース数"] = 0
+        out["メンバーレベル取得状況"] = "未取得"
+        out["メンバーレベル信頼度"] = None
+        out["メンバーレベル後続走数"] = None
+        targets = []
+        for idx, row in out.iterrows():
+            hid = str(row.get("血統登録番号", row.get("ketto_toroku_bango", "")) or "").strip()
+            if hid:
+                targets.append((idx, hid))
+        if targets:
+            try:
+                response = requests.post(
+                    f"{API_BASE.rstrip('/')}/geo/field-quality/batch",
+                    json={"horse_ids": list(dict.fromkeys(hid for _, hid in targets)),
+                          "asof": str(asof_date), "limit": 3},
+                    timeout=(10, 90),
+                )
+                response.raise_for_status()
+                payload = response.json()
+                if not payload.get('ok'):
+                    raise ValueError(payload.get('error', 'API応答異常'))
+                results = payload.get('results') or {}
+                for idx, hid in targets:
+                    result = results.get(hid) or {}
+                    score = result.get('score')
+                    out.at[idx, 'メンバーレベル'] = score
+                    out.at[idx, 'メンバーレベル判定'] = result.get('label', '判定材料不足')
+                    out.at[idx, 'メンバーレベル使用レース数'] = int(result.get('races_used', 0) or 0)
+                    out.at[idx, 'メンバーレベル取得状況'] = ('取得成功' if score is not None else '判定材料不足')
+                    out.at[idx, 'メンバーレベル信頼度'] = result.get('confidence')
+                    out.at[idx, 'メンバーレベル後続走数'] = result.get('followup_starts_used')
+                elapsed = payload.get('elapsed_seconds')
+            except Exception as exc:
+                error = f'{type(exc).__name__}: {exc}'[:180]
+                for idx, _ in targets:
+                    out.at[idx, 'メンバーレベル判定'] = 'API取得失敗'
+                    out.at[idx, 'メンバーレベル取得状況'] = error
+                elapsed = None
+        else:
+            out['メンバーレベル取得状況'] = '血統登録番号なし'
             elapsed = None
-    else:
-        out['メンバーレベル取得状況'] = '血統登録番号なし'
-        elapsed = None
-    st.session_state['geo_field_quality_diagnostics'] = {
-        'api_base': API_BASE, 'asof_date': str(asof_date),
-        'horses_total': len(out), 'horses_with_id': len(targets),
-        'scores_ok': int(pd.to_numeric(out['メンバーレベル'], errors='coerce').notna().sum()),
-        'elapsed_seconds': elapsed,
-        'status_counts': out['メンバーレベル取得状況'].value_counts(dropna=False).to_dict(),
-        'samples': out[[c for c in ['馬名', '血統登録番号', 'メンバーレベル',
-                   'メンバーレベル判定', 'メンバーレベル取得状況'] if c in out.columns]].head(8).to_dict('records'),
-    }
-    return out
+        st.session_state['geo_field_quality_diagnostics'] = {
+            'api_base': API_BASE, 'asof_date': str(asof_date),
+            'horses_total': len(out), 'horses_with_id': len(targets),
+            'scores_ok': int(pd.to_numeric(out['メンバーレベル'], errors='coerce').notna().sum()),
+            'elapsed_seconds': elapsed,
+            'status_counts': out['メンバーレベル取得状況'].value_counts(dropna=False).to_dict(),
+            'samples': out[[c for c in ['馬名', '血統登録番号', 'メンバーレベル',
+                       'メンバーレベル判定', 'メンバーレベル取得状況'] if c in out.columns]].head(8).to_dict('records'),
+        }
+        return out
 
 
-def geo47_get_prediction(race_id, max_wait_seconds=900):
-    """Start an async prediction and poll using short requests (Tunnel-safe)."""
-    import time
-    base = API_BASE.rstrip('/')
-    start = requests.get(f'{base}/geo/new/predict/{race_id}/async', timeout=(10, 30))
-    if not start.ok:
-        raise RuntimeError(f'新ジオ非同期開始 HTTP {start.status_code}: {start.text[:250]}')
-    data = start.json()
-    if not data.get('ok') or not data.get('job_id'):
-        raise RuntimeError('新ジオ開始エラー: ' + str(data.get('error', data)))
-    job_id = data['job_id']
-    status_area = st.empty()
-    began = time.monotonic()
-    while time.monotonic() - began < max_wait_seconds:
-        elapsed = int(time.monotonic() - began)
-        status_area.info(f'新ジオ計算中… {elapsed}秒経過（JRA-VAN特徴量・モデル学習）')
-        try:
-            response = requests.get(f'{base}/geo/new/predict/status/{job_id}', timeout=(10, 30))
-            if not response.ok:
-                raise RuntimeError(f'状態確認 HTTP {response.status_code}: {response.text[:200]}')
-            status = response.json()
-        except requests.RequestException:
+    def geo47_get_prediction(race_id, max_wait_seconds=900):
+        """Start an async prediction and poll using short requests (Tunnel-safe)."""
+        import time
+        base = API_BASE.rstrip('/')
+        start = requests.get(f'{base}/geo/new/predict/{race_id}/async', timeout=(10, 30))
+        if not start.ok:
+            raise RuntimeError(f'新ジオ非同期開始 HTTP {start.status_code}: {start.text[:250]}')
+        data = start.json()
+        if not data.get('ok') or not data.get('job_id'):
+            raise RuntimeError('新ジオ開始エラー: ' + str(data.get('error', data)))
+        job_id = data['job_id']
+        status_area = st.empty()
+        began = time.monotonic()
+        while time.monotonic() - began < max_wait_seconds:
+            elapsed = int(time.monotonic() - began)
+            status_area.info(f'新ジオ計算中… {elapsed}秒経過（JRA-VAN特徴量・モデル学習）')
+            try:
+                response = requests.get(f'{base}/geo/new/predict/status/{job_id}', timeout=(10, 30))
+                if not response.ok:
+                    raise RuntimeError(f'状態確認 HTTP {response.status_code}: {response.text[:200]}')
+                status = response.json()
+            except requests.RequestException:
+                time.sleep(4)
+                continue
+            stage=status.get('stage','計算中')
+            done=status.get('done',0); total=status.get('total',0)
+            status_area.info(f'新ジオ：{stage}（{done}/{total}レース）・{elapsed}秒経過' if total else f'新ジオ：{stage}・{elapsed}秒経過')
+            if status.get('status') == 'complete':
+                status_area.empty()
+                result = status.get('result')
+                if not isinstance(result, dict) or not result.get('ok'):
+                    raise RuntimeError('新ジオ計算結果が不正です')
+                return result
+            if status.get('status') == 'error':
+                status_area.empty()
+                raise RuntimeError('新ジオ計算エラー: ' + str(status.get('error', 'unknown')))
+            if not status.get('ok'):
+                raise RuntimeError('新ジオ状態確認エラー: ' + str(status.get('error', status)))
             time.sleep(4)
-            continue
-        stage=status.get('stage','計算中')
-        done=status.get('done',0); total=status.get('total',0)
-        status_area.info(f'新ジオ：{stage}（{done}/{total}レース）・{elapsed}秒経過' if total else f'新ジオ：{stage}・{elapsed}秒経過')
-        if status.get('status') == 'complete':
-            status_area.empty()
-            result = status.get('result')
-            if not isinstance(result, dict) or not result.get('ok'):
-                raise RuntimeError('新ジオ計算結果が不正です')
-            return result
-        if status.get('status') == 'error':
-            status_area.empty()
-            raise RuntimeError('新ジオ計算エラー: ' + str(status.get('error', 'unknown')))
-        if not status.get('ok'):
-            raise RuntimeError('新ジオ状態確認エラー: ' + str(status.get('error', status)))
-        time.sleep(4)
-    status_area.empty()
-    raise TimeoutError(f'新ジオ予想が{max_wait_seconds}秒以内に完了しません。ジョブID: {job_id}')
+        status_area.empty()
+        raise TimeoutError(f'新ジオ予想が{max_wait_seconds}秒以内に完了しません。ジョブID: {job_id}')
 
 
-def run_geo_prediction(
-    df_sim,
-    pace,
-    bias,
-    condition,
-    venue="",
-    asof_date=None,
-    race_id=None,
-):
+    def run_geo_prediction(
+        df_sim,
+        pace,
+        bias,
+        condition,
+        venue="",
+        asof_date=None,
+        race_id=None,
+    ):
 
-    # Phase16.50: 新ジオ専用。旧ジオの統合指数・補正・学習補正は実行しない。
-    if not race_id:
-        st.error("新ジオ予想にはレースIDが必要です。")
-        return None
-    try:
-        payload = geo47_get_prediction(str(race_id))
-        if not isinstance(payload, dict) or not payload.get("ok"):
-            raise RuntimeError((payload or {}).get("error", "新ジオAPIの応答が不正です"))
-        raw = payload.get("horses")
-        if not isinstance(raw, list) or not raw:
-            raise RuntimeError("新ジオAPIに出走馬の予測結果がありません")
-        entries = []
-        seen = set()
-        for item in raw:
-            n = int(item["umaban"])
-            prob = float(item["top3_probability"])
-            if n in seen or not np.isfinite(prob) or not 0 <= prob <= 1:
-                raise ValueError("新ジオの馬番または複勝確率が不正です")
-            seen.add(n)
-            entries.append({"馬番": n, "新ジオ複勝確率": prob, "新ジオ順位": int(item["rank"])})
-        df = pd.DataFrame(entries).sort_values(["新ジオ順位", "馬番"]).reset_index(drop=True)
-        if sorted(df["新ジオ順位"].tolist()) != list(range(1, len(df) + 1)):
-            raise ValueError("新ジオの順位が重複または欠落しています")
-        source = df_sim.copy() if isinstance(df_sim, pd.DataFrame) else pd.DataFrame()
-        if not source.empty and "馬番" in source.columns:
-            source["馬番"] = pd.to_numeric(source["馬番"], errors="coerce")
-            source = source.dropna(subset=["馬番"]).drop_duplicates(subset=["馬番"])
-            source["馬番"] = source["馬番"].astype(int)
-            if set(source["馬番"]) != set(df["馬番"]):
-                raise ValueError("新ジオと出走表の馬番が一致しません")
-            for c in ("馬名", "オッズ"):
-                if c in source.columns:
-                    df = df.merge(source[["馬番", c]], on="馬番", how="left", validate="one_to_one")
-        if "馬名" not in df.columns:
-            df["馬名"] = df["馬番"].map(lambda x: f"{x}番")
-        if "オッズ" not in df.columns:
-            df["オッズ"] = np.nan
-        # Phase18.0: API側のコース補正結果を馬番で照合して並列表示する。
-        # 公式の◎○▲・保存用ジオ評価は従来モデルのまま変更しない。
-        course_payload = payload.get("course_adjusted")
-        course_profile = payload.get("course_profile")
-        course_error = payload.get("course_adjusted_error")
-        course_snapshot = payload.get("course_ab_snapshot")
-        if isinstance(course_payload, dict) and isinstance(course_payload.get("horses"), list):
-            try:
-                adjusted = course_payload["horses"]
-                by_course = {int(h["umaban"]): h for h in adjusted}
-                if len(by_course) != len(adjusted) or set(by_course) != set(df["馬番"]):
-                    raise ValueError("コース補正の馬番が従来予想と一致しません")
-                course_ranks = sorted(int(h["rank"]) for h in adjusted)
-                if course_ranks != list(range(1, len(df) + 1)):
-                    raise ValueError("コース補正の順位が不正です")
-                df["コース補正順位"] = df["馬番"].map(lambda n: int(by_course[int(n)]["rank"]))
-                df["コース補正スコア"] = df["馬番"].map(lambda n: float(by_course[int(n)]["course_score"]))
-                df["順位変動"] = df["新ジオ順位"] - df["コース補正順位"]
-            except (KeyError, ValueError, TypeError) as exc:
-                course_error = str(exc)
-        else:
-            course_error = course_error or "APIにcourse_adjustedがありません。Phase18.0のAPIを確認してください。"
-        # Phase18.1 independent course-suitability model.
-        suitability_payload = payload.get("course_suitability")
-        suitability_error = payload.get("course_suitability_error")
-        if isinstance(suitability_payload, dict) and isinstance(suitability_payload.get("horses"), list):
-            try:
-                sh = suitability_payload["horses"]
-                sm = {int(h["umaban"]): h for h in sh}
-                if len(sm) != len(sh) or set(sm) != set(df["馬番"]):
-                    raise ValueError("適性版の馬番が一致しません")
-                if sorted(int(h["rank"]) for h in sh) != list(range(1,len(df)+1)):
-                    raise ValueError("適性版の順位が不正です")
-                df["適性追加順位"] = df["馬番"].map(lambda n:int(sm[int(n)]["rank"]))
-                df["適性追加指数"] = df["馬番"].map(lambda n:float(sm[int(n)]["course_suitability_score"])*100)
-                df["適性対象過去走"] = df["馬番"].map(lambda n:int(sm[int(n)]["matched_count"]))
-                df["適性順位変動"] = df["新ジオ順位"] - df["適性追加順位"]
-            except (KeyError,ValueError,TypeError) as exc:
-                suitability_error = str(exc)
-        else:
-            suitability_error = suitability_error or "APIにcourse_suitabilityがありません。Phase18.1 APIを確認してください。"
-        # Phase18.2: official nine-feature ranking, validated independently.
-        official_payload = payload.get('official_nine_feature')
-        official_error = None
-        if isinstance(official_payload, dict) and isinstance(official_payload.get('horses'), list):
-            try:
-                oh=official_payload['horses']
-                om={int(h['umaban']):h for h in oh}
-                if len(om)!=len(oh) or set(om)!=set(df['馬番']):
-                    raise ValueError('正式9項目の馬番が一致しません')
-                if sorted(int(h['rank']) for h in oh)!=list(range(1,len(df)+1)):
-                    raise ValueError('正式9項目の順位が不正です')
-                df['正式9項目順位']=df['馬番'].map(lambda n:int(om[int(n)]['rank']))
-                df['正式9項目スコア']=df['馬番'].map(lambda n:float(om[int(n)]['ranking_score']))
-            except (KeyError,ValueError,TypeError) as exc:
-                official_error=str(exc)
-        else:
-            official_error='APIにofficial_nine_featureがありません。Phase18.2 APIを確認してください。'
-        ten_payload=payload.get('official_ten_feature')
-        ten_error=payload.get('course_suitability_error')
-        if isinstance(ten_payload,dict) and isinstance(ten_payload.get('horses'),list):
-            try:
-                th=ten_payload['horses']; tm={int(h['umaban']):h for h in th}
-                if len(tm)!=len(th) or set(tm)!=set(df['馬番']):raise ValueError('正式10項目の馬番が一致しません')
-                if sorted(int(h['rank']) for h in th)!=list(range(1,len(df)+1)):raise ValueError('正式10項目の順位が不正です')
-                df['正式10項目順位']=df['馬番'].map(lambda n:int(tm[int(n)]['rank']))
-                df['正式10項目スコア']=df['馬番'].map(lambda n:float(tm[int(n)]['ranking_score']))
-                df['末脚力指数']=df['馬番'].map(lambda n:float(tm[int(n)]['closing_kick']))
-                df['末脚評価過去走']=df['馬番'].map(lambda n:int(tm[int(n)]['sample_count']))
-                df['昇級クラス補正']=df['馬番'].map(lambda n:float(tm[int(n)].get('class_adjustment_in_ninth') or 0))
-                df['末脚クラス移行係数']=df['馬番'].map(lambda n:float(tm[int(n)].get('class_transfer_factor') or 1))
-            except (KeyError,ValueError,TypeError) as exc:ten_error=str(exc)
-        else:ten_error=ten_error or 'APIにofficial_ten_featureがありません。Phase18.3 APIを確認してください。'
-        joint_payload=payload.get('joint_ten_learned')
-        if isinstance(joint_payload,dict) and joint_payload.get('status')=='trained':
-            jh=joint_payload.get('horses',[]);jm={int(h['umaban']):h for h in jh}
-            if len(jm)==len(df) and set(jm)==set(df['馬番']):
-                df['学習10項目順位']=df['馬番'].map(lambda n:int(jm[int(n)]['rank']))
-                df['学習10項目スコア']=df['馬番'].map(lambda n:float(jm[int(n)]['ranking_score']))
-        # Phase18.6: 個別・全自動の両方で正式10項目を保存順位として採用。
-        # 学習済み10項目は順位が全頭揃っている場合だけ採用し、それ以外はPhase18.4。
-        # APIに正式10項目がない場合、従来8項目へ黙って戻さずエラーにする。
-        if "正式10項目順位" not in df.columns:
-            raise ValueError(f"正式10項目の順位が取得できません: {ten_error}")
-        selected_rank = "正式10項目順位"
-        selected_score = "正式10項目スコア"
-        selected_model = "Phase18.4 正式10項目（暫定係数）"
-        if isinstance(joint_payload, dict) and joint_payload.get("status") == "trained":
-            if "学習10項目順位" not in df.columns:
-                raise ValueError("学習済み10項目の順位が不完全です。保存を中止します")
-            if sorted(df["学習10項目順位"].astype(int).tolist()) != list(range(1, len(df) + 1)):
-                raise ValueError("学習済み10項目の順位が不正です。保存を中止します")
-            selected_rank = "学習10項目順位"
-            selected_score = "学習10項目スコア"
-            selected_model = "Phase18.5 学習済み10項目"
-        df = df.sort_values([selected_rank, "馬番"]).reset_index(drop=True)
-        # ジオ評価は既存の保存API用の数値フィールド。複勝確率ではなく順位スコア。
-        df["ジオ評価"] = pd.to_numeric(df[selected_score], errors="raise") * 100.0
-        if not np.isfinite(df["ジオ評価"].to_numpy(dtype=float)).all():
-            raise ValueError("正式10項目のスコアが不正です")
-        df["予想モデル"] = selected_model
-        top = [df.iloc[i] if len(df) > i else None for i in range(3)]
-        return {"df_geo": df, "honmei": top[0], "second": top[1], "third": top[2],
-                "decision": selected_model + "の順位", "confidence": 0,
-                "gap12": 0, "gap13": 0, "comment": [selected_model + "で◎○▲を決定。ジオ評価は校正済み複勝確率ではありません"],
-                "tickets": [], "reasons": {}, "pace": pace, "bias": bias, "condition": condition,
-                "prediction_model": selected_model,
-                "course_profile": course_profile, "course_error": course_error,
-                "course_snapshot": course_snapshot, "course_payload": course_payload,
-                "suitability_payload": suitability_payload, "suitability_error": suitability_error,
-                "abc_snapshot": payload.get("course_abc_snapshot"),
-                "official_payload":official_payload,"official_error":official_error,
-                "ten_payload":ten_payload,"ten_error":ten_error,"ten_snapshot":payload.get("official_ten_snapshot"),"joint_payload":joint_payload}
-    except Exception as exc:
-        st.error(f"新ジオ予測を取得できません。旧ジオでは代用しません: {exc}")
-        return None
-
-    # 予想対象レース日までに判明している情報だけでメンバーレベルを評価する。
-    # 日付が不明な場合は当日の日付を使い、未来の結果を参照しない。
-    if not asof_date:
-        asof_date = pd.Timestamp.now().strftime("%Y-%m-%d")
-    else:
-        try:
-            asof_date = pd.to_datetime(str(asof_date), errors="raise").strftime("%Y-%m-%d")
-        except Exception:
-            asof_date = pd.Timestamp.now().strftime("%Y-%m-%d")
-    df = enrich_with_field_quality(df, asof_date)
-
-    df["統合指数"] = pd.to_numeric(
-        df["統合指数"],
-        errors="coerce"
-    ).fillna(0)
-
-    df["予測走破タイム"] = pd.to_numeric(
-        df["予測走破タイム"],
-        errors="coerce"
-    )
-
-    df["オッズ"] = pd.to_numeric(
-        df["オッズ"],
-        errors="coerce"
-    ).fillna(999)
-
-    df["ジオ評価"] = df["統合指数"]
-
-    reasons = {}
-    df["最終評価内訳"] = pd.Series([None] * len(df), index=df.index, dtype=object)
-
-    for idx, row in df.iterrows():
-        score = float(row["統合指数"])
-        odds = float(row["オッズ"])
-        horse = str(row.get("馬名", ""))
-        style = str(row.get("脚質", ""))
-        ground = str(row.get("得意馬場", ""))
-
-        point = []
-        bonus = 0
-        penalty = 0
-        components = {"統合指数": score, "能力順位": 0.0, "展開ペース": 0.0,
-                      "馬場適性": 0.0, "馬場バイアス": 0.0, "穴馬評価": 0.0,
-                      "人気先行減点": 0.0, "血統補正": 0.0, "メンバーレベル": 0.0,
-                      "自己学習": 0.0}
-
-
-        # v13: 能力順位ボーナス廃止。統合指数の能力を重複加点しない。
-
-        if pace == "S":
-            if style in ["逃げ", "先行"]:
-                bonus += 7
-                components["展開ペース"] += 7
-                point.append("スローペースなら前有利")
-            elif style == "差し":
-                penalty += 4
-                components["展開ペース"] -= 4
-            elif style == "追込":
-                penalty += 7
-                components["展開ペース"] -= 7
-        elif pace == "M":
-            if style in ["先行", "差し"]:
-                bonus += 4
-                components["展開ペース"] += 4
-                point.append("ミドルペースへの適性")
-        elif pace == "H":
-            if style == "差し":
-                bonus += 7
-                components["展開ペース"] += 7
-                point.append("ハイペースなら差し有利")
-            elif style == "追込":
-                bonus += 5
-                components["展開ペース"] += 5
-                point.append("展開が向けば末脚を活かせる")
-            elif style == "逃げ":
-                penalty += 6
-                components["展開ペース"] -= 6
-
-        if ground and condition in ground:
-            bonus += 5
-            components["馬場適性"] += 5
-            point.append(f"{condition}馬場への適性")
-
-        if bias == "内有利":
-            if style in ["逃げ", "先行"]:
-                bonus += 4
-                components["馬場バイアス"] += 4
-                point.append("内有利の馬場と脚質が合う")
-            elif style == "追込":
-                penalty += 3
-                components["馬場バイアス"] -= 3
-        elif bias == "外有利":
-            if style in ["差し", "追込"]:
-                bonus += 4
-                components["馬場バイアス"] += 4
-                point.append("外有利の馬場と脚質が合う")
-
-        # v12試験案：穴馬ボーナスは0点。オッズは能力順位の押し上げに使用しない。
-        # 馬券期待値の判定は別系統として今後検証する。
-
-        if odds <= 4 and score <= df["統合指数"].quantile(0.4):
-            penalty += 7
-            components["人気先行減点"] -= 7
-            point.append("人気先行の可能性")
-
-        # 血統適性による補正
-        bloodline_bonus = 0.0
-        bloodline = row.get("血統適性", {})
-
-        if isinstance(bloodline, dict):
-            bloodline_score = bloodline.get("score", 50.0)
-            bloodline_confidence = bloodline.get("confidence", "低")
-
-            try:
-                bloodline_score = float(bloodline_score)
-            except (TypeError, ValueError):
-                bloodline_score = 50.0
-
-            bloodline_bonus = (bloodline_score - 50.0) / 6.25
-            # 血統適性はジオ評価へ実効で最大±8点まで反映
-            bloodline_bonus = max(-8.0, min(8.0, bloodline_bonus))
-
-            confidence_factor = {
-                "高": 1.0,
-                "中": 0.85,
-                "やや低": 0.6,
-                "低": 0.4,
-            }.get(bloodline_confidence, 0.5)
-
-            bloodline_bonus = max(-8.0, min(8.0, bloodline_bonus * confidence_factor * 3.0))
-            if bloodline_bonus != 0:
-                # 「血統適性スコア」と「ジオ評価へ実際に加える点数」を区別して表示する。
-                point.append(
-                    f"血統適性スコア({bloodline_score:.1f}/100・信頼度{bloodline_confidence})"
-                    f"／実効補正{bloodline_bonus:+.2f}点"
-                )
-
-        # メンバーレベルは補助材料として最大±4点。データ不足は加点・減点しない。
-        member_bonus = 0.0
-        member_value = row.get("メンバーレベル")
-        try:
-            member_value = float(member_value)
-            if np.isfinite(member_value):
-                member_bonus = max(-8.0, min(8.0, (member_value - 50.0) / 12.5 * 3.0))
-                # v46: only shrink when the API explicitly provides valid sample confidence.
-                _v46_conf = row.get("メンバーレベル信頼度")
-                try:
-                    _v46_conf = float(_v46_conf)
-                    if np.isfinite(_v46_conf) and 0.0 <= _v46_conf <= 1.0:
-                        member_bonus *= _v46_conf
-                except (TypeError, ValueError):
-                    pass
-                point.append(
-                    f"メンバーレベル{member_value:.1f}点（{row.get('メンバーレベル判定', '判定材料不足')}・{int(row.get('メンバーレベル使用レース数', 0) or 0)}レース）"
-                )
-        except (TypeError, ValueError):
-            member_bonus = 0.0
-
-        # v19: 初芝・初ダートのみ専用評価。既存の血統補正と二重計上しない。
-        _first_diag = row.get("芝ダ初挑戦診断", {})
-        _first_inputs = row.get("初挑戦能力材料", {})
-        if not isinstance(_first_diag, dict):
-            _first_diag = {}
-        if not isinstance(_first_inputs, dict):
-            _first_inputs = {}
-        _first_status = _first_diag.get("判定", "")
-        _first_ability = 0.0
-        _first_condition = 0.0
-        if _first_status in ("初ダート", "初芝"):
-            _past_proxy = _first_inputs.get("代理能力指数")
-            if _past_proxy is not None:
-                _transfer_rate = 0.70
-                _first_ability = max(-6.0, min(6.0, (float(_past_proxy) - 70.0) * _transfer_rate))
-            _old_distance = _first_inputs.get("異種馬場の中央値距離")
-            try:
-                _new_distance = float(row.get("距離"))
-                _distance_diff = abs(_new_distance - float(_old_distance))
-                if _distance_diff <= 200:
-                    _first_condition = 2.0
-                elif _distance_diff <= 400:
-                    _first_condition = 1.0
-                elif _distance_diff <= 600:
-                    _first_condition = 0.0
-                elif _distance_diff <= 800:
-                    _first_condition = -1.0
-                else:
-                    _first_condition = -2.0
-            except (TypeError, ValueError):
-                _first_condition = 0.0
-            # 通常の血統補正（最大±8）を専用補正（最大±5）に置換する。
-            # 血統スコア・信頼度は従来の父産駒評価を使用。
-            bloodline_bonus = max(-5.0, min(5.0, float(bloodline_bonus)))
-            point.append(
-                f"{_first_status}専用：統合指数に転用能力{_first_ability:+.2f}点反映済み（再加点なし）"
-                f"（異種馬場の平均着順{_first_inputs.get('平均着順', '不明')}から代理指数算出）、"
-                f"血統{bloodline_bonus:+.2f}点、距離条件{_first_condition:+.2f}点"
-            )
-        # 転用能力は既に統合指数へ算入済み。最終補正には再加算しない。
-        components["初挑戦・転用能力"] = 0.0
-        components["初挑戦・距離条件"] = float(_first_condition)
-        components["血統補正"] = float(bloodline_bonus)
-        components["メンバーレベル"] = float(member_bonus)
-        geo_score = score + bonus - penalty + bloodline_bonus + member_bonus + _first_condition
-        df.at[idx, "最終評価内訳"] = components
-        df.loc[idx, "ジオ評価"] = geo_score
-        reasons[horse] = point
-
-    # 自動学習補正。API障害時は従来ロジックをそのまま継続する。
-    df = apply_geo_learning_adjustment(
-        df, pace=pace, bias=bias, condition=condition, venue=venue
-    )
-    for idx, row in df.iterrows():
-        adjustment = float(row.get("学習補正", 0) or 0)
-        if abs(adjustment) > 0.001:
-            horse = str(row.get("馬名", ""))
-            reasons.setdefault(horse, []).append(
-                f"過去結果からの学習補正{adjustment:+.1f}pt"
-            )
-
-    # Phase16.45: the production model exclusively determines the order.
-    # Never silently substitute the old ranking if the new endpoint fails.
-    if race_id:
-        try:
-            model_data = geo47_get_prediction(str(race_id))
-            if not model_data.get('ok'):
-                raise RuntimeError(model_data.get('error', 'unknown GEO model error'))
-            by_number = {int(x['umaban']): x for x in model_data['horses']}
-            numbers = pd.to_numeric(df['馬番'], errors='coerce')
-            if numbers.isna().any() or len(by_number) != len(df) or set(numbers.astype(int)) != set(by_number):
-                raise RuntimeError('馬番の照合が不一致。旧ジオへの自動切替はしません')
-            df['新ジオ複勝確率'] = numbers.astype(int).map(lambda n: by_number[int(n)]['top3_probability'])
-            df['新ジオ順位'] = numbers.astype(int).map(lambda n: by_number[int(n)]['rank'])
-            df['ジオ評価'] = df['新ジオ複勝確率'] * 100.0
-            df['予想モデル'] = 'Phase16.45 ability_plus_counts/top3'
-            for _, item in df.iterrows():
-                reasons.setdefault(str(item.get('馬名','')), []).insert(0, '新ジオ複勝確率 {:.1%}'.format(item['新ジオ複勝確率']))
-        except Exception as exc:
-            st.error('新ジオ予測を取得できません。旧ジオの印で保存しないよう、このレースの予想を中断します: ' + str(exc))
+        # Phase16.50: 新ジオ専用。旧ジオの統合指数・補正・学習補正は実行しない。
+        if not race_id:
+            st.error("新ジオ予想にはレースIDが必要です。")
             return None
-    else:
-        st.error('新ジオ予測にはレースIDが必要です。旧ジオで代用せず中断します')
-        return None
-    df = df.sort_values('新ジオ順位', ascending=True).reset_index(drop=True)
-
-    honmei = df.iloc[0] if len(df) >= 1 else None
-    second = df.iloc[1] if len(df) >= 2 else None
-    third = df.iloc[2] if len(df) >= 3 else None
-
-    gap12 = (honmei["ジオ評価"] - second["ジオ評価"]) if second is not None else 0
-    gap13 = (honmei["ジオ評価"] - third["ジオ評価"]) if third is not None else 0
-
-    confidence = 60
-    if gap12 >= 15:
-        confidence += 15
-    elif gap12 >= 8:
-        confidence += 8
-    elif gap12 <= 3:
-        confidence -= 8
-
-    if gap13 >= 20:
-        confidence += 8
-
-    if honmei["オッズ"] >= 15:
-        confidence -= 8
-
-    confidence = max(0, min(100, int(confidence)))
-
-    if confidence >= 75:
-        decision = "🔥 買う"
-    elif confidence >= 62:
-        decision = "△ 保留"
-    else:
-        decision = "🚫 見送る"
-
-    main_name = str(honmei["馬名"])
-    main_reason = reasons.get(main_name, [])
-    if not main_reason:
-        main_reason = ["総合的な能力評価を重視"]
-
-    comment = [
-        f"{main_name}をジオの本命◎と判断。",
-        f"統合指数は{honmei['統合指数']:.1f}、ジオ評価は{honmei['ジオ評価']:.1f}。"
-    ]
-    if pace:
-        comment.append(f"想定ペースは{pace}。")
-    comment.append("、".join(main_reason[:3]) + "。")
-
-    tickets = []
-    if len(df) >= 3:
-        h = str(df.iloc[0]["馬番"]).replace(".0", "")
-        s = str(df.iloc[1]["馬番"]).replace(".0", "")
-        t = str(df.iloc[2]["馬番"]).replace(".0", "")
-        tickets.append(f"{h}→{s}→{t}")
-        tickets.append(f"{h}→{t}→{s}")
-
-    return {
-        "df_geo": df,
-        "honmei": honmei,
-        "second": second,
-        "third": third,
-        "decision": decision,
-        "confidence": confidence,
-        "gap12": gap12,
-        "gap13": gap13,
-        "comment": comment,
-        "tickets": tickets,
-        "reasons": reasons,
-        "pace": pace,
-        "bias": bias,
-        "condition": condition,
-    }
-
-
-# ============================================================
-# 🧠 ジオ表示
-# ============================================================
-
-st.markdown("""
-<style>
-.geo-picks {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:12px;margin:12px 0 18px;}
-.geo-pick {display:flex;align-items:center;gap:13px;min-height:91px;padding:15px 16px;background:linear-gradient(120deg,#15273B,#101D30);border:1px solid #30445D;border-radius:15px;box-shadow:0 8px 24px #00000020;}
-.geo-pick:first-child {border-color:#A88B57;background:linear-gradient(115deg,#2D2B29,#152338);}
-.geo-pick-mark {font-size:32px;font-weight:850;line-height:1;min-width:38px;text-align:center;}
-.geo-pick-main {display:flex;flex:1;flex-direction:column;gap:4px;min-width:0;}
-.geo-pick-main strong {color:#F4F7FC;font-size:15px;overflow-wrap:anywhere;}
-.geo-pick-role {color:#91A9C3;font-size:11px;font-weight:700;letter-spacing:.08em;}
-.geo-pick-score {display:flex;flex-direction:column;align-items:flex-end;color:#E8C68E;font-size:21px;font-weight:800;white-space:nowrap;}
-.geo-pick-score small {color:#91A9C3;font-size:9px;letter-spacing:.12em;}
-@media(max-width:600px){.geo-picks{grid-template-columns:1fr;gap:8px}.geo-pick{min-height:72px;padding:10px 13px}.geo-pick-mark{font-size:28px}}
-</style>
-""",unsafe_allow_html=True)
-
-def display_geo_prediction(geo):
-    # Phase16.50: 旧指数・補正合計・旧自信度は一切表示しない。
-    if geo is None:
-        st.warning("新ジオの予測結果がありません。")
-        return
-    df = geo.get("df_geo")
-    if not isinstance(df, pd.DataFrame) or df.empty or "新ジオ複勝確率" not in df.columns:
-        st.error("新ジオ複勝確率がないため、旧ジオの結果は表示しません。")
-        return
-    # Phase18.6: 画面の先頭も実際の保存◎○▲と同じ正式10項目順位。
-    _display_rank = "学習10項目順位" if geo.get("prediction_model", "").startswith("Phase18.5") else "正式10項目順位"
-    df = df.sort_values([_display_rank, "馬番"]).copy()
-    df.insert(0, "印", ["◎" if i == 0 else "○" if i == 1 else "▲" if i == 2 else "△" if i == 3 else "☆" if i == 4 else "" for i in range(len(df))])
-    df["複勝予測確率 (%)"] = df["新ジオ複勝確率"] * 100
-    st.success(f"正式保存モデル：{geo.get('prediction_model')}｜◎ {geo['honmei']['馬番']}番　○ {geo['second']['馬番'] if geo.get('second') is not None else '-'}番　▲ {geo['third']['馬番'] if geo.get('third') is not None else '-'}番")
-    st.caption("正式◎○▲は全自動・個別とも共通。従来の複勝確率は比較表示で、保存する10項目評価指数は複勝確率ではありません。")
-    # GEO AI: 現行正式モデルの上位5頭をスマホでも見やすいカードで表示。
-    _marks = ["◎", "○", "▲", "△", "☆"]
-    _roles = ["本命", "対抗", "単穴", "連下", "注目"]
-    _colors = ["#E8BF75", "#A5E2E5", "#C5D4EA", "#B7C6D9", "#D8A8EA"]
-    st.markdown('<div class="geo-panel-title">🏇 GEO AI / TOP FIVE</div>', unsafe_allow_html=True)
-    _cards = []
-    for _i, (_, _horse) in enumerate(df.head(5).iterrows()):
-        _name = html.escape(str(_horse.get("馬名", "")))
-        _num = html.escape(str(_horse.get("馬番", "—")).replace(".0", ""))
-        _score_key = "学習10項目スコア" if _display_rank == "学習10項目順位" else "正式10項目スコア"
-        _score = pd.to_numeric(_horse.get(_score_key), errors="coerce")
-        _score_text = f"{_score * 100:.1f}" if pd.notna(_score) else "—"
-        _cards.append(f'<div class="geo-pick"><span class="geo-pick-mark" style="color:{_colors[_i]}">{_marks[_i]}</span><div class="geo-pick-main"><span class="geo-pick-role">{_roles[_i]} · {_i+1}位</span><strong>{_num}番 {_name}</strong></div><span class="geo-pick-score">{_score_text}<small>INDEX</small></span></div>')
-    _leader = df.iloc[0]
-    _leader_name = html.escape(str(_leader.get("馬名", "")))
-    _leader_num = html.escape(str(_leader.get("馬番", "—")).replace(".0", ""))
-    _leader_score = pd.to_numeric(_leader.get(_score_key), errors="coerce")
-    _leader_score_label = f"{_leader_score * 100:.1f}" if pd.notna(_leader_score) else "—"
-    st.markdown(f"""<div class="vision-featured"><div class="vision-featured-left"><div class="vision-overline">◈ GEO TOP PICK / 本命</div><div class="vision-featured-name"><span>◎</span> {_leader_num}番 {_leader_name}</div><div class="vision-featured-note">正式10項目モデルの最上位評価</div></div><div class="vision-featured-right"><small>GEO INDEX</small><strong>{_leader_score_label}</strong></div></div>""", unsafe_allow_html=True)
-    st.markdown('<div class="geo-picks">' + ''.join(_cards) + '</div>', unsafe_allow_html=True)
-    st.caption("上位5頭は現行正式モデルの順位。指数は勝率・複勝率ではありません。買い目と保存内容は従来どおりです。")
-
-    # Model-native explainability: raw feature values and exact signed logit terms.
-    # Never approximate a breakdown by multiplying displayed INDEX by importance %.
-    _joint_details = geo.get('joint_payload') or {}
-    if _joint_details.get('pedigree_method') == 'father_offspring_six_conditions_pre_race_v1':
-        st.caption('🧬 学習10項目の血統は父産駒6条件（競馬場・芝ダ・距離・馬場状態）に統一。過去レースは発走前の成績だけで再計算。')
-    if _joint_details.get('status') == 'trained':
-        _by_num = {int(h['umaban']): h for h in _joint_details.get('horses', []) if 'umaban' in h}
-        _feature_names = {'ability_recent':'直近能力','ability_similar':'類似条件能力',
-            'jockey':'騎手','forward':'先行力','lead':'逃げ能力',
-            'hill_sessions':'坂路4F PB更新','wood_sessions':'ウッド6F PB更新',
-            'sire_condition_edge':'血統適性','course_fit':'コース適性',
-            'closing_kick':'末脚力'}
-        with st.expander('🔍 各馬の10項目採点内訳（学習済みモデル）', expanded=False):
-            _options = [(int(r['馬番']), str(r['馬名'])) for _,r in df.iterrows()]
-            _chosen = st.selectbox('内訳を表示する馬', options=_options,
-                format_func=lambda x: f'{x[0]}番 {x[1]}', key='geo_feature_breakdown_horse')
-            _detail = _by_num.get(_chosen[0], {})
-            _parts = _detail.get('feature_breakdown') or {}
-            if _parts:
-                _rows = []
-                for _key,_name in _feature_names.items():
-                    _part = _parts.get(_key, {})
-                    _rows.append({'項目':_name,'採点値（内部値）':_part.get('raw'),
-                        '標準化後':_part.get('standardized'),
-                        '指数への寄与（logit）':_part.get('logit_contribution'),
-                        '欠損値補完': 'あり' if _part.get('imputed') else ''})
-                st.dataframe(pd.DataFrame(_rows), hide_index=True, use_container_width=True)
-                st.caption(f"切片：{_detail.get('logit_intercept', 0):+.4f} ／ "
-                           f"寄与合計＋切片：{_detail.get('logit_total', 0):+.4f} ／ "
-                           f"表示INDEX：{float(_detail.get('ranking_score',0))*100:.1f}")
-                st.caption('寄与は学習係数×標準化後の値。プラスは指数を押し上げ、マイナスは押し下げます。'
-                           ' 10項目の寄与と切片を合算し、sigmoid変換してINDEXを算出します。'
-                           ' INDEXは校正済み勝率・複勝率ではありません。')
-                st.caption('騎手の4項目内訳は現行APIでは個別出力していません。ここに表示する騎手は4項目統合後の値です。')
-            else:
-                st.info('APIから採点内訳が返されていません。内訳対応版APIの反映後に表示されます。')
-
-    st.markdown("---")
-    # Phase18.5: only show jointly trained model after real pre-race snapshots have settled.
-    joint=geo.get('joint_payload')
-    if isinstance(joint,dict):
-        st.subheader('🧠 Phase18.5｜10項目すべて同時学習')
-        used=int(joint.get('usable_training_races') or 0)
-        needed=int(joint.get('minimum_training_races') or 30)
-        if joint.get('status')=='trained' and '学習10項目順位' in df.columns:
-            trained=df.sort_values(['学習10項目順位','馬番']).copy()
-            trained['印'] = ['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '△' if i==3 else '☆' if i==4 else '' for i in range(len(trained))]
-            trained['学習指数']=trained['学習10項目スコア']*100
-            st.dataframe(trained[['印','馬番','馬名','学習10項目順位','学習指数']],hide_index=True,use_container_width=True)
-            imp=joint.get('importance_percent') or {}
-            if imp:
-                names={'ability_recent':'直近能力','ability_similar':'類似条件能力','jockey':'騎手','forward':'先行力','lead':'逃げ能力','hill_sessions':'坂路4F PB更新','wood_sessions':'ウッド6F PB更新','sire_condition_edge':'血統適性','course_fit':'コース適性','closing_kick':'末脚力'}
-                st.dataframe(pd.DataFrame([{'項目':names.get(k,k),'標準化係数の絶対値割合 (%)':v,'学習係数':(joint.get('weights') or {}).get(k)} for k,v in imp.items()]),hide_index=True,use_container_width=True)
-            st.caption('割合は標準化係数の絶対値を100%換算した参考値。実際の精度貢献率ではありません。学習指数は校正済み複勝確率ではありません。')
-        else:
-            st.info(f'学習用の確定済みレース：{used}/{needed}。不足中は従来Phase18.4の10項目順位を使用します。過去の出馬表を後付け復元して学習しません。')
-        st.caption('予想対象の前日以前に保存した特徴量だけを使い、対象レースの結果は学習に使いません。')
-    # 旧Phase比較は計算を維持しつつ、普段は閉じた検証用エリアへ移動。
-    with st.expander("🔬 旧Phaseのランキング比較・開発用診断", expanded=False):
-        # Phase18.3: official 10-feature ranking; 9-feature and 8-feature kept for comparison.
-        if '正式10項目順位' in df.columns:
-            st.subheader('🏆 Phase18.4｜暫定10項目ランキング（学習済み版との比較）')
-            ten=df.sort_values(['正式10項目順位','馬番']).copy()
-            ten.insert(0,'正式印',['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '△' if i==3 else '☆' if i==4 else '' for i in range(len(ten))])
-            ten['10項目評価指数']=ten['正式10項目スコア']*100
-            show=['正式印','馬番','馬名','正式10項目順位','10項目評価指数','末脚力指数','末脚評価過去走']
-            if '昇級クラス補正' in ten.columns:show.extend(['昇級クラス補正','末脚クラス移行係数'])
-            if '正式9項目順位' in ten.columns:show.append('正式9項目順位')
-            show.append('新ジオ順位')
-            st.dataframe(ten[show],use_container_width=True,hide_index=True,
-                column_config={'10項目評価指数':st.column_config.NumberColumn(format='%.2f'),
-                               '末脚力指数':st.column_config.NumberColumn(format='%.3f'),
-                               '昇級クラス補正':st.column_config.NumberColumn(format='%+.3f'),
-                               '末脚クラス移行係数':st.column_config.NumberColumn(format='%.3f')})
-            st.caption(f"Phase18.4の◎：{ten.iloc[0]['馬番']}番 {ten.iloc[0]['馬名']}（実際の保存◎は画面最上部を参照）")
-            st.caption('第9項目の過去走着順を相手クラス差で補正。第10項目は下級条件で記録したプラスの末脚評価だけを控えめに割引。クラス不明は中立。係数は仮説値で、評価指数は複勝確率ではありません。')
-            st.caption('予想保存：'+str(geo.get('ten_snapshot') or '未確認'))
-        else:
-            st.warning('正式10項目版を取得できません。'+str(geo.get('ten_error') or 'API未対応'))
-        # Official model: nine features; preserve eight-feature probabilities as reference only.
-        if '正式9項目順位' in df.columns:
-            st.subheader('🔬 比較基準｜9項目ランキング（Phase18.2）')
-            nine=df.sort_values(['正式9項目順位','馬番']).copy()
-            nine.insert(0,'正式印',['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '△' if i==3 else '☆' if i==4 else '' for i in range(len(nine))])
-            nine['9項目評価指数']=nine['正式9項目スコア']*100
-            st.dataframe(nine[['正式印','馬番','馬名','正式9項目順位','9項目評価指数','新ジオ順位']],use_container_width=True,hide_index=True,
-                         column_config={'9項目評価指数':st.column_config.NumberColumn(format='%.2f')})
-            st.info(f"9項目◎：{nine.iloc[0]['馬番']}番 {nine.iloc[0]['馬名']}｜○：{nine.iloc[1]['馬番']}番 {nine.iloc[1]['馬名']}" if len(nine)>1 else f"9項目◎：{nine.iloc[0]['馬番']}番 {nine.iloc[0]['馬名']}")
-            st.caption('9項目評価指数は順位比較用の仮説スコアで、複勝確率ではありません。旧8項目の確率は下に参考表示します。係数0.8は未学習の暫定値です。')
-        else:
-            st.warning('正式9項目版を取得できません。従来8項目のみ表示します: '+str(geo.get('official_error') or 'API未対応'))
-        st.subheader('🧠 従来8項目｜複勝予測ランキング（比較基準）')
-        st.caption("比較基準の従来8項目モデル。以下の◎○▲は従来版の印で、正式9項目版の印ではありません。")
-        columns = [c for c in ("印", "馬番", "馬名", "複勝予測確率 (%)", "オッズ") if c in df.columns]
-        st.dataframe(df[columns], use_container_width=True, hide_index=True,
-                     column_config={"複勝予測確率 (%)": st.column_config.NumberColumn("複勝予測確率 (%)", format="%.1f%%")})
-        if len(df) >= 3:
-            a,b,c = st.columns(3)
-            for col, mark, row in zip((a,b,c), ("◎ 本命", "○ 対抗", "▲ 単穴"), (df.iloc[0],df.iloc[1],df.iloc[2])):
-                col.metric(f"{mark} {row['馬名']}", f"{row['複勝予測確率 (%)']:.1f}%")
-        st.caption("この確率は各馬が3着以内に入るモデル推定値で、レース内で合計100%になるものではありません。")
-        # Phase18.0 A/B比較。補正スコアは確率ではなく、公式の印は変更しない。
-        st.markdown("---")
-        st.subheader("🏟️ コース補正ジオ｜従来版とのA/B比較")
-        if "コース補正順位" not in df.columns:
-            st.warning("コース補正データを表示できません: " + str(geo.get("course_error") or "API未対応"))
-        else:
-            ab = df.sort_values(["新ジオ順位", "馬番"]).copy()
-            ab["従来順位"] = ab["新ジオ順位"].astype(int)
-            ab["補正順位"] = ab["コース補正順位"].astype(int)
-            ab["順位変動表示"] = ab["順位変動"].map(lambda x: f"↑{int(x)}" if x > 0 else (f"↓{abs(int(x))}" if x < 0 else "→0"))
-            ab["従来複勝予測 (%)"] = ab["新ジオ複勝確率"] * 100
-            ab["コース補正指数"] = ab["コース補正スコア"] * 100
-            show = [c for c in ["馬番", "馬名", "従来順位", "補正順位", "順位変動表示", "従来複勝予測 (%)", "コース補正指数"] if c in ab.columns]
-            st.dataframe(ab[show], use_container_width=True, hide_index=True,
-                         column_config={"従来複勝予測 (%)": st.column_config.NumberColumn(format="%.1f%%"),
-                                        "コース補正指数": st.column_config.NumberColumn(format="%.2f")})
-            st.caption("↑は補正後に順位上昇。倍率補正版は比較用で、正式な印は上の9項目版を参照してください。")
-            changed = int((ab["順位変動"] != 0).sum())
-            st.metric("コース補正で順位が変化した馬", f"{changed}頭")
-            course_top = ab.sort_values(["補正順位", "馬番"]).iloc[0]
-            st.info(f"コース補正版の◎：{course_top['馬番']}番 {course_top['馬名']}（従来{int(course_top['従来順位'])}位 → 補正{int(course_top['補正順位'])}位）")
-            profile = geo.get("course_profile")
-            if isinstance(profile, dict):
-                with st.expander("コース補正の根拠・係数", expanded=False):
-                    st.write(f"競馬場: {profile.get('venue', '不明')} / 芝ダート: {profile.get('surface', '不明')} / 距離: {profile.get('distance_m', '?')}m")
-                    st.caption("内回り・外回りは現バージョンでは未検証のため補正対象外")
-                    factors = profile.get("factors", {})
-                    if isinstance(factors, dict) and factors:
-                        st.dataframe(pd.DataFrame([{"特徴量": k, "倍率": v} for k, v in factors.items()]), hide_index=True, use_container_width=True)
-                    for reason in profile.get("reasons", []):
-                        st.write("・" + str(reason))
-            snapshot = geo.get("course_snapshot")
-            if isinstance(snapshot, dict):
-                st.caption("予想スナップショット: " + ("保存済み" if snapshot.get("saved") else "未保存") + " / " + str(snapshot.get("reason", "")))
-
-        # Phase18.2: three-way comparison; nine-feature ranking is official.
-        st.markdown("---")
-        st.subheader("🔬 Phase18.1｜従来・倍率補正・コース適性の3方式比較")
-        if "適性追加順位" not in df.columns:
-            st.warning("コース適性版を表示できません: " + str(geo.get("suitability_error") or "API未対応"))
-        else:
-            tri = df.sort_values(["新ジオ順位", "馬番"]).copy()
-            tri["従来"] = tri["新ジオ順位"].astype(int)
-            tri["倍率補正"] = tri["コース補正順位"].astype(int) if "コース補正順位" in tri.columns else "—"
-            tri["適性追加"] = tri["適性追加順位"].astype(int)
-            tri["適性の変動"] = tri["適性順位変動"].map(lambda x: f"↑{int(x)}" if x>0 else (f"↓{abs(int(x))}" if x<0 else "→0"))
-            st.dataframe(tri[["馬番","馬名","従来","倍率補正","適性追加","適性の変動","適性対象過去走","適性追加指数"]],
-                         use_container_width=True,hide_index=True)
-            best=tri.sort_values(["適性追加","馬番"]).iloc[0]
-            st.info(f"適性追加版◎：{best['馬番']}番 {best['馬名']}（従来{int(best['従来'])}位 → 適性{int(best['適性追加'])}位）")
-            st.caption("適性追加指数は仮説ベースの比較スコア。複勝確率として扱わない。対象過去走が0なら中立補正。坂や直線長を直接測った値ではない。")
-            st.metric("適性追加版で順位が変わった馬",f"{int((tri['適性順位変動']!=0).sum())}頭")
-            sp=geo.get("suitability_payload")
-            if isinstance(sp,dict):
-                with st.expander("コース適性の計算内訳（過去走のみ）",expanded=False):
-                    rows=[]
-                    for h in sp.get("horses",[]):
-                        d={"馬番":h.get("umaban"),"過去走数":h.get("matched_count"),"同競馬場":h.get("same_venue_count"),"適性補正":h.get("course_fit")}
-                        d.update(h.get("components") or {})
-                        rows.append(d)
-                    st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
-            snapshot=geo.get("abc_snapshot")
-            if isinstance(snapshot,dict):
-                st.caption("3方式の予想記録: "+("新規保存" if snapshot.get("saved") else "保存済み/対象外")+" / "+str(snapshot.get("reason","")))
-
-    return
-
-    if geo is None:
-        st.warning("ジオが判断できるデータがありません。")
-        return
-
-    st.markdown("---")
-    st.markdown('<div class="geo-kicker">GEO AI / RACE INTELLIGENCE</div>', unsafe_allow_html=True)
-    st.subheader("AI予想コマンドセンター")
-    chart_df = geo.get("df_geo")
-    if isinstance(chart_df, pd.DataFrame) and not chart_df.empty:
-        dashboard_df = chart_df.copy()
-        for field in ["ジオ評価", "統合指数", "オッズ", "メンバーレベル"]:
-            if field in dashboard_df.columns:
-                dashboard_df[field] = pd.to_numeric(dashboard_df[field], errors="coerce")
-        if "ジオ評価" in dashboard_df.columns:
-            dashboard_df = dashboard_df.sort_values("ジオ評価", ascending=False)
-        dashboard_df = dashboard_df.reset_index(drop=True)
-        dashboard_df.insert(0, "順位", range(1, len(dashboard_df)+1))
-        st.markdown(
-            '<div class="geo-v13-banner"><strong>🏆 GEO AI 予想結果 ｜ 試験配点 v13</strong>'
-            '<div class="geo-v13-preset">能力順位 0 ｜ 穴馬 0 ｜ 血統 3倍 ｜ メンバーレベル 3倍 ｜ 自己学習 2倍'
-            '（実効補正は各項目の上限あり）</div></div>',
-            unsafe_allow_html=True,
-        )
-        with st.expander("🆕 初芝・初ダート診断（v19・専用評価適用）", expanded=False):
-            st.caption("過去走全体の芝・ダート区分から初挑戦を判定。過去走が取れない馬は初挑戦と断定せず『要確認』と表示します。")
-            _first_rows = []
-            for _, _h in dashboard_df.iterrows():
-                _diag = _h.get("芝ダ初挑戦診断", {})
-                if not isinstance(_diag, dict):
-                    _diag = {}
-                _first_rows.append({
-                    "馬番": _h.get("馬番"), "馬名": _h.get("馬名"),
-                    "今回": _h.get("芝・ダ", "—"), "判定": _diag.get("判定", "要確認"),
-                    "同種過去走": _diag.get("同種過去走", 0),
-                    "異種過去走": _diag.get("異種過去走", 0),
-                    "区分不明": _diag.get("区分不明過去走", 0),
-                    "理由": _diag.get("判定理由", ""),
-                    "代理能力指数": (_h.get("初挑戦能力材料") or {}).get("代理能力指数") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
-                    "平均着順": (_h.get("初挑戦能力材料") or {}).get("平均着順") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
-                    "能力使用走数": (_h.get("初挑戦能力材料") or {}).get("能力使用走数") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
-                    "転用率": "70%" if _diag.get("判定") in ("初芝", "初ダート") else "—",
-                    "上限前補正": (_h.get("初挑戦能力材料") or {}).get("転用前補正（上限前）") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
-                    "実際の転用補正": (_h.get("統合指数内訳") or {}).get("初挑戦・転用能力") if isinstance(_h.get("統合指数内訳"), dict) else None,
-                    "±6点上限到達": (_h.get("初挑戦能力材料") or {}).get("上限到達") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
-                    "転用以外の統合指数": (float(_h.get("統合指数")) - float((_h.get("統合指数内訳") or {}).get("初挑戦・転用能力", 0))) if isinstance(_h.get("統合指数内訳"), dict) and pd.notna(_h.get("統合指数")) else None,
-                    "最終統合指数": _h.get("統合指数"),
-                    "診断状態": (_h.get("初挑戦能力材料") or {}).get("診断状態", "材料なし" if _diag.get("判定") in ("初芝", "初ダート") else "対象外") if isinstance(_h.get("初挑戦能力材料"), dict) else "材料なし",
-                })
-            _first_debug_df = pd.DataFrame(_first_rows)
-            st.dataframe(_first_debug_df, use_container_width=True, hide_index=True)
-            _first_only = _first_debug_df[_first_debug_df["判定"].isin(["初芝", "初ダート"])].copy()
-            if not _first_only.empty:
-                st.markdown("**🔬 初挑戦70%転用・上限の詳細検証（診断専用）**")
-                _debug_cols = ["馬番", "馬名", "判定", "能力使用走数", "平均着順", "代理能力指数", "転用率", "上限前補正", "実際の転用補正", "±6点上限到達", "転用以外の統合指数", "最終統合指数", "診断状態"]
-                st.dataframe(_first_only[_debug_cols], use_container_width=True, hide_index=True)
-                st.caption("計算式：（代理能力指数 − 70）× 0.70 → ±6点に制限。上限前補正が異なるのに実際の転用補正が同じなら、上限で能力差が圧縮されています。診断表示のみ追加し、指数の計算は変更していません。")
-            st.caption("初挑戦馬のみ、異種馬場の直近最大6走の平均着順から代理能力指数を算出。初ダート・初芝とも70%を統合指数へ転用（±6点）。父産駒の既存血統補正を±5点に置換。距離差を±2点で補正。実績馬の計算は維持します。")
-        with st.expander("📈 直近の成長・過去6走中央値の影響（v40・診断専用）", expanded=False):
-            st.caption("GEOの現行走破タイム評価は、同じ芝/ダートの直近最大6走のうち、Excel基準が取得できた走の換算タイムの中央値です。直近2・3走も中央値で仮計算します。予想・順位・学習には一切反映しません。")
-            _growth_summary, _growth_detail = [], []
-            for _, _gh in dashboard_df.iterrows():
-                _gd = _gh.get("走破タイムクラス診断", {})
-                if not isinstance(_gd, dict):
-                    continue
-                _runs = [r for r in (_gd.get("過去走詳細", []) or []) if isinstance(r, dict)]
-                _values = []
-                for _ri, _r in enumerate(_runs, 1):
-                    try:
-                        _tv = float(_r.get("換算走破タイム"))
-                    except (ValueError, TypeError):
-                        continue
-                    if not np.isfinite(_tv) or _tv <= 0:
-                        continue
-                    _values.append(_tv)
-                    _growth_detail.append({
-                        "馬番": _gh.get("馬番"), "馬名": _gh.get("馬名"),
-                        "有効走順（新→旧）": _ri,
-                        "年": _r.get("過去年"), "月": _r.get("過去月"), "日": _r.get("過去日"),
-                        "着順": _r.get("過去着順"), "過去クラス": _r.get("過去クラス"),
-                        "過去基準秒": _r.get("過去基準タイム"),
-                        "過去実走秒": _r.get("過去実走秒"),
-                        "今回条件換算秒": _tv,
-                        "クラス補正秒": _r.get("クラス補正秒"),
-                    })
-                if not _values:
-                    continue
-                _med6 = float(np.median(_values))
-                _med2 = float(np.median(_values[:2])) if len(_values) >= 2 else None
-                _med3 = float(np.median(_values[:3])) if len(_values) >= 3 else None
-                _older = float(np.median(_values[3:])) if len(_values) >= 5 else None
-                _growth_summary.append({
-                    "馬番": _gh.get("馬番"), "馬名": _gh.get("馬名"),
-                    "最終ジオ順位": _gh.get("順位"),
-                    "有効走数": len(_values),
-                    "現行中央値秒": round(_med6, 3),
-                    "直近2走中央値秒": round(_med2, 3) if _med2 is not None else None,
-                    "直近3走中央値秒": round(_med3, 3) if _med3 is not None else None,
-                    "古い3走中央値秒": round(_older, 3) if _older is not None else None,
-                    "直近2走改善秒": round(_med6 - _med2, 3) if _med2 is not None else None,
-                    "直近3走改善秒": round(_med6 - _med3, 3) if _med3 is not None else None,
-                    "新旧改善秒": round(_older - _med3, 3) if _older is not None and _med3 is not None else None,
-                })
-            if _growth_summary:
-                _growth_df = pd.DataFrame(_growth_summary)
-                st.markdown("**全頭比較：プラスの改善秒ほど直近の走りが速い（小さい秒数が優秀）**")
-                st.dataframe(_growth_df, use_container_width=True, hide_index=True)
-                _growth_horses = [f"{r['馬番']}番 {r['馬名']}" for r in _growth_summary]
-                _selected_growth = st.selectbox("過去走別の根拠を確認する馬", _growth_horses, key="geo_v40_growth_horse")
-                _selected_idx = _growth_horses.index(_selected_growth)
-                _selected_horse = _growth_summary[_selected_idx]
-                st.write(f"**{_selected_horse['馬名']}**：現行中央値 {_selected_horse['現行中央値秒']}秒 / 直近2走 {_selected_horse['直近2走中央値秒']}秒 / 直近3走 {_selected_horse['直近3走中央値秒']}秒")
-                _detail_df = pd.DataFrame([r for r in _growth_detail if str(r['馬名']) == str(_selected_horse['馬名']) and str(r['馬番']) == str(_selected_horse['馬番'])])
-                st.dataframe(_detail_df, use_container_width=True, hide_index=True)
-                st.caption("注意：直近2/3走は『有効な換算タイムが取れた走』から選びます。過去走が6走未満の場合やExcel参照不能で除外された走がある場合は解釈に注意。改善秒は原因診断であり、加点や勝率ではありません。")
-                st.caption("過去の富士Sを検証する際は、当時のレース前データ・当時のオッズを使ってください。結果確定後の情報を予想へ混ぜないでください。")
-            else:
-                st.info("有効な過去走の走破タイムがないため比較できません。")
-        with st.expander("⚖️ 過去6走の直近重視・加重平均比較（v41・診断専用）", expanded=False):
-            st.caption("現行の6走中央値と、直近ほど重くした加重平均を比較します。指数・予想順位・自己学習には反映しません。換算タイムは既存のクラス補正込みです。")
-            _weight_step = st.slider("1走古くなるごとの重みの減少", min_value=0.00, max_value=0.20, value=0.05, step=0.01, key="geo_v41_weight_step", help="0.05なら直近から 1.00, 0.95, 0.90, 0.85, 0.80, 0.75")
-            _weighted_rows = []
-            _weighted_details = []
-            for _, _wh in dashboard_df.iterrows():
-                _wd = _wh.get("走破タイムクラス診断", {})
-                if not isinstance(_wd, dict):
-                    continue
-                _valid_runs = []
-                for _wr in (_wd.get("過去走詳細", []) or []):
-                    if not isinstance(_wr, dict):
-                        continue
-                    try:
-                        _wt = float(_wr.get("換算走破タイム"))
-                    except (TypeError, ValueError):
-                        continue
-                    if np.isfinite(_wt) and _wt > 0:
-                        _valid_runs.append((_wr, _wt))
-                if not _valid_runs:
-                    continue
-                _times = np.asarray([v for _, v in _valid_runs], dtype=float)
-                _weights = np.asarray([max(0.0, 1.0 - _weight_step * i) for i in range(len(_times))], dtype=float)
-                _weighted = float(np.average(_times, weights=_weights))
-                _median = float(np.median(_times))
-                _weighted_rows.append({
-                    "馬番": _wh.get("馬番"), "馬名": _wh.get("馬名"), "現在のGEO順位": _wh.get("順位"),
-                    "有効走数": len(_times), "現行中央値秒": round(_median, 3),
-                    "直近加重平均秒": round(_weighted, 3),
-                    "加重平均の改善秒": round(_median - _weighted, 3),
-                    "直近2走平均秒": round(float(np.mean(_times[:2])), 3) if len(_times) >= 2 else None,
-                })
-                for _i, (_run, _time) in enumerate(_valid_runs):
-                    _weighted_details.append({
-                        "馬番": _wh.get("馬番"), "馬名": _wh.get("馬名"), "有効走順（新→旧）": _i + 1,
-                        "年": _run.get("過去年"), "月": _run.get("過去月"), "日": _run.get("過去日"),
-                        "過去クラス": _run.get("過去クラス"), "換算タイム秒": round(_time, 3),
-                        "重み": round(float(_weights[_i]), 3), "クラス補正秒": _run.get("クラス補正秒"),
-                    })
-            if _weighted_rows:
-                _wdf = pd.DataFrame(_weighted_rows)
-                _wdf["現行タイム順位"] = _wdf["現行中央値秒"].rank(method="min", ascending=True).astype(int)
-                _wdf["加重タイム順位"] = _wdf["直近加重平均秒"].rank(method="min", ascending=True).astype(int)
-                _wdf["タイム順位改善"] = _wdf["現行タイム順位"] - _wdf["加重タイム順位"]
-                st.dataframe(_wdf.sort_values("現在のGEO順位"), use_container_width=True, hide_index=True)
-                st.caption("『タイム順位』は走破タイム単独の参考順位であり、GEO総合順位ではありません。プラスの改善秒＝加重平均が従来中央値より速い。加重平均と中央値は集約方法も異なるため、差の全てが直近重視の効果ではありません。")
-                _choices = [f"{r['馬番']}番 {r['馬名']}" for r in _weighted_rows]
-                _choice = st.selectbox("過去走別の重みを確認", _choices, key="geo_v41_weighted_horse")
-                _selected = _weighted_rows[_choices.index(_choice)]
-                _detail = [r for r in _weighted_details if str(r["馬番"]) == str(_selected["馬番"]) and str(r["馬名"]) == str(_selected["馬名"])]
-                st.dataframe(pd.DataFrame(_detail), use_container_width=True, hide_index=True)
-                st.caption("注意：レース終了後の再予想には対象レース自身や未来の情報が入る場合があります。過去レースの予測精度の検証には、発走前時点のデータだけを使用してください。")
-            else:
-                st.info("比較できる過去走タイムがありません。")
-        with st.expander("🏇 重み別・仮想最終GEO順位（v43・診断専用）", expanded=False):
-            st.caption("走破タイムの中央値だけを加重平均に置換し、実際の走破タイム加点（×1.2）とコース適性内の走破タイム寄与を同時に再計算。他の評価・最終補正は固定します。実際の予想には反映しません。")
-            _v43_steps = (0.05, 0.10, 0.15, 0.20)
-            _v43_rows = []
-            _v43_surface = "ダ" if "ダ" in str(race_surface) else "芝"
-            _v43_straights = {
-                "芝": {"新潟":659.9,"東京":525.9,"阪神":473.6,"中京":412.5,"京都":403.9,"中山":310.0,"小倉":293.0,"函館":262.1,"福島":292.0,"札幌":266.1},
-                "ダ": {"新潟":353.9,"東京":501.6,"阪神":352.7,"中京":410.7,"京都":329.1,"中山":308.0,"小倉":291.0,"函館":260.1,"福島":295.7,"札幌":264.3},
-            }
-            _v43_straight_length = next((v for k,v in _v43_straights[_v43_surface].items() if k in str(race_place)), 400.0)
-            _v43_course_weight = (0.75 if _v43_straight_length < 320 else (0.70 if _v43_straight_length < 400 else 0.60))
-            for _, _v43_h in dashboard_df.iterrows():
-                _v43_diag = _v43_h.get("走破タイムクラス診断", {})
-                _v43_parts = _v43_h.get("統合指数内訳", {})
-                if not isinstance(_v43_diag, dict) or not isinstance(_v43_parts, dict):
-                    continue
-                _v43_times = []
-                for _v43_r in (_v43_diag.get("過去走詳細", []) or []):
-                    if not isinstance(_v43_r, dict):
-                        continue
-                    try:
-                        _v43_t = float(_v43_r.get("換算走破タイム"))
-                    except (ValueError, TypeError):
-                        continue
-                    if np.isfinite(_v43_t) and _v43_t > 0:
-                        _v43_times.append(_v43_t)
-                if not _v43_times:
-                    continue
+        try:
+            payload = geo47_get_prediction(str(race_id))
+            if not isinstance(payload, dict) or not payload.get("ok"):
+                raise RuntimeError((payload or {}).get("error", "新ジオAPIの応答が不正です"))
+            raw = payload.get("horses")
+            if not isinstance(raw, list) or not raw:
+                raise RuntimeError("新ジオAPIに出走馬の予測結果がありません")
+            entries = []
+            seen = set()
+            for item in raw:
+                n = int(item["umaban"])
+                prob = float(item["top3_probability"])
+                if n in seen or not np.isfinite(prob) or not 0 <= prob <= 1:
+                    raise ValueError("新ジオの馬番または複勝確率が不正です")
+                seen.add(n)
+                entries.append({"馬番": n, "新ジオ複勝確率": prob, "新ジオ順位": int(item["rank"])})
+            df = pd.DataFrame(entries).sort_values(["新ジオ順位", "馬番"]).reset_index(drop=True)
+            if sorted(df["新ジオ順位"].tolist()) != list(range(1, len(df) + 1)):
+                raise ValueError("新ジオの順位が重複または欠落しています")
+            source = df_sim.copy() if isinstance(df_sim, pd.DataFrame) else pd.DataFrame()
+            if not source.empty and "馬番" in source.columns:
+                source["馬番"] = pd.to_numeric(source["馬番"], errors="coerce")
+                source = source.dropna(subset=["馬番"]).drop_duplicates(subset=["馬番"])
+                source["馬番"] = source["馬番"].astype(int)
+                if set(source["馬番"]) != set(df["馬番"]):
+                    raise ValueError("新ジオと出走表の馬番が一致しません")
+                for c in ("馬名", "オッズ"):
+                    if c in source.columns:
+                        df = df.merge(source[["馬番", c]], on="馬番", how="left", validate="one_to_one")
+            if "馬名" not in df.columns:
+                df["馬名"] = df["馬番"].map(lambda x: f"{x}番")
+            if "オッズ" not in df.columns:
+                df["オッズ"] = np.nan
+            # Phase18.0: API側のコース補正結果を馬番で照合して並列表示する。
+            # 公式の◎○▲・保存用ジオ評価は従来モデルのまま変更しない。
+            course_payload = payload.get("course_adjusted")
+            course_profile = payload.get("course_profile")
+            course_error = payload.get("course_adjusted_error")
+            course_snapshot = payload.get("course_ab_snapshot")
+            if isinstance(course_payload, dict) and isinstance(course_payload.get("horses"), list):
                 try:
-                    _v43_base = float(_v43_h.get("ジオ評価"))
-                    _v43_index = float(_v43_h.get("統合指数"))
-                    _v43_detail = _v43_diag.get("過去走詳細", []) or []
-                    _v43_target = float(next(r["今回基準タイム"] for r in _v43_detail if isinstance(r, dict) and r.get("今回基準タイム") is not None))
-                    _v43_existing_soha = float(_v43_parts.get("走破タイム", 0.0))
-                except (TypeError, ValueError):
-                    continue
-                if not all(np.isfinite(x) for x in (_v43_base, _v43_index, _v43_target, _v43_existing_soha)):
-                    continue
-                _v43_a = np.asarray(_v43_times, dtype=float)
-                _v43_median = float(np.median(_v43_a))
-                _v43_row = {"馬番": _v43_h.get("馬番"), "馬名": _v43_h.get("馬名"),
-                            "現行GEO順位": _v43_h.get("順位"), "有効走数": len(_v43_a),
-                            "現行中央値秒": round(_v43_median, 3),
-                            "現行ジオ評価": round(_v43_base, 3)}
-                # 現行の走破タイム点は max(-5,min(12,(対象基準-中央値)*3))、
-                # 統合指数への寄与は ×1.2 + コース適性中の重み (0.75/0.70/0.60)。
-                # 最終補正は現行値で固定。表示の丸め誤差は最大数千分の1秒程度。
-                _v43_original_raw = max(-5.0, min(12.0, (_v43_target - _v43_median) * 3.0))
-                for _v43_step in _v43_steps:
-                    _v43_w = np.maximum(0.0, 1.0 - _v43_step * np.arange(len(_v43_a)))
-                    _v43_weighted = float(np.average(_v43_a, weights=_v43_w))
-                    _v43_new_raw = max(-5.0, min(12.0, (_v43_target - _v43_weighted) * 3.0))
-                    _v43_delta = (_v43_new_raw - _v43_original_raw) * (1.2 + _v43_course_weight)
-                    _v43_row[f"仮想評価{_v43_step:.2f}"] = round(_v43_base + _v43_delta, 3)
-                    _v43_row[f"変化点{_v43_step:.2f}"] = round(_v43_delta, 3)
-                    _v43_row[f"換算秒{_v43_step:.2f}"] = round(_v43_weighted, 3)
-                _v43_rows.append(_v43_row)
-            if _v43_rows:
-                _v43_df = pd.DataFrame(_v43_rows)
-                for _v43_step in _v43_steps:
-                    _v43_col = f"仮想評価{_v43_step:.2f}"
-                    _v43_df[f"仮想順位{_v43_step:.2f}"] = _v43_df[_v43_col].rank(method="min", ascending=False).astype(int)
-                    _v43_df[f"順位変化{_v43_step:.2f}"] = _v43_df["現行GEO順位"].astype(int) - _v43_df[f"仮想順位{_v43_step:.2f}"]
-                _v43_columns = ["馬番", "馬名", "現行GEO順位", "現行ジオ評価", "有効走数"]
-                for _v43_step in _v43_steps:
-                    _v43_columns += [f"仮想順位{_v43_step:.2f}", f"仮想評価{_v43_step:.2f}", f"順位変化{_v43_step:.2f}"]
-                st.dataframe(_v43_df.sort_values("現行GEO順位")[_v43_columns], use_container_width=True, hide_index=True)
-                _v43_pick = st.selectbox("馬別の配点差を確認", list(range(len(_v43_df))),
-                                         format_func=lambda i: f"{_v43_df.iloc[i]['馬番']} {_v43_df.iloc[i]['馬名']}",
-                                         key="geo_v43_horse")
-                _v43_selected = _v43_df.iloc[_v43_pick]
-                _v43_detail = []
-                for _v43_step in _v43_steps:
-                    _v43_detail.append({"重み減少": _v43_step,
-                                        "加重平均秒": _v43_selected[f"換算秒{_v43_step:.2f}"],
-                                        "指数変化点": _v43_selected[f"変化点{_v43_step:.2f}"],
-                                        "仮想最終評価": _v43_selected[f"仮想評価{_v43_step:.2f}"],
-                                        "仮想順位": _v43_selected[f"仮想順位{_v43_step:.2f}"]})
-                st.dataframe(pd.DataFrame(_v43_detail), use_container_width=True, hide_index=True)
-                st.caption(f"走破タイムのコース適性内係数：{_v43_course_weight:.2f}、単独係数：1.20。順位変化のプラスは順位上昇。")
-                st.warning("これは現時点の再予想データを使った仮想順位です。富士S終了後の再予想では富士S自身や未来の情報が含まれ得るため、レース前の予想順位や的中率を示すものではありません。また、走破タイム欠損馬がいる場合、表示対象内だけで順位を計算します。")
+                    adjusted = course_payload["horses"]
+                    by_course = {int(h["umaban"]): h for h in adjusted}
+                    if len(by_course) != len(adjusted) or set(by_course) != set(df["馬番"]):
+                        raise ValueError("コース補正の馬番が従来予想と一致しません")
+                    course_ranks = sorted(int(h["rank"]) for h in adjusted)
+                    if course_ranks != list(range(1, len(df) + 1)):
+                        raise ValueError("コース補正の順位が不正です")
+                    df["コース補正順位"] = df["馬番"].map(lambda n: int(by_course[int(n)]["rank"]))
+                    df["コース補正スコア"] = df["馬番"].map(lambda n: float(by_course[int(n)]["course_score"]))
+                    df["順位変動"] = df["新ジオ順位"] - df["コース補正順位"]
+                except (KeyError, ValueError, TypeError) as exc:
+                    course_error = str(exc)
             else:
-                st.info("仮想順位を計算できる走破タイム診断データがありません。")
-        with st.expander("📊 重み0.05・0.10・0.15の全馬一括比較（v42・診断専用）", expanded=False):
-            st.caption("現行中央値と、過去走の直近重視加重平均（重み減少0.05 / 0.10 / 0.15）を全馬同時に比較します。予想・順位・自己学習は変更しません。")
-            _v42_rows = []
-            for _, _v42_h in dashboard_df.iterrows():
-                _v42_diag = _v42_h.get("走破タイムクラス診断", {})
-                if not isinstance(_v42_diag, dict):
-                    continue
-                _v42_times = []
-                for _v42_r in (_v42_diag.get("過去走詳細", []) or []):
-                    if not isinstance(_v42_r, dict):
-                        continue
-                    try:
-                        _v42_t = float(_v42_r.get("換算走破タイム"))
-                    except (TypeError, ValueError):
-                        continue
-                    if np.isfinite(_v42_t) and _v42_t > 0:
-                        _v42_times.append(_v42_t)
-                if not _v42_times:
-                    continue
-                _v42_a = np.asarray(_v42_times, dtype=float)
-                _v42_row = {"馬番": _v42_h.get("馬番"), "馬名": _v42_h.get("馬名"),
-                            "現行GEO順位": _v42_h.get("順位"), "有効走数": len(_v42_a),
-                            "現行中央値秒": round(float(np.median(_v42_a)), 3)}
-                for _v42_step in (0.00, 0.05, 0.10, 0.15):
-                    _v42_weights = np.maximum(0.0, 1.0 - _v42_step * np.arange(len(_v42_a)))
-                    _v42_value = float(np.average(_v42_a, weights=_v42_weights))
-                    _v42_label = f"加重平均{_v42_step:.2f}秒"
-                    _v42_row[_v42_label] = round(_v42_value, 3)
-                    _v42_row[f"改善{_v42_step:.2f}秒"] = round(float(np.median(_v42_a)) - _v42_value, 3)
-                _v42_rows.append(_v42_row)
-            if _v42_rows:
-                _v42_df = pd.DataFrame(_v42_rows)
-                _v42_df["現行タイム順位"] = _v42_df["現行中央値秒"].rank(method="min", ascending=True).astype(int)
-                for _v42_step in (0.00, 0.05, 0.10, 0.15):
-                    _v42_label = f"加重平均{_v42_step:.2f}秒"
-                    _v42_df[f"タイム順位{_v42_step:.2f}"] = _v42_df[_v42_label].rank(method="min", ascending=True).astype(int)
-                st.markdown("**全馬の換算タイム・参考順位**")
-                _v42_cols = ["馬番", "馬名", "現行GEO順位", "有効走数", "現行中央値秒", "現行タイム順位"]
-                _v42_cols += [f"加重平均{x:.2f}秒" for x in (0.00, 0.05, 0.10, 0.15)]
-                _v42_cols += [f"タイム順位{x:.2f}" for x in (0.00, 0.05, 0.10, 0.15)]
-                st.dataframe(_v42_df.sort_values("現行GEO順位")[_v42_cols], use_container_width=True, hide_index=True)
-                st.markdown("**従来中央値からの改善秒（プラス＝加重平均が速い）**")
-                st.dataframe(_v42_df.sort_values("現行GEO順位")[["馬番", "馬名"] + [f"改善{x:.2f}秒" for x in (0.00, 0.05, 0.10, 0.15)]], use_container_width=True, hide_index=True)
-                st.caption("0.00は全走の単純平均。0.05/0.10/0.15は1走古くなるごとに重みを減らす値です。中央値と平均の差には集約方法の違いも含まれるため、0.00との比較で重み自体の影響を分けて見てください。")
-                st.warning("過去レースを終了後に再予想した結果には、対象レース自身や未来の成績が混入する可能性があります。この画面は計算方式の診断であり、当時の予想精度・回収率のバックテストではありません。")
-            else:
-                st.info("比較できる換算タイムがありません。")
-        with st.expander("🔬 クラス±0.4秒の有無を比較（v39・診断専用）", expanded=False):
-            st.caption("実際の予想は正式採用の±0.4秒補正ありで計算。補正なしは比較表示のみ。Excelの過去走基準と今回基準を使い、同一の過去走について0.4秒補正だけを取り除きます。")
-            _class_rows = []
-            for _, _h in dashboard_df.iterrows():
-                _cd = _h.get("走破タイムクラス診断", {})
-                if not isinstance(_cd, dict):
-                    continue
-                for _i, _p in enumerate(_cd.get("過去走詳細", []) or [], 1):
-                    if not isinstance(_p, dict):
-                        continue
-                    _diff = _p.get("階級差", 0)
-                    _kind = "昇級・格上" if _diff > 0 else ("降級・格下" if _diff < 0 else "同階級")
-                    _with = _p.get("換算走破タイム")
-                    _pen = _p.get("クラス補正秒", 0)
-                    _without = _p.get("クラス補正なし換算")
-                    if _without is None and _with is not None:
-                        try:
-                            _without = round(float(_with) - float(_pen), 3)
-                        except (TypeError, ValueError):
-                            pass
-                    _class_rows.append({
-                        "馬番": _h.get("馬番"), "馬名": _h.get("馬名"), "過去走番号": _i,
-                        "区分": _kind, "過去クラス": _p.get("過去クラス"),
-                        "今回クラス": _p.get("今回クラス"), "階級差": _diff,
-                        "過去基準採用クラス": _p.get("過去基準採用クラス"),
-                        "今回基準採用クラス": _p.get("今回基準採用クラス"),
-                        "過去基準秒": _p.get("過去基準タイム"),
-                        "今回基準秒": _p.get("今回基準タイム"),
-                        "補正あり換算秒": _with, "補正なし換算秒": _without,
-                        "補正による差秒": _pen,
-                    })
-            if _class_rows:
-                _class_df = pd.DataFrame(_class_rows)
-                st.dataframe(_class_df, use_container_width=True, hide_index=True)
-                _class_summary = _class_df.groupby(["馬番", "馬名", "区分"], dropna=False).agg(
-                    有効過去走数=("過去走番号", "count"),
-                    補正あり平均秒=("補正あり換算秒", "mean"),
-                    補正なし平均秒=("補正なし換算秒", "mean"),
-                    平均補正差秒=("補正による差秒", "mean"),
-                ).reset_index()
-                st.markdown("**馬別・区分別の比較（過去走の単純平均）**")
-                st.dataframe(_class_summary.round(3), use_container_width=True, hide_index=True)
-                st.caption("注意：これは過去走の換算秒数の比較であり、最終ジオ順位の再計算ではありません。実際の走破タイム集約・上がり3F・他の補正を含めた順位変動は別途検証が必要です。")
-            else:
-                st.info("今回の予想には比較可能な走破タイム診断データがありません。")
-        overview = dashboard_df.copy()
-        overview["補正合計"] = pd.to_numeric(overview["ジオ評価"], errors="coerce") - pd.to_numeric(overview["統合指数"], errors="coerce")
-        overview["印"] = ["◎" if i == 0 else "○" if i == 1 else "▲" if i == 2 else "△" if i == 3 else "☆" if i == 4 else "" for i in range(len(overview))]
-        overview_fields = [c for c in ["印", "馬番", "馬名", "統合指数", "補正合計", "ジオ評価", "オッズ"] if c in overview.columns]
-        overview_display = overview[overview_fields].copy()
-        overview_display = overview_display.rename(columns={"ジオ評価":"最終ジオ評価"})
-        for col in ["統合指数","補正合計","最終ジオ評価","オッズ"]:
-            if col in overview_display:
-                overview_display[col] = pd.to_numeric(overview_display[col], errors="coerce").round(3)
-        st.dataframe(
-            overview_display, use_container_width=True, hide_index=True,
-            height=min(570, 48 + 36 * len(overview_display)),
-            column_config={"最終ジオ評価": st.column_config.NumberColumn("最終ジオ評価", format="%.3f"),
-                           "補正合計": st.column_config.NumberColumn("補正合計", format="%+.3f")},
-        )
-        st.caption("※ 印と順位は最終ジオ評価順。勝率ではありません。オッズが未取得なら実際の値を表示せず欠損のままにします。")
-        left, right = st.columns([1.1, 1.2], gap="medium")
-        with left:
-            st.markdown('<div class="geo-panel-title">♛ AI予想順位</div>', unsafe_allow_html=True)
-            fields = [c for c in ["順位", "馬番", "馬名", "ジオ評価", "統合指数", "オッズ"] if c in dashboard_df.columns]
-            st.dataframe(dashboard_df[fields], use_container_width=True, hide_index=True, height=410)
-            st.caption("順位はジオ評価によるもの。勝率を表す数値ではありません。")
-        with right:
-            st.markdown('<div class="geo-panel-title">◆ 馬別インテリジェンス</div>', unsafe_allow_html=True)
-            options = list(range(len(dashboard_df)))
-            choice = st.selectbox(
-                "分析対象馬", options,
-                format_func=lambda i: f"{dashboard_df.iloc[i].get('馬番','')}番  {dashboard_df.iloc[i].get('馬名','')}",
-                key="geo_v9_selected_horse",
-            )
-            chosen = dashboard_df.iloc[choice]
-            a,b,c = st.columns(3)
-            a.metric("GEO INDEX", f"{chosen.get('ジオ評価', float('nan')):.1f}" if pd.notna(chosen.get('ジオ評価')) else "—")
-            b.metric("能力指数", f"{chosen.get('統合指数', float('nan')):.1f}" if pd.notna(chosen.get('統合指数')) else "—")
-            member = chosen.get("メンバーレベル")
-            c.metric("メンバーレベル", f"{member:.1f}" if member is not None and pd.notna(member) else "未取得")
-            st.caption(f"脚質：{chosen.get('脚質', '不明')}　父：{chosen.get('父', '不明')}")
-            metrics = {k: float(chosen[k]) for k in ["ジオ評価","統合指数","メンバーレベル"]
-                       if k in chosen.index and pd.notna(chosen[k])}
-            if metrics:
+                course_error = course_error or "APIにcourse_adjustedがありません。Phase18.0のAPIを確認してください。"
+            # Phase18.1 independent course-suitability model.
+            suitability_payload = payload.get("course_suitability")
+            suitability_error = payload.get("course_suitability_error")
+            if isinstance(suitability_payload, dict) and isinstance(suitability_payload.get("horses"), list):
                 try:
-                    import plotly.graph_objects as go
-                    fig = go.Figure(go.Scatterpolar(
-                        r=list(metrics.values()) + [next(iter(metrics.values()))],
-                        theta=list(metrics.keys()) + [next(iter(metrics.keys()))],
-                        fill="toself", line=dict(color="#43DCE7",width=2),
-                        fillcolor="rgba(67,220,231,0.19)",
-                    ))
-                    fig.update_layout(
-                        height=250,margin=dict(l=35,r=35,t=12,b=20),
-                        paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",
-                        font=dict(color="#BBD7E6"),
-                        polar=dict(bgcolor="rgba(0,0,0,0)",
-                            radialaxis=dict(visible=True,range=[0,max(110,max(metrics.values())*1.1)],
-                                            gridcolor="#34546C"),
-                            angularaxis=dict(gridcolor="#34546C")),
-                        showlegend=False,
-                    )
-                    st.plotly_chart(fig,use_container_width=True)
-                    st.caption("レーダーは異なる指数をそのまま比較表示した参考図。尺度の違いに注意。")
-                except ImportError:
-                    st.bar_chart(pd.DataFrame({"指数":metrics}),height=220)
+                    sh = suitability_payload["horses"]
+                    sm = {int(h["umaban"]): h for h in sh}
+                    if len(sm) != len(sh) or set(sm) != set(df["馬番"]):
+                        raise ValueError("適性版の馬番が一致しません")
+                    if sorted(int(h["rank"]) for h in sh) != list(range(1,len(df)+1)):
+                        raise ValueError("適性版の順位が不正です")
+                    df["適性追加順位"] = df["馬番"].map(lambda n:int(sm[int(n)]["rank"]))
+                    df["適性追加指数"] = df["馬番"].map(lambda n:float(sm[int(n)]["course_suitability_score"])*100)
+                    df["適性対象過去走"] = df["馬番"].map(lambda n:int(sm[int(n)]["matched_count"]))
+                    df["適性順位変動"] = df["新ジオ順位"] - df["適性追加順位"]
+                except (KeyError,ValueError,TypeError) as exc:
+                    suitability_error = str(exc)
             else:
-                st.info("指数データがまだありません。")
-        with st.expander("🧮 統合指数の計算内訳｜加点・減点の根拠", expanded=True):
-            st.caption("基礎70点から実際に加算・減算された値です。血統・メンバーレベル・学習補正などの最終ジオ評価への補正とは別です。")
-            details = chosen.get("統合指数内訳")
-            if isinstance(details, dict):
-                detail_df = pd.DataFrame([
-                    {"ファクター": name, "加減点": round(float(value), 4)}
-                    for name, value in details.items()
-                ])
-                st.dataframe(detail_df, use_container_width=True, hide_index=True)
-                st.bar_chart(detail_df.set_index("ファクター")[["加減点"]], height=260)
-                total = sum(float(x) for x in details.values())
-                actual = float(chosen["統合指数"])
-                st.metric("内訳合計＝統合指数", f"{total:.4f}pt")
-                if abs(total - actual) > 0.0001:
-                    st.error(f"内訳と統合指数に差があります：{total - actual:+.6f}pt")
-                else:
-                    st.success("統合指数と内訳合計が一致しています")
-                st.caption("走破タイムと上がり3Fはコース適性にも含まれています。二重評価の可能性は今後の検証対象です。")
-            else:
-                st.info("この予想は内訳保存前のデータです。新しいコードで予想を実行すると表示されます。")
-
-        with st.expander("🔬 上がり3F診断｜単位補正後の計算確認", expanded=True):
-            st.caption("上がり3Fの332→33.2秒などの単位補正を予想計算に適用しています。ここでは補正後の計算値を確認できます。")
-            all_f3_rows = []
-            for _, horse in dashboard_df.iterrows():
-                diag = horse.get("上がり3F診断")
-                if not isinstance(diag, dict):
-                    continue
-                all_f3_rows.append({
-                    "馬番": horse.get("馬番"),
-                    "馬名": horse.get("馬名"),
-                    "有効過去走": diag.get("有効過去走数", 0),
-                    "馬場不明で除外": diag.get("除外理由別件数", {}).get("過去馬場状態が不明", 0),
-                    "Excel条件不一致": diag.get("除外理由別件数", {}).get("過去走Excel条件不一致（競馬場/距離/クラス/馬場）", 0),
-                    "対象基準3F": diag.get("対象基準3F"),
-                    "換算3F中央値": diag.get("換算3F中央値"),
-                    "基準差（秒）": diag.get("基準との差（秒）"),
-                    "制限前": diag.get("制限前の3F点"),
-                    "実際の加減点": diag.get("制限後の3F点"),
-                    "下限到達": diag.get("下限-3に到達", False),
-                    "対象Excel一致": diag.get("対象基準Excel一致", False),
-                })
-            if all_f3_rows:
-                all_f3_df = pd.DataFrame(all_f3_rows)
-                st.dataframe(all_f3_df, use_container_width=True, hide_index=True)
-                at_floor = int(all_f3_df["下限到達"].fillna(False).sum())
-                valid = int((pd.to_numeric(all_f3_df["有効過去走"], errors="coerce") > 0).sum())
-                st.caption(f"過去走あり {valid}/{len(all_f3_df)}頭 ｜ −3点下限に到達 {at_floor}頭")
-                if valid and at_floor == valid:
-                    st.warning("有効過去走のある全馬が−3点の下限に張り付いています。基準値の対応と上がりタイムの単位を確認してください。")
-                st.info("v15：過去馬場状態をAPIの芝/ダート別実データから取得。上がり3F基準はExcelの競馬場・芝ダート・距離・クラス・馬場状態を厳密照合。未登録条件は3F評価から除外します。")
-                chosen_f3_diag = chosen.get("上がり3F診断")
-                if isinstance(chosen_f3_diag, dict):
-                    st.markdown(f"**選択馬：{chosen.get('馬名', '—')} の過去走別診断**")
-                    st.json({k: v for k, v in chosen_f3_diag.items() if k != "過去走詳細"}, expanded=False)
-                    rejected = chosen_f3_diag.get("除外された過去走の例", [])
-                    if rejected:
-                        st.markdown("**除外された過去走（原因調査用）**")
-                        st.dataframe(pd.DataFrame(rejected), use_container_width=True, hide_index=True)
-                    history = chosen_f3_diag.get("過去走詳細", [])
-                    if history:
-                        st.dataframe(pd.DataFrame(history), use_container_width=True, hide_index=True)
-                    else:
-                        st.info("この馬は診断可能な上がり3F過去走がありません。")
-            else:
-                st.info("診断値がまだありません。新しいコードで予想を実行すると表示されます。")
-
-        with st.expander("🧪 v13 新配点とv11参考配点の比較", expanded=True):
-            st.caption("v13は試験配点を予想に適用中。v11配点は保存された各馬の内訳から比較用に再構成します。オッズを使う旧穴馬加点の判定は予想時のオッズを参照します。")
-            comparisons = []
-            threshold80 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.8)
-            threshold60 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.6)
-            threshold70 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.7)
-            for _, item in dashboard_df.iterrows():
-                parts = item.get("最終評価内訳")
-                if not isinstance(parts, dict):
-                    continue
-                trial = float(item["ジオ評価"])
-                idx_score = float(item["統合指数"])
-                old_ability = 8.0 if idx_score >= threshold80 else (3.0 if idx_score >= threshold60 else 0.0)
-                old_outsider = 8.0 if float(item.get("オッズ", 999)) >= 8 and idx_score >= threshold70 else 0.0
-                old = (trial - float(parts.get("能力順位", 0)) - float(parts.get("穴馬評価", 0))
-                       - float(parts.get("血統補正", 0)) * (2.0 / 3.0) - float(parts.get("メンバーレベル", 0)) * (2.0 / 3.0)
-                       - float(parts.get("自己学習", 0)) / 2
-                       + old_ability + old_outsider)
-                # v13の3倍/3倍/2倍をv11の1倍/1倍/1倍へ参考復元（上限到達時は近似）。
-                comparisons.append({"馬番":item.get("馬番"), "馬名":item.get("馬名"),
-                                    "試験配点":round(trial,3),"旧配点の参考再構成":round(old,3)})
-            if comparisons:
-                comp_df = pd.DataFrame(comparisons)
-                comp_df["試験順位"] = comp_df["試験配点"].rank(method="min",ascending=False).astype(int)
-                comp_df["旧参考順位"] = comp_df["旧配点の参考再構成"].rank(method="min",ascending=False).astype(int)
-                st.dataframe(comp_df.sort_values("試験順位"),use_container_width=True,hide_index=True)
-                st.caption("旧配点は再計算した参考値です。補正の上限に達した馬では厳密な旧スコアと異なる可能性があります。")
-            else:
-                st.info("比較できる最終評価内訳がありません。")
-
-        with st.expander("🎯 最終ジオ評価の全補正内訳｜配点検証", expanded=True):
-            st.caption("統合指数から最終評価まで、実際に適用された加減点。自己学習はAPIから取得した補正値です。")
-            details = chosen.get("最終評価内訳")
-            if isinstance(details, dict):
-                final_df = pd.DataFrame([{"ファクター": key, "加減点": round(float(val), 4)} for key, val in details.items()])
-                st.dataframe(final_df, use_container_width=True, hide_index=True)
-                st.bar_chart(final_df.set_index("ファクター")[["加減点"]].drop(index="統合指数", errors="ignore"), height=290)
-                total = sum(float(v) for v in details.values())
-                actual = float(chosen["ジオ評価"])
-                x, y, z = st.columns(3)
-                x.metric("統合指数", f"{float(chosen['統合指数']):.3f}")
-                y.metric("補正合計", f"{total-float(chosen['統合指数']):+.3f}")
-                z.metric("最終ジオ評価", f"{actual:.3f}")
-                if abs(total-actual) < 0.0001:
-                    st.success("最終ジオ評価と補正内訳の合計が一致しています。")
-                else:
-                    st.error(f"補正内訳の合計と最終評価が一致しません（差 {total-actual:+.6f}pt）。")
-                st.caption("v12試験配点を適用しています。変更前のv11をバックアップし、今週末の予想と結果を比較してください。")
-            else:
-                st.info("この予想には最終評価の内訳がありません。新しいコードで予想した場合に表示されます。")
-
-        tabs = st.tabs(["📊 指数比較", "🧬 血統・メンバー", "🏇 展開データ"])
-        with tabs[0]:
-            cols = [c for c in ["ジオ評価","統合指数","メンバーレベル"] if c in dashboard_df.columns and dashboard_df[c].notna().any()]
-            if cols:
-                st.bar_chart(dashboard_df.head(10).set_index("馬名")[cols],height=280)
-            else:
-                st.info("比較可能な指数がありません。")
-        with tabs[1]:
-            st.caption("父系の血統適性とメンバーレベルを表示。欠損値は推測で補いません。")
-            blood_cols = [c for c in dashboard_df.columns if "血統" in str(c) or "メンバー" in str(c)]
-            if blood_cols:
-                st.dataframe(dashboard_df[["馬名"]+blood_cols],use_container_width=True,hide_index=True)
-            else:
-                st.info("血統・メンバーレベルの比較列はありません。下の根拠診断で確認してください。")
-        with tabs[2]:
-            st.caption("予想時点の脚質データです。走行位置のアニメーションや未計算の能力値は表示しません。")
-            if "脚質" in dashboard_df.columns:
-                st.dataframe(dashboard_df[[c for c in ["馬番","馬名","脚質","ジオ評価"] if c in dashboard_df.columns]],
-                             use_container_width=True,hide_index=True)
-            else:
-                st.info("脚質データがありません。")
-    else:
-        st.info("レース予想を実行するとAI順位表・馬別分析が表示されます。")
-    st.subheader("🧠 ジオの最終判断")
-
-    cols = st.columns(3)
-    horse_data = [
-        ("◎ 本命", geo["honmei"]),
-        ("○ 対抗", geo["second"]),
-        ("▲ 単穴", geo["third"]),
-    ]
-
-    for col, (label, horse) in zip(cols, horse_data):
-        with col:
-            if horse is None:
-                st.info(f"{label}\n\n該当なし")
-                continue
-
-            st.markdown(
-                f"""<div class="geo-horse-card">
-<div class="geo-horse-label">{html.escape(label)} / AI RANKING</div>
-<div class="geo-horse-name">{html.escape(str(horse['馬名']))}</div>
-<div class="geo-horse-number">HORSE NO. {html.escape(str(horse['馬番']))}</div>
-<div class="geo-score">{float(horse['ジオ評価']):.1f}</div>
-<div class="geo-horse-meta">統合指数 {float(horse['統合指数']):.1f}　/　オッズ {float(horse['オッズ']):.1f}<br>
-脚質 {html.escape(str(horse.get('脚質', '')))}<br>
-父 {html.escape(str(horse.get('父', '不明')))}<br>
-母 {html.escape(str(horse.get('母', '不明')))}</div>
-</div>""",
-                unsafe_allow_html=True,
-            )
-            member_score = horse.get("メンバーレベル")
-            try:
-                if pd.notna(member_score):
-                    st.write(f"メンバーレベル：**{float(member_score):.1f}点**（{horse.get('メンバーレベル判定', '判定材料不足')}）")
-                else:
-                    st.write("メンバーレベル：判定材料不足（補正なし）")
-            except (TypeError, ValueError):
-                st.write("メンバーレベル：判定材料不足（補正なし）")
-            horse_reasons = (geo.get("reasons", {}) or {}).get(str(horse.get("馬名", "")), [])
-            if horse_reasons:
-                st.markdown("**評価理由**")
-                for reason in horse_reasons[:4]:
-                    st.write(f"・{reason}")
-
-    with st.expander("📊 AI分析ダッシュボード｜全頭指数・血統・メンバーレベル", expanded=True):
-        st.caption("実際の予想計算に使用した値を可視化します。勝率や的中確率を新たに推定するものではありません。")
-        chart_df = geo.get("df_geo")
-        if isinstance(chart_df, pd.DataFrame) and not chart_df.empty and "馬名" in chart_df.columns:
-            chart_df = chart_df.copy()
-            for metric in ["ジオ評価", "統合指数", "メンバーレベル"]:
-                if metric in chart_df.columns:
-                    chart_df[metric] = pd.to_numeric(chart_df[metric], errors="coerce")
-            top = chart_df.sort_values("ジオ評価", ascending=False).head(10) if "ジオ評価" in chart_df.columns else chart_df.head(10)
-            metrics = [c for c in ["ジオ評価", "統合指数", "メンバーレベル"] if c in top.columns and top[c].notna().any()]
-            if metrics:
-                st.markdown("**全頭AI指数ランキング（上位10頭）**")
-                st.bar_chart(top.set_index("馬名")[metrics], height=320)
-            st.markdown("**◎○▲ 血統適性とコース一致サンプル**")
-            pedigree_rows = []
-            for label, h in horse_data:
-                if not isinstance(h, dict): continue
-                blood = h.get("血統適性") or {}
-                if not isinstance(blood, dict): blood = {}
-                father = blood.get("father") or {}
-                if not isinstance(father, dict): father = {}
-                pedigree_rows.append({
-                    "印": label, "馬名": h.get("馬名", ""),
-                    "血統スコア": blood.get("score"),
-                    "信頼度": blood.get("confidence"),
-                    "コース一致出走数": father.get("exact_course_sample"),
-                    "コース一致勝率%": father.get("exact_course_win_rate"),
-                    "コース一致複勝率%": father.get("exact_course_top3_rate"),
-                })
-            if pedigree_rows:
-                pedigree_df = pd.DataFrame(pedigree_rows)
-                st.dataframe(pedigree_df, use_container_width=True, hide_index=True)
-                if pedigree_df["血統スコア"].notna().any():
-                    st.bar_chart(pedigree_df.set_index("馬名")[["血統スコア"]], height=220)
-            st.caption("血統は父の産駒実績に基づきます。完全一致サンプルが少ない場合は過信しないでください。")
-        else:
-            st.info("まだ全頭の予想結果がありません。レースを分析すると表示されます。")
-
-    with st.expander("🧬 血統・学習補正の根拠", expanded=False):
-        st.caption("血統スコアは父の産駒実績100%で算出。母の産駒実績はスコアに使いません。条件別成績はサンプル数と一緒に確認してください。")
-        diagnostic_rows = []
-        for label, horse in horse_data:
-            if horse is None:
-                continue
-            blood = horse.get("血統適性", {})
-            blood = blood if isinstance(blood, dict) else {}
-            # APIの血統スコアは combined object。条件別内訳は father の中にある。
-            father_diag = blood.get("father", {}) if isinstance(blood.get("father", {}), dict) else {}
-            comps = father_diag.get("components", {}) if isinstance(father_diag.get("components", {}), dict) else {}
-            row = {
-                "印": label,
-                "馬番": str(horse.get("馬番", "")),
-                "馬名": str(horse.get("馬名", "")),
-                "血統スコア": blood.get("score", None),
-                "信頼度": blood.get("confidence", "不明"),
-                "コース一致 出走数": father_diag.get("exact_course_sample", 0),
-                "コース一致 勝率%": father_diag.get("exact_course_win_rate", None),
-                "コース一致 複勝率%": father_diag.get("exact_course_top3_rate", None),
-                "コース＋馬場 出走数": father_diag.get("exact_course_going_sample", 0),
-                "コース＋馬場 勝率%": father_diag.get("exact_course_going_win_rate", None),
-                "コース＋馬場 複勝率%": father_diag.get("exact_course_going_top3_rate", None),
-                "父産駒の芝/ダート出走数": (comps.get("surface") or {}).get("sample", 0),
-                "父産駒の距離帯出走数": (comps.get("distance") or {}).get("sample", 0),
-                "学習補正": horse.get("学習補正", 0),
-                "学習一致条件": horse.get("学習一致条件", "未取得"),
-                "学習補正内訳": horse.get("学習補正内訳", "未取得"),
-            }
-            diagnostic_rows.append(row)
-        if diagnostic_rows:
-            st.dataframe(pd.DataFrame(diagnostic_rows), use_container_width=True, hide_index=True)
-        st.caption("『コース＋馬場』の出走数が少ない場合、信頼度が中・高でも完全一致条件の根拠は薄い可能性があります。ここでは数値を表示し、信頼度判定そのものは今回変更していません。")
-
-    with st.expander("🔍 v44 メンバーレベル・全馬比較（診断専用）", expanded=False):
-        st.caption("過去の対戦相手の後続成績から計算したスコアと、実際の加点を全馬で確認。直近最大3走の平均であり、出走歴全体の重賞経験を直接加点する指標ではありません。")
-        _member_rows = []
-        for _, _mr in dashboard_df.iterrows():
-            _raw = pd.to_numeric(_mr.get("メンバーレベル"), errors="coerce")
-            _used = pd.to_numeric(_mr.get("メンバーレベル使用レース数"), errors="coerce")
-            _parts = _mr.get("最終評価内訳")
-            if not isinstance(_parts, dict):
-                _parts = {}
-            _member_rows.append({
-                "馬番": _mr.get("馬番"), "馬名": _mr.get("馬名"),
-                "現行GEO順位": _mr.get("ジオ順位"),
-                "メンバーレベル原点": round(float(_raw), 2) if pd.notna(_raw) else None,
-                "使用過去レース数": int(_used) if pd.notna(_used) else 0,
-                "最大3走の不足数": max(0, 3 - int(_used)) if pd.notna(_used) else 3,
-                "実際のメンバー加点": _parts.get("メンバーレベル"),
-                "信頼度係数": _mr.get("メンバーレベル信頼度"),
-                "後続走数": _mr.get("メンバーレベル後続走数"),
-                "判定": _mr.get("メンバーレベル判定"),
-                "取得状況": _mr.get("メンバーレベル取得状況"),
-            })
-        if _member_rows:
-            _member_table = pd.DataFrame(_member_rows)
-            st.dataframe(_member_table, use_container_width=True, hide_index=True)
-            st.caption("使用レース数が少ない＝弱い相手とは限りません。直近のレースほど相手の『その後』の成績が少ないため、データ不足による評価の偏りがないか確認します。")
-            _valid_member = _member_table[pd.to_numeric(_member_table["メンバーレベル原点"], errors="coerce").notna()]
-            if not _valid_member.empty:
-                st.write("**メンバーレベルが低い順**")
-                st.dataframe(_valid_member.sort_values("メンバーレベル原点").head(10), use_container_width=True, hide_index=True)
-        else:
-            st.info("全馬の診断データがありません。予想を実行してください。")
-
-    with st.expander("🔬 v45 メンバーレベル・過去3走の相手別内訳", expanded=False):
-        st.caption("診断専用。既存の予想・加点は変更しません。対象日を指定すると、相手馬の後続成績をその日までに制限します。")
-        _v45_horses = []
-        for _, _v45_row in dashboard_df.iterrows():
-            _v45_hid = str(_v45_row.get("血統登録番号", "") or "").strip()
-            if _v45_hid and _v45_hid.lower() not in ("none", "nan"):
-                _v45_horses.append((str(_v45_row.get("馬名", "")), _v45_hid))
-        if not _v45_horses:
-            st.warning("血統登録番号がありません。")
-        else:
-            _v45_names = [x[0] for x in _v45_horses]
-            _v45_default = next((i for i, n in enumerate(_v45_names) if "アンパドゥ" in n), 0)
-            _v45_index = st.selectbox("診断する馬", range(len(_v45_names)), index=_v45_default,
-                                     format_func=lambda i: _v45_names[i], key="geo_v45_horse")
-            _v45_name, _v45_hid = _v45_horses[_v45_index]
-            _v45_asof = st.date_input("集計締切日（この日までの相手の後続成績）", value=__import__("datetime").date.today(),
-                                      key="geo_v45_asof")
-            st.caption("過去のレース前検証では、そのレースの前日を指定。ただし診断APIは対象馬の過去走自体を日付で除外しないため、厳密な当時の予想再現ではありません。")
-            if st.button("この馬の過去3走を詳しく調べる", key="geo_v45_fetch"):
+                suitability_error = suitability_error or "APIにcourse_suitabilityがありません。Phase18.1 APIを確認してください。"
+            # Phase18.2: official nine-feature ranking, validated independently.
+            official_payload = payload.get('official_nine_feature')
+            official_error = None
+            if isinstance(official_payload, dict) and isinstance(official_payload.get('horses'), list):
                 try:
-                    from urllib.parse import quote as _v45_quote
-                    _v45_resp = requests.get(
-                        f"{API_BASE.rstrip('/')}/geo/field-quality/debug/{_v45_quote(_v45_hid, safe='')}",
-                        params={"asof": _v45_asof.isoformat(), "limit": 6}, timeout=(10, 90))
-                    _v45_resp.raise_for_status()
-                    _v45_payload = _v45_resp.json()
-                    if not _v45_payload.get("ok"):
-                        raise ValueError(_v45_payload.get("error", "診断APIの応答異常"))
-                    st.session_state["geo_v45_details"] = {"horse_id": _v45_hid, "asof": _v45_asof.isoformat(), "payload": _v45_payload}
-                except Exception as _v45_err:
-                    st.error(f"診断取得エラー: {type(_v45_err).__name__}: {_v45_err}")
-            _v45_saved = st.session_state.get("geo_v45_details", {})
-            if _v45_saved.get("horse_id") == _v45_hid and _v45_saved.get("asof") == _v45_asof.isoformat():
-                _v45_runs = _v45_saved.get("payload", {}).get("runs", []) or []
-                _v45_cutoff = _v45_asof.strftime("%Y%m%d")
-                _v45_rows = []
-                _v45_kept = []
-                for _v45_r in _v45_runs:
-                    _v45_rdate = str(_v45_r.get("kaisai_nen", "")) + str(_v45_r.get("kaisai_gappi", "")).zfill(4)
-                    if _v45_rdate >= _v45_cutoff:
-                        continue
-                    _v45_kept.append(_v45_r)
-                    if len(_v45_kept) >= 3:
-                        break
-                if len(_v45_kept) < 3:
-                    st.warning("締切日以前の過去走が3走未満です。APIの取得対象6走より前に対象走がある場合、正確な3走抽出にはAPI側の日付絞り込みが必要です。")
-                for _v45_i, _v45_r in enumerate(_v45_kept, 1):
-                    _v45_fq = _v45_r.get("field_quality") or {}
-                    _v45_rdate = str(_v45_r.get("kaisai_nen", "")) + str(_v45_r.get("kaisai_gappi", "")).zfill(4)
-                    _v45_rows.append({
-                        "過去走": _v45_i, "日付": _v45_rdate, "レース名": _v45_r.get("kyosomei_hondai"),
-                        "自身の着順": _v45_r.get("kakutei_chakujun"), "メンバーレベル": _v45_fq.get("score"),
-                        "対戦相手数": _v45_fq.get("opponents_in_race"),
-                        "後続成績ありの相手数": _v45_fq.get("opponents_with_followup_results"),
-                        "後続走数": _v45_fq.get("followup_starts_used"),
-                        "後続3着内率%": _v45_fq.get("followup_top3_rate_pct")})
-                if _v45_rows:
-                    st.write("**過去3走のレース別評価**")
-                    st.dataframe(pd.DataFrame(_v45_rows), use_container_width=True, hide_index=True)
-                    _v45_scores = [float(x["メンバーレベル"]) for x in _v45_rows if x["メンバーレベル"] is not None]
-                    if _v45_scores:
-                        st.write(f"この3走の単純平均: **{sum(_v45_scores)/len(_v45_scores):.2f}点**")
-                    for _v45_i, _v45_r in enumerate(_v45_kept, 1):
-                        _v45_fq = _v45_r.get("field_quality") or {}
-                        with st.expander(f"{_v45_i}走前：{_v45_r.get('kyosomei_hondai') or _v45_r.get('race_code')} ／ スコア {_v45_fq.get('score')}"):
-                            _v45_details = _v45_fq.get("followup_details") or []
-                            if _v45_details:
-                                _v45_detail_rows = [{
-                                    "対戦相手": x.get("opponent_name"), "後続日": x.get("followup_date"),
-                                    "後続レース": x.get("race_name"), "後続クラス": x.get("class_label"),
-                                    "後続着順": x.get("finish"), "頭数": x.get("field_size"),
-                                    "着順スコア": x.get("score_before"), "クラス加点": x.get("class_bonus"),
-                                    "採用スコア": x.get("score_after")}
-                                    for x in _v45_details]
-                                st.dataframe(pd.DataFrame(_v45_detail_rows), use_container_width=True, hide_index=True)
-                            else:
-                                st.info("相手の後続成績がありません。")
-                    st.caption("注意：診断GETと本番の一括APIは別実装です。スコアが本番表示と一致するか確認してください。過去レースの当時の再現には対象馬の過去走選択もAPI側で日付制限する必要があります。")
-                else:
-                    st.info("締切日より前の対象走が見つかりません。")
+                    oh=official_payload['horses']
+                    om={int(h['umaban']):h for h in oh}
+                    if len(om)!=len(oh) or set(om)!=set(df['馬番']):
+                        raise ValueError('正式9項目の馬番が一致しません')
+                    if sorted(int(h['rank']) for h in oh)!=list(range(1,len(df)+1)):
+                        raise ValueError('正式9項目の順位が不正です')
+                    df['正式9項目順位']=df['馬番'].map(lambda n:int(om[int(n)]['rank']))
+                    df['正式9項目スコア']=df['馬番'].map(lambda n:float(om[int(n)]['ranking_score']))
+                except (KeyError,ValueError,TypeError) as exc:
+                    official_error=str(exc)
+            else:
+                official_error='APIにofficial_nine_featureがありません。Phase18.2 APIを確認してください。'
+            ten_payload=payload.get('official_ten_feature')
+            ten_error=payload.get('course_suitability_error')
+            if isinstance(ten_payload,dict) and isinstance(ten_payload.get('horses'),list):
+                try:
+                    th=ten_payload['horses']; tm={int(h['umaban']):h for h in th}
+                    if len(tm)!=len(th) or set(tm)!=set(df['馬番']):raise ValueError('正式10項目の馬番が一致しません')
+                    if sorted(int(h['rank']) for h in th)!=list(range(1,len(df)+1)):raise ValueError('正式10項目の順位が不正です')
+                    df['正式10項目順位']=df['馬番'].map(lambda n:int(tm[int(n)]['rank']))
+                    df['正式10項目スコア']=df['馬番'].map(lambda n:float(tm[int(n)]['ranking_score']))
+                    df['末脚力指数']=df['馬番'].map(lambda n:float(tm[int(n)]['closing_kick']))
+                    df['末脚評価過去走']=df['馬番'].map(lambda n:int(tm[int(n)]['sample_count']))
+                    df['昇級クラス補正']=df['馬番'].map(lambda n:float(tm[int(n)].get('class_adjustment_in_ninth') or 0))
+                    df['末脚クラス移行係数']=df['馬番'].map(lambda n:float(tm[int(n)].get('class_transfer_factor') or 1))
+                except (KeyError,ValueError,TypeError) as exc:ten_error=str(exc)
+            else:ten_error=ten_error or 'APIにofficial_ten_featureがありません。Phase18.3 APIを確認してください。'
+            joint_payload=payload.get('joint_ten_learned')
+            if isinstance(joint_payload,dict) and joint_payload.get('status')=='trained':
+                jh=joint_payload.get('horses',[]);jm={int(h['umaban']):h for h in jh}
+                if len(jm)==len(df) and set(jm)==set(df['馬番']):
+                    df['学習10項目順位']=df['馬番'].map(lambda n:int(jm[int(n)]['rank']))
+                    df['学習10項目スコア']=df['馬番'].map(lambda n:float(jm[int(n)]['ranking_score']))
+            # Phase18.6: 個別・全自動の両方で正式10項目を保存順位として採用。
+            # 学習済み10項目は順位が全頭揃っている場合だけ採用し、それ以外はPhase18.4。
+            # APIに正式10項目がない場合、従来8項目へ黙って戻さずエラーにする。
+            if "正式10項目順位" not in df.columns:
+                raise ValueError(f"正式10項目の順位が取得できません: {ten_error}")
+            selected_rank = "正式10項目順位"
+            selected_score = "正式10項目スコア"
+            selected_model = "Phase18.4 正式10項目（暫定係数）"
+            if isinstance(joint_payload, dict) and joint_payload.get("status") == "trained":
+                if "学習10項目順位" not in df.columns:
+                    raise ValueError("学習済み10項目の順位が不完全です。保存を中止します")
+                if sorted(df["学習10項目順位"].astype(int).tolist()) != list(range(1, len(df) + 1)):
+                    raise ValueError("学習済み10項目の順位が不正です。保存を中止します")
+                selected_rank = "学習10項目順位"
+                selected_score = "学習10項目スコア"
+                selected_model = "Phase18.5 学習済み10項目"
+            df = df.sort_values([selected_rank, "馬番"]).reset_index(drop=True)
+            # ジオ評価は既存の保存API用の数値フィールド。複勝確率ではなく順位スコア。
+            df["ジオ評価"] = pd.to_numeric(df[selected_score], errors="raise") * 100.0
+            if not np.isfinite(df["ジオ評価"].to_numpy(dtype=float)).all():
+                raise ValueError("正式10項目のスコアが不正です")
+            df["予想モデル"] = selected_model
+            top = [df.iloc[i] if len(df) > i else None for i in range(3)]
+            return {"df_geo": df, "honmei": top[0], "second": top[1], "third": top[2],
+                    "decision": selected_model + "の順位", "confidence": 0,
+                    "gap12": 0, "gap13": 0, "comment": [selected_model + "で◎○▲を決定。ジオ評価は校正済み複勝確率ではありません"],
+                    "tickets": [], "reasons": {}, "pace": pace, "bias": bias, "condition": condition,
+                    "prediction_model": selected_model,
+                    "course_profile": course_profile, "course_error": course_error,
+                    "course_snapshot": course_snapshot, "course_payload": course_payload,
+                    "suitability_payload": suitability_payload, "suitability_error": suitability_error,
+                    "abc_snapshot": payload.get("course_abc_snapshot"),
+                    "official_payload":official_payload,"official_error":official_error,
+                    "ten_payload":ten_payload,"ten_error":ten_error,"ten_snapshot":payload.get("official_ten_snapshot"),"joint_payload":joint_payload}
+        except Exception as exc:
+            st.error(f"新ジオ予測を取得できません。旧ジオでは代用しません: {exc}")
+            return None
 
-    with st.expander("🧪 メンバーレベル取得診断", expanded=False):
-        diag = st.session_state.get("geo_field_quality_diagnostics")
-        if not diag:
-            st.info("診断情報がありません。レース予想を実行してください。")
+        # 予想対象レース日までに判明している情報だけでメンバーレベルを評価する。
+        # 日付が不明な場合は当日の日付を使い、未来の結果を参照しない。
+        if not asof_date:
+            asof_date = pd.Timestamp.now().strftime("%Y-%m-%d")
         else:
-            st.write(f"API URL: `{diag.get('api_base', '')}`")
-            st.write(f"対象日: {diag.get('asof_date', '')}")
-            st.write(f"出走馬: {diag.get('horses_total', 0)}頭 / 血統登録番号あり: {diag.get('horses_with_id', 0)}頭 / スコア取得成功: {diag.get('scores_ok', 0)}頭")
-            st.write(f"一括API処理時間: {diag.get('elapsed_seconds', '不明')} 秒")
-            st.write("取得状況の内訳")
-            st.json(diag.get("status_counts", {}))
-            if diag.get("samples"):
-                st.dataframe(pd.DataFrame(diag["samples"]), use_container_width=True, hide_index=True)
-            st.caption("接続エラーなら、APIサーバー起動時に表示される最新のtrycloudflare.com URLを JRA_VAN_API_BASE に設定し、アプリを再起動してください。")
-
-    st.markdown("### 🎯 ジオの結論")
-    st.success(f"{geo['decision']} ｜ ジオ独自の自信度 **{geo['confidence']}%**")
-    st.caption("※この自信度はジオ独自の判断指標で、実際の的中確率・勝率ではありません。")
-
-    st.markdown("### 💭 ジオの考察")
-    for text in geo["comment"]:
-        st.write("・" + text)
-
-    if geo["tickets"]:
-        st.markdown("### 🎫 ジオの3連単")
-        for i, ticket in enumerate(geo["tickets"], 1):
-            st.write(f"**{i}. {ticket}**")
-
-    with st.expander("🔎 ジオが見たレース条件"):
-        st.write(f"ペース：{geo['pace']}")
-        st.write(f"馬場バイアス：{geo['bias']}")
-        st.write(f"馬場状態：{geo['condition']}")
-
-    with st.expander("📊 ジオの全頭評価"):
-        show_cols = [
-            "着順予測",
-            "馬番",
-            "馬名",
-            "ジオ評価",
-            "統合指数",
-            "予測走破タイム",
-            "オッズ",
-            "脚質",
-            "メンバーレベル",
-            "メンバーレベル判定",
-        ]
-        show_cols = [c for c in show_cols if c in geo["df_geo"].columns]
-        st.dataframe(
-            geo["df_geo"][show_cols],
-            use_container_width=True,
-            hide_index=True
-        )
-
-    st.session_state["geo_prediction"] = geo
-
-
-# =========================================================
-# 結果表示
-# =========================================================
-
-if (
-    st.session_state.get("sim_executed", False)
-    and "df_simulated" in st.session_state
-):
-    st.markdown(
-        f"""
-        <br>
-        <h3>
-            🏆 総合指数ランキング
-            （{race_place} {race_class} /
-            JRA-VAN完全連携版）
-        </h3>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    df_simulated = st.session_state["df_simulated"]
-
-    display_columns = [
-        c for c in [
-            "着順予測",
-            "馬番",
-            "馬名",
-            "ライジングスター",
-            "オッズ",
-            "脚質",
-            "得意馬場",
-            "統合指数",
-            "予測走破タイム",
-        ]
-        if c in df_simulated.columns
-    ]
-
-    display_df = df_simulated[display_columns].copy()
-    display_df["統合指数"] = display_df["統合指数"].apply(lambda x: f"{x:.1f}pt")
-
-    st.dataframe(
-        display_df,
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    if "master_data_jv" in st.session_state:
-        master_debug = st.session_state["master_data_jv"]
-        st.caption(f"📊 JRA-VANから取得した過去走データ: {len(master_debug)}件")
-
-
-# =========================================================
-# 🧠 ジオ予想実行
-# =========================================================
-st.markdown('<span id="geo-predict" class="geo-anchor"></span>', unsafe_allow_html=True)
-st.markdown('<div class="geo-section-label">02 / GEO PREDICTION</div>', unsafe_allow_html=True)
-
-if (
-    st.session_state.get("sim_executed", False)
-    and "df_simulated" in st.session_state
-):
-    st.markdown("---")
-
-# Phase16.49: explicitly prepare the as-of-date model, separate from predictions.
-_geo49_date = str(race_id or '')[:8]
-if len(_geo49_date)==8 and _geo49_date.isdigit():
-    _geo49_base=API_BASE.rstrip('/')
-    try:
-        _geo49_ready_resp=requests.get(f'{_geo49_base}/geo/new/model/ready/{_geo49_date}',timeout=(5,12))
-        _geo49_ready=_geo49_ready_resp.ok and _geo49_ready_resp.json().get('ready',False)
-    except (requests.RequestException,ValueError):
-        _geo49_ready=False
-    if _geo49_ready:
-        st.success('新ジオの学習済みモデルは準備完了。予想ボタンを押せるで。')
-    else:
-        st.info('新ジオのモデルが未準備です。最初に「モデルを事前準備」を実行してください。進捗は保存され、途中から再開できます。')
-        if st.button('🧠 新ジオのモデルを事前準備',key='geo49_prepare_model'):
             try:
-                _g49r=requests.get(f'{_geo49_base}/geo/new/model/prepare/{_geo49_date}/async',timeout=(5,30))
-                _g49r.raise_for_status()
-                _g49data=_g49r.json()
-                st.session_state['geo49_model_job_id']=_g49data['job_id']
-            except (requests.RequestException,KeyError,ValueError) as _g49err:
-                st.error(f'モデル準備開始エラー: {_g49err}')
-        _g49job=st.session_state.get('geo49_model_job_id')
-        if _g49job:
-            try:
-                _g49s=requests.get(f'{_geo49_base}/geo/new/predict/status/{_g49job}',timeout=(5,15)).json()
-                _g49stage=_g49s.get('stage','準備中')
-                st.info(f"モデル準備: {_g49s.get('status')} / {_g49stage} / {_g49s.get('done',0)}/{_g49s.get('total',0)}レース / {_g49s.get('elapsed_seconds',0)}秒")
-                if _g49s.get('status')=='complete':
-                    st.success('学習完了！画面を再読み込みして予想ボタンを押してな。')
-                elif _g49s.get('status')=='error':
-                    st.error(str(_g49s.get('error')))
-            except (requests.RequestException,ValueError) as _g49err:
-                st.warning(f'モデル準備状態を取得できません: {_g49err}')
-        st.caption('モデル準備中は、画面を再読み込みすると進捗を確認できるで。')
-
-if st.button(
-    "🧠 ジオにレースを分析させる",
-    key="geo_prediction_button",
-    type="primary"
-):
-    if not st.session_state.get("sim_executed", False) or "df_simulated" not in st.session_state:
-        st.warning("先に『🚀 走破タイム×上がり3F完全統合シミュレーションを実行』を押してください。")
-        st.stop()
-    if len(_geo49_date)==8 and _geo49_date.isdigit() and not _geo49_ready:
-        st.warning('新ジオの学習済みモデルがまだ準備できていません。先に「モデルを事前準備」を実行してな。')
-        st.stop()
-    geo_result = run_geo_prediction(
-        st.session_state["df_simulated"],
-        selected_pace,
-        selected_bias,
-        selected_condition,
-        venue=race_place,
-        race_id=str(race_id or "").strip(),
-        asof_date=(selected_race_summary.get("date") or selected_race_summary.get("kaisai_date") or race_meta.get("date") or race_meta.get("kaisai_date")),
-    )
-
-    if geo_result is not None:
-        # 現在サイドバーで選択しているレースを必ず使用
-        current_race_id = str(race_id or "").strip()
-
-        if not current_race_id:
-            try:
-                if "df_race" in globals() and "レースID" in df_race.columns:
-                    ids = df_race["レースID"].dropna().astype(str)
-                    if len(ids) > 0:
-                        current_race_id = ids.iloc[0].strip()
+                asof_date = pd.to_datetime(str(asof_date), errors="raise").strftime("%Y-%m-%d")
             except Exception:
-                pass
+                asof_date = pd.Timestamp.now().strftime("%Y-%m-%d")
+        df = enrich_with_field_quality(df, asof_date)
 
-        # 現在選択中のレース情報を作成
-        current_race_info = {
-            "date": selected_race_summary.get("date", selected_race_summary.get("kaisai_date", "")),
-            "venue": selected_race_summary.get("venue", selected_race_summary.get("place", "")),
-            "race_no": selected_race_summary.get("race_no", selected_race_summary.get("race_bango", "")),
-            "name": selected_race_summary.get("name", selected_race_summary.get("kyosomei_hondai", race_name)),
+        df["統合指数"] = pd.to_numeric(
+            df["統合指数"],
+            errors="coerce"
+        ).fillna(0)
+
+        df["予測走破タイム"] = pd.to_numeric(
+            df["予測走破タイム"],
+            errors="coerce"
+        )
+
+        df["オッズ"] = pd.to_numeric(
+            df["オッズ"],
+            errors="coerce"
+        ).fillna(999)
+
+        df["ジオ評価"] = df["統合指数"]
+
+        reasons = {}
+        df["最終評価内訳"] = pd.Series([None] * len(df), index=df.index, dtype=object)
+
+        for idx, row in df.iterrows():
+            score = float(row["統合指数"])
+            odds = float(row["オッズ"])
+            horse = str(row.get("馬名", ""))
+            style = str(row.get("脚質", ""))
+            ground = str(row.get("得意馬場", ""))
+
+            point = []
+            bonus = 0
+            penalty = 0
+            components = {"統合指数": score, "能力順位": 0.0, "展開ペース": 0.0,
+                          "馬場適性": 0.0, "馬場バイアス": 0.0, "穴馬評価": 0.0,
+                          "人気先行減点": 0.0, "血統補正": 0.0, "メンバーレベル": 0.0,
+                          "自己学習": 0.0}
+
+
+            # v13: 能力順位ボーナス廃止。統合指数の能力を重複加点しない。
+
+            if pace == "S":
+                if style in ["逃げ", "先行"]:
+                    bonus += 7
+                    components["展開ペース"] += 7
+                    point.append("スローペースなら前有利")
+                elif style == "差し":
+                    penalty += 4
+                    components["展開ペース"] -= 4
+                elif style == "追込":
+                    penalty += 7
+                    components["展開ペース"] -= 7
+            elif pace == "M":
+                if style in ["先行", "差し"]:
+                    bonus += 4
+                    components["展開ペース"] += 4
+                    point.append("ミドルペースへの適性")
+            elif pace == "H":
+                if style == "差し":
+                    bonus += 7
+                    components["展開ペース"] += 7
+                    point.append("ハイペースなら差し有利")
+                elif style == "追込":
+                    bonus += 5
+                    components["展開ペース"] += 5
+                    point.append("展開が向けば末脚を活かせる")
+                elif style == "逃げ":
+                    penalty += 6
+                    components["展開ペース"] -= 6
+
+            if ground and condition in ground:
+                bonus += 5
+                components["馬場適性"] += 5
+                point.append(f"{condition}馬場への適性")
+
+            if bias == "内有利":
+                if style in ["逃げ", "先行"]:
+                    bonus += 4
+                    components["馬場バイアス"] += 4
+                    point.append("内有利の馬場と脚質が合う")
+                elif style == "追込":
+                    penalty += 3
+                    components["馬場バイアス"] -= 3
+            elif bias == "外有利":
+                if style in ["差し", "追込"]:
+                    bonus += 4
+                    components["馬場バイアス"] += 4
+                    point.append("外有利の馬場と脚質が合う")
+
+            # v12試験案：穴馬ボーナスは0点。オッズは能力順位の押し上げに使用しない。
+            # 馬券期待値の判定は別系統として今後検証する。
+
+            if odds <= 4 and score <= df["統合指数"].quantile(0.4):
+                penalty += 7
+                components["人気先行減点"] -= 7
+                point.append("人気先行の可能性")
+
+            # 血統適性による補正
+            bloodline_bonus = 0.0
+            bloodline = row.get("血統適性", {})
+
+            if isinstance(bloodline, dict):
+                bloodline_score = bloodline.get("score", 50.0)
+                bloodline_confidence = bloodline.get("confidence", "低")
+
+                try:
+                    bloodline_score = float(bloodline_score)
+                except (TypeError, ValueError):
+                    bloodline_score = 50.0
+
+                bloodline_bonus = (bloodline_score - 50.0) / 6.25
+                # 血統適性はジオ評価へ実効で最大±8点まで反映
+                bloodline_bonus = max(-8.0, min(8.0, bloodline_bonus))
+
+                confidence_factor = {
+                    "高": 1.0,
+                    "中": 0.85,
+                    "やや低": 0.6,
+                    "低": 0.4,
+                }.get(bloodline_confidence, 0.5)
+
+                bloodline_bonus = max(-8.0, min(8.0, bloodline_bonus * confidence_factor * 3.0))
+                if bloodline_bonus != 0:
+                    # 「血統適性スコア」と「ジオ評価へ実際に加える点数」を区別して表示する。
+                    point.append(
+                        f"血統適性スコア({bloodline_score:.1f}/100・信頼度{bloodline_confidence})"
+                        f"／実効補正{bloodline_bonus:+.2f}点"
+                    )
+
+            # メンバーレベルは補助材料として最大±4点。データ不足は加点・減点しない。
+            member_bonus = 0.0
+            member_value = row.get("メンバーレベル")
+            try:
+                member_value = float(member_value)
+                if np.isfinite(member_value):
+                    member_bonus = max(-8.0, min(8.0, (member_value - 50.0) / 12.5 * 3.0))
+                    # v46: only shrink when the API explicitly provides valid sample confidence.
+                    _v46_conf = row.get("メンバーレベル信頼度")
+                    try:
+                        _v46_conf = float(_v46_conf)
+                        if np.isfinite(_v46_conf) and 0.0 <= _v46_conf <= 1.0:
+                            member_bonus *= _v46_conf
+                    except (TypeError, ValueError):
+                        pass
+                    point.append(
+                        f"メンバーレベル{member_value:.1f}点（{row.get('メンバーレベル判定', '判定材料不足')}・{int(row.get('メンバーレベル使用レース数', 0) or 0)}レース）"
+                    )
+            except (TypeError, ValueError):
+                member_bonus = 0.0
+
+            # v19: 初芝・初ダートのみ専用評価。既存の血統補正と二重計上しない。
+            _first_diag = row.get("芝ダ初挑戦診断", {})
+            _first_inputs = row.get("初挑戦能力材料", {})
+            if not isinstance(_first_diag, dict):
+                _first_diag = {}
+            if not isinstance(_first_inputs, dict):
+                _first_inputs = {}
+            _first_status = _first_diag.get("判定", "")
+            _first_ability = 0.0
+            _first_condition = 0.0
+            if _first_status in ("初ダート", "初芝"):
+                _past_proxy = _first_inputs.get("代理能力指数")
+                if _past_proxy is not None:
+                    _transfer_rate = 0.70
+                    _first_ability = max(-6.0, min(6.0, (float(_past_proxy) - 70.0) * _transfer_rate))
+                _old_distance = _first_inputs.get("異種馬場の中央値距離")
+                try:
+                    _new_distance = float(row.get("距離"))
+                    _distance_diff = abs(_new_distance - float(_old_distance))
+                    if _distance_diff <= 200:
+                        _first_condition = 2.0
+                    elif _distance_diff <= 400:
+                        _first_condition = 1.0
+                    elif _distance_diff <= 600:
+                        _first_condition = 0.0
+                    elif _distance_diff <= 800:
+                        _first_condition = -1.0
+                    else:
+                        _first_condition = -2.0
+                except (TypeError, ValueError):
+                    _first_condition = 0.0
+                # 通常の血統補正（最大±8）を専用補正（最大±5）に置換する。
+                # 血統スコア・信頼度は従来の父産駒評価を使用。
+                bloodline_bonus = max(-5.0, min(5.0, float(bloodline_bonus)))
+                point.append(
+                    f"{_first_status}専用：統合指数に転用能力{_first_ability:+.2f}点反映済み（再加点なし）"
+                    f"（異種馬場の平均着順{_first_inputs.get('平均着順', '不明')}から代理指数算出）、"
+                    f"血統{bloodline_bonus:+.2f}点、距離条件{_first_condition:+.2f}点"
+                )
+            # 転用能力は既に統合指数へ算入済み。最終補正には再加算しない。
+            components["初挑戦・転用能力"] = 0.0
+            components["初挑戦・距離条件"] = float(_first_condition)
+            components["血統補正"] = float(bloodline_bonus)
+            components["メンバーレベル"] = float(member_bonus)
+            geo_score = score + bonus - penalty + bloodline_bonus + member_bonus + _first_condition
+            df.at[idx, "最終評価内訳"] = components
+            df.loc[idx, "ジオ評価"] = geo_score
+            reasons[horse] = point
+
+        # 自動学習補正。API障害時は従来ロジックをそのまま継続する。
+        df = apply_geo_learning_adjustment(
+            df, pace=pace, bias=bias, condition=condition, venue=venue
+        )
+        for idx, row in df.iterrows():
+            adjustment = float(row.get("学習補正", 0) or 0)
+            if abs(adjustment) > 0.001:
+                horse = str(row.get("馬名", ""))
+                reasons.setdefault(horse, []).append(
+                    f"過去結果からの学習補正{adjustment:+.1f}pt"
+                )
+
+        # Phase16.45: the production model exclusively determines the order.
+        # Never silently substitute the old ranking if the new endpoint fails.
+        if race_id:
+            try:
+                model_data = geo47_get_prediction(str(race_id))
+                if not model_data.get('ok'):
+                    raise RuntimeError(model_data.get('error', 'unknown GEO model error'))
+                by_number = {int(x['umaban']): x for x in model_data['horses']}
+                numbers = pd.to_numeric(df['馬番'], errors='coerce')
+                if numbers.isna().any() or len(by_number) != len(df) or set(numbers.astype(int)) != set(by_number):
+                    raise RuntimeError('馬番の照合が不一致。旧ジオへの自動切替はしません')
+                df['新ジオ複勝確率'] = numbers.astype(int).map(lambda n: by_number[int(n)]['top3_probability'])
+                df['新ジオ順位'] = numbers.astype(int).map(lambda n: by_number[int(n)]['rank'])
+                df['ジオ評価'] = df['新ジオ複勝確率'] * 100.0
+                df['予想モデル'] = 'Phase16.45 ability_plus_counts/top3'
+                for _, item in df.iterrows():
+                    reasons.setdefault(str(item.get('馬名','')), []).insert(0, '新ジオ複勝確率 {:.1%}'.format(item['新ジオ複勝確率']))
+            except Exception as exc:
+                st.error('新ジオ予測を取得できません。旧ジオの印で保存しないよう、このレースの予想を中断します: ' + str(exc))
+                return None
+        else:
+            st.error('新ジオ予測にはレースIDが必要です。旧ジオで代用せず中断します')
+            return None
+        df = df.sort_values('新ジオ順位', ascending=True).reset_index(drop=True)
+
+        honmei = df.iloc[0] if len(df) >= 1 else None
+        second = df.iloc[1] if len(df) >= 2 else None
+        third = df.iloc[2] if len(df) >= 3 else None
+
+        gap12 = (honmei["ジオ評価"] - second["ジオ評価"]) if second is not None else 0
+        gap13 = (honmei["ジオ評価"] - third["ジオ評価"]) if third is not None else 0
+
+        confidence = 60
+        if gap12 >= 15:
+            confidence += 15
+        elif gap12 >= 8:
+            confidence += 8
+        elif gap12 <= 3:
+            confidence -= 8
+
+        if gap13 >= 20:
+            confidence += 8
+
+        if honmei["オッズ"] >= 15:
+            confidence -= 8
+
+        confidence = max(0, min(100, int(confidence)))
+
+        if confidence >= 75:
+            decision = "🔥 買う"
+        elif confidence >= 62:
+            decision = "△ 保留"
+        else:
+            decision = "🚫 見送る"
+
+        main_name = str(honmei["馬名"])
+        main_reason = reasons.get(main_name, [])
+        if not main_reason:
+            main_reason = ["総合的な能力評価を重視"]
+
+        comment = [
+            f"{main_name}をジオの本命◎と判断。",
+            f"統合指数は{honmei['統合指数']:.1f}、ジオ評価は{honmei['ジオ評価']:.1f}。"
+        ]
+        if pace:
+            comment.append(f"想定ペースは{pace}。")
+        comment.append("、".join(main_reason[:3]) + "。")
+
+        tickets = []
+        if len(df) >= 3:
+            h = str(df.iloc[0]["馬番"]).replace(".0", "")
+            s = str(df.iloc[1]["馬番"]).replace(".0", "")
+            t = str(df.iloc[2]["馬番"]).replace(".0", "")
+            tickets.append(f"{h}→{s}→{t}")
+            tickets.append(f"{h}→{t}→{s}")
+
+        return {
+            "df_geo": df,
+            "honmei": honmei,
+            "second": second,
+            "third": third,
+            "decision": decision,
+            "confidence": confidence,
+            "gap12": gap12,
+            "gap13": gap13,
+            "comment": comment,
+            "tickets": tickets,
+            "reasons": reasons,
+            "pace": pace,
+            "bias": bias,
+            "condition": condition,
         }
 
-        # 空欄は詳細レース情報から補完
-        current_race_info["date"] = current_race_info.get("date") or race_meta.get("date", race_meta.get("kaisai_date", ""))
-        current_race_info["venue"] = current_race_info.get("venue") or race_place
-        current_race_info["race_no"] = current_race_info.get("race_no") or race_meta.get("race_no", race_meta.get("race_bango", ""))
-        current_race_info["name"] = current_race_info.get("name") or race_name
 
-        if current_race_id:
-            st.session_state["current_race_id"] = current_race_id
+    # ============================================================
+    # 🧠 ジオ表示
+    # ============================================================
 
-            # ----------------------------------------------------
-            # 個別予想は「手動分析」として画面表示のみ。
-            # 全自動予想の保存データには書き込まない。
-            #
-            # これにより、開催日全レース自動予想で固定した
-            # ◎○▲が、レース開催中の個別分析によって
-            # 上書きされることを完全に防ぐ。
-            # ----------------------------------------------------
-            st.info(
-                "👤 個別予想モード：この予想は画面表示のみで保存しません。"
-                "全自動予想の◎○▲・馬券検証には影響しません。"
-            )
-        else:
-            st.warning(
-                "⚠️ race_idが取得できないため、個別予想を表示します。"
-            )
+    st.markdown("""
+    <style>
+    .geo-picks {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:12px;margin:12px 0 18px;}
+    .geo-pick {display:flex;align-items:center;gap:13px;min-height:91px;padding:15px 16px;background:linear-gradient(120deg,#15273B,#101D30);border:1px solid #30445D;border-radius:15px;box-shadow:0 8px 24px #00000020;}
+    .geo-pick:first-child {border-color:#A88B57;background:linear-gradient(115deg,#2D2B29,#152338);}
+    .geo-pick-mark {font-size:32px;font-weight:850;line-height:1;min-width:38px;text-align:center;}
+    .geo-pick-main {display:flex;flex:1;flex-direction:column;gap:4px;min-width:0;}
+    .geo-pick-main strong {color:#F4F7FC;font-size:15px;overflow-wrap:anywhere;}
+    .geo-pick-role {color:#91A9C3;font-size:11px;font-weight:700;letter-spacing:.08em;}
+    .geo-pick-score {display:flex;flex-direction:column;align-items:flex-end;color:#E8C68E;font-size:21px;font-weight:800;white-space:nowrap;}
+    .geo-pick-score small {color:#91A9C3;font-size:9px;letter-spacing:.12em;}
+    @media(max-width:600px){.geo-picks{grid-template-columns:1fr;gap:8px}.geo-pick{min-height:72px;padding:10px 13px}.geo-pick-mark{font-size:28px}}
+    </style>
+    """,unsafe_allow_html=True)
 
-    if geo_result is not None:
-        st.session_state["geo_prediction"] = geo_result
-        st.session_state["geo_prediction_race_id"] = str(race_id)
+    def display_geo_prediction(geo):
+        # Phase16.50: 旧指数・補正合計・旧自信度は一切表示しない。
+        if geo is None:
+            st.warning("新ジオの予測結果がありません。")
+            return
+        df = geo.get("df_geo")
+        if not isinstance(df, pd.DataFrame) or df.empty or "新ジオ複勝確率" not in df.columns:
+            st.error("新ジオ複勝確率がないため、旧ジオの結果は表示しません。")
+            return
+        # Phase18.6: 画面の先頭も実際の保存◎○▲と同じ正式10項目順位。
+        _display_rank = "学習10項目順位" if geo.get("prediction_model", "").startswith("Phase18.5") else "正式10項目順位"
+        df = df.sort_values([_display_rank, "馬番"]).copy()
+        df.insert(0, "印", ["◎" if i == 0 else "○" if i == 1 else "▲" if i == 2 else "△" if i == 3 else "☆" if i == 4 else "" for i in range(len(df))])
+        df["複勝予測確率 (%)"] = df["新ジオ複勝確率"] * 100
+        st.success(f"正式保存モデル：{geo.get('prediction_model')}｜◎ {geo['honmei']['馬番']}番　○ {geo['second']['馬番'] if geo.get('second') is not None else '-'}番　▲ {geo['third']['馬番'] if geo.get('third') is not None else '-'}番")
+        st.caption("正式◎○▲は全自動・個別とも共通。従来の複勝確率は比較表示で、保存する10項目評価指数は複勝確率ではありません。")
+        # GEO AI: 現行正式モデルの上位5頭をスマホでも見やすいカードで表示。
+        _marks = ["◎", "○", "▲", "△", "☆"]
+        _roles = ["本命", "対抗", "単穴", "連下", "注目"]
+        _colors = ["#E8BF75", "#A5E2E5", "#C5D4EA", "#B7C6D9", "#D8A8EA"]
+        st.markdown('<div class="geo-panel-title">🏇 GEO AI / TOP FIVE</div>', unsafe_allow_html=True)
+        _cards = []
+        for _i, (_, _horse) in enumerate(df.head(5).iterrows()):
+            _name = html.escape(str(_horse.get("馬名", "")))
+            _num = html.escape(str(_horse.get("馬番", "—")).replace(".0", ""))
+            _score_key = "学習10項目スコア" if _display_rank == "学習10項目順位" else "正式10項目スコア"
+            _score = pd.to_numeric(_horse.get(_score_key), errors="coerce")
+            _score_text = f"{_score * 100:.1f}" if pd.notna(_score) else "—"
+            _cards.append(f'<div class="geo-pick"><span class="geo-pick-mark" style="color:{_colors[_i]}">{_marks[_i]}</span><div class="geo-pick-main"><span class="geo-pick-role">{_roles[_i]} · {_i+1}位</span><strong>{_num}番 {_name}</strong></div><span class="geo-pick-score">{_score_text}<small>INDEX</small></span></div>')
+        _leader = df.iloc[0]
+        _leader_name = html.escape(str(_leader.get("馬名", "")))
+        _leader_num = html.escape(str(_leader.get("馬番", "—")).replace(".0", ""))
+        _leader_score = pd.to_numeric(_leader.get(_score_key), errors="coerce")
+        _leader_score_label = f"{_leader_score * 100:.1f}" if pd.notna(_leader_score) else "—"
+        st.markdown(f"""<div class="vision-featured"><div class="vision-featured-left"><div class="vision-overline">◈ GEO TOP PICK / 本命</div><div class="vision-featured-name"><span>◎</span> {_leader_num}番 {_leader_name}</div><div class="vision-featured-note">正式10項目モデルの最上位評価</div></div><div class="vision-featured-right"><small>GEO INDEX</small><strong>{_leader_score_label}</strong></div></div>""", unsafe_allow_html=True)
+        st.markdown('<div class="geo-picks">' + ''.join(_cards) + '</div>', unsafe_allow_html=True)
+        st.caption("上位5頭は現行正式モデルの順位。指数は勝率・複勝率ではありません。買い目と保存内容は従来どおりです。")
 
-# Streamlitはselectboxを変更するたびにスクリプトを再実行する。
-# ボタンの押下状態ではなく、保存済みの予想とレースIDを基準に表示を維持する。
-_cached_geo = st.session_state.get("geo_prediction")
-_cached_race_id = st.session_state.get("geo_prediction_race_id")
-# GEO VISION telemetry uses only existing prediction outputs; no recalculation.
-def _vision_render_workspace(geo):
-    if not isinstance(geo, dict) or not isinstance(geo.get("df_geo"), pd.DataFrame):
-        with _vision_middle_slot.container():
-            st.markdown('<div class="vision-panel-heading">02 / GEO PREDICTION</div><div class="vision-empty">予想待機中<br><small>下の「統合シミュレーション」→「ジオにレースを分析させる」を実行</small></div>', unsafe_allow_html=True)
-        with _vision_right_slot.container():
-            st.markdown('<div class="vision-panel-heading">03 / RACING LAB</div><div class="vision-empty">分析データ待機中<br><small>予想実行後に10項目の内訳を表示します</small></div>', unsafe_allow_html=True)
-        return
-    frame=geo["df_geo"]
-    rank="学習10項目順位" if str(geo.get("prediction_model", "")).startswith("Phase18.5") else "正式10項目順位"
-    score="学習10項目スコア" if rank=="学習10項目順位" else "正式10項目スコア"
-    if rank not in frame.columns: return
-    frame=frame.sort_values([rank,"馬番"]).head(5)
-    if frame.empty: return
-    lead=frame.iloc[0]
-    esc=lambda x: html.escape(str(x))
-    def score_text(v):
-        n=pd.to_numeric(v,errors="coerce")
-        return f"{float(n)*100:.1f}" if pd.notna(n) else "—"
-    with _vision_middle_slot.container():
-        st.markdown('<div class="vision-panel-heading">02 / GEO PREDICTION</div>',unsafe_allow_html=True)
-        st.markdown(f'<div class="vision-hero-pick"><div class="vision-hero-kicker">♛　GEO TOP PICK / 本命</div><div class="vision-hero-name"><span>◎</span> {esc(lead.get("馬番",""))}番　{esc(lead.get("馬名",""))}</div><div class="vision-hero-score">GEO INDEX <strong>{score_text(lead.get(score))}</strong></div></div>',unsafe_allow_html=True)
-        marks=['◎','○','▲','△','☆']
-        cards=[]
-        for i,(_,horse) in enumerate(frame.iterrows()):
-            n=pd.to_numeric(horse.get(score),errors="coerce")
-            width=max(0,min(100,float(n)*100)) if pd.notna(n) else 0
-            cards.append(f'<div class="vision-rank-row"><b class="vision-mark">{marks[i]}</b><span class="vision-number">{esc(horse.get("馬番",""))}</span><span class="vision-horse">{esc(horse.get("馬名",""))}</span><strong>{score_text(n)}</strong><span class="vision-meter"><i style="width:{width:.1f}%"></i></span></div>')
-        st.markdown('<div class="vision-rank-list">'+''.join(cards)+'</div><div class="vision-small-note">正式モデル順位。指数は勝率ではありません。</div>',unsafe_allow_html=True)
-    with _vision_right_slot.container():
-        st.markdown('<span id="geo-lab-mobile"></span><div class="vision-panel-heading">03 / RACING LAB</div>',unsafe_allow_html=True)
-        names=[f"{r.get('馬番','')}番 {r.get('馬名','')}" for _,r in frame.iterrows()]
-        choice=st.selectbox("分析対象馬",range(len(names)),format_func=lambda i:names[i],key="vision_analysis_horse")
-        chosen=frame.iloc[choice]
-        st.markdown(f'<div class="vision-analysis-head"><span>{esc(chosen.get("馬番",""))}番　{esc(chosen.get("馬名",""))}</span><strong>{score_text(chosen.get(score))}</strong></div>',unsafe_allow_html=True)
-        payload=(geo.get('joint_payload') or {}) if str(geo.get('prediction_model','')).startswith('Phase18.5') else (geo.get('ten_payload') or {})
-        horses=payload.get('horses') or []
-        selected_num=pd.to_numeric(chosen.get('馬番'),errors='coerce')
-        details=next((h for h in horses if pd.to_numeric(h.get('umaban'),errors='coerce')==selected_num),{})
-        parts=details.get('feature_breakdown') or {}
-        labels={'ability_recent':'直近能力','ability_similar':'類似条件能力','jockey':'騎手','forward':'先行力','lead':'逃げ能力','hill_sessions':'坂路4F PB更新','wood_sessions':'ウッド6F PB更新','sire_condition_edge':'血統適性','course_fit':'コース適性','closing_kick':'末脚力'}
-        if parts:
-            rows=[]
-            for key,label in labels.items():
-                part=parts.get(key) or {}
-                raw=pd.to_numeric(part.get('raw'),errors='coerce')
-                val='—' if pd.isna(raw) else f'{raw:.3f}'
-                contrib=pd.to_numeric(part.get('logit_contribution'),errors='coerce')
-                bar=min(100,max(0,50+(float(contrib)*60))) if pd.notna(contrib) else 50
-                rows.append(f'<div class="vision-feature"><span>{label}</span><div class="vision-feature-track"><i style="width:{bar:.1f}%"></i></div><b>{val}</b></div>')
-            st.markdown('<div class="vision-feature-list">'+''.join(rows)+'</div><div class="vision-small-note">数値はモデルの生特徴量。棒はlogit寄与を相対表示（中央が0）。</div>',unsafe_allow_html=True)
-        else:
-            if str(geo.get('prediction_model','')).startswith('Phase18.4'):
-                st.info('Phase18.4のAPIは10項目の個別寄与値を返していません。順位・指数は正常に表示されています。')
-                _fields=[('末脚力（残差）','closing_kick'),('末脚評価走数','sample_count'),('末脚クラス移行係数','class_transfer_factor'),('昇級クラス補正','class_adjustment_in_ninth')]
-                _available=[{'指標':label,'API値':details.get(key)} for label,key in _fields if details.get(key) is not None]
-                if _available: st.dataframe(pd.DataFrame(_available),hide_index=True,use_container_width=True)
-                st.caption('正式10項目の全特徴量内訳を表示するにはAPI側の返却拡張が必要です。推定値は作成しません。')
+        # Model-native explainability: raw feature values and exact signed logit terms.
+        # Never approximate a breakdown by multiplying displayed INDEX by importance %.
+        _joint_details = geo.get('joint_payload') or {}
+        if _joint_details.get('pedigree_method') == 'father_offspring_six_conditions_pre_race_v1':
+            st.caption('🧬 学習10項目の血統は父産駒6条件（競馬場・芝ダ・距離・馬場状態）に統一。過去レースは発走前の成績だけで再計算。')
+        if _joint_details.get('status') == 'trained':
+            _by_num = {int(h['umaban']): h for h in _joint_details.get('horses', []) if 'umaban' in h}
+            _feature_names = {'ability_recent':'直近能力','ability_similar':'類似条件能力',
+                'jockey':'騎手','forward':'先行力','lead':'逃げ能力',
+                'hill_sessions':'坂路4F PB更新','wood_sessions':'ウッド6F PB更新',
+                'sire_condition_edge':'血統適性','course_fit':'コース適性',
+                'closing_kick':'末脚力'}
+            with st.expander('🔍 各馬の10項目採点内訳（学習済みモデル）', expanded=False):
+                _options = [(int(r['馬番']), str(r['馬名'])) for _,r in df.iterrows()]
+                _chosen = st.selectbox('内訳を表示する馬', options=_options,
+                    format_func=lambda x: f'{x[0]}番 {x[1]}', key='geo_feature_breakdown_horse')
+                _detail = _by_num.get(_chosen[0], {})
+                _parts = _detail.get('feature_breakdown') or {}
+                if _parts:
+                    _rows = []
+                    for _key,_name in _feature_names.items():
+                        _part = _parts.get(_key, {})
+                        _rows.append({'項目':_name,'採点値（内部値）':_part.get('raw'),
+                            '標準化後':_part.get('standardized'),
+                            '指数への寄与（logit）':_part.get('logit_contribution'),
+                            '欠損値補完': 'あり' if _part.get('imputed') else ''})
+                    st.dataframe(pd.DataFrame(_rows), hide_index=True, use_container_width=True)
+                    st.caption(f"切片：{_detail.get('logit_intercept', 0):+.4f} ／ "
+                               f"寄与合計＋切片：{_detail.get('logit_total', 0):+.4f} ／ "
+                               f"表示INDEX：{float(_detail.get('ranking_score',0))*100:.1f}")
+                    st.caption('寄与は学習係数×標準化後の値。プラスは指数を押し上げ、マイナスは押し下げます。'
+                               ' 10項目の寄与と切片を合算し、sigmoid変換してINDEXを算出します。'
+                               ' INDEXは校正済み勝率・複勝率ではありません。')
+                    st.caption('騎手の4項目内訳は現行APIでは個別出力していません。ここに表示する騎手は4項目統合後の値です。')
+                else:
+                    st.info('APIから採点内訳が返されていません。内訳対応版APIの反映後に表示されます。')
+
+        st.markdown("---")
+        # Phase18.5: only show jointly trained model after real pre-race snapshots have settled.
+        joint=geo.get('joint_payload')
+        if isinstance(joint,dict):
+            st.subheader('🧠 Phase18.5｜10項目すべて同時学習')
+            used=int(joint.get('usable_training_races') or 0)
+            needed=int(joint.get('minimum_training_races') or 30)
+            if joint.get('status')=='trained' and '学習10項目順位' in df.columns:
+                trained=df.sort_values(['学習10項目順位','馬番']).copy()
+                trained['印'] = ['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '△' if i==3 else '☆' if i==4 else '' for i in range(len(trained))]
+                trained['学習指数']=trained['学習10項目スコア']*100
+                st.dataframe(trained[['印','馬番','馬名','学習10項目順位','学習指数']],hide_index=True,use_container_width=True)
+                imp=joint.get('importance_percent') or {}
+                if imp:
+                    names={'ability_recent':'直近能力','ability_similar':'類似条件能力','jockey':'騎手','forward':'先行力','lead':'逃げ能力','hill_sessions':'坂路4F PB更新','wood_sessions':'ウッド6F PB更新','sire_condition_edge':'血統適性','course_fit':'コース適性','closing_kick':'末脚力'}
+                    st.dataframe(pd.DataFrame([{'項目':names.get(k,k),'標準化係数の絶対値割合 (%)':v,'学習係数':(joint.get('weights') or {}).get(k)} for k,v in imp.items()]),hide_index=True,use_container_width=True)
+                st.caption('割合は標準化係数の絶対値を100%換算した参考値。実際の精度貢献率ではありません。学習指数は校正済み複勝確率ではありません。')
             else:
-                st.info('Phase18.5の学習済み内訳がAPIから返されていません。学習状態・APIレスポンスを確認してください。')
-        st.caption('モデル：'+str(geo.get('prediction_model') or '不明'))
+                st.info(f'学習用の確定済みレース：{used}/{needed}。不足中は従来Phase18.4の10項目順位を使用します。過去の出馬表を後付け復元して学習しません。')
+            st.caption('予想対象の前日以前に保存した特徴量だけを使い、対象レースの結果は学習に使いません。')
+        # 旧Phase比較は計算を維持しつつ、普段は閉じた検証用エリアへ移動。
+        with st.expander("🔬 旧Phaseのランキング比較・開発用診断", expanded=False):
+            # Phase18.3: official 10-feature ranking; 9-feature and 8-feature kept for comparison.
+            if '正式10項目順位' in df.columns:
+                st.subheader('🏆 Phase18.4｜暫定10項目ランキング（学習済み版との比較）')
+                ten=df.sort_values(['正式10項目順位','馬番']).copy()
+                ten.insert(0,'正式印',['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '△' if i==3 else '☆' if i==4 else '' for i in range(len(ten))])
+                ten['10項目評価指数']=ten['正式10項目スコア']*100
+                show=['正式印','馬番','馬名','正式10項目順位','10項目評価指数','末脚力指数','末脚評価過去走']
+                if '昇級クラス補正' in ten.columns:show.extend(['昇級クラス補正','末脚クラス移行係数'])
+                if '正式9項目順位' in ten.columns:show.append('正式9項目順位')
+                show.append('新ジオ順位')
+                st.dataframe(ten[show],use_container_width=True,hide_index=True,
+                    column_config={'10項目評価指数':st.column_config.NumberColumn(format='%.2f'),
+                                   '末脚力指数':st.column_config.NumberColumn(format='%.3f'),
+                                   '昇級クラス補正':st.column_config.NumberColumn(format='%+.3f'),
+                                   '末脚クラス移行係数':st.column_config.NumberColumn(format='%.3f')})
+                st.caption(f"Phase18.4の◎：{ten.iloc[0]['馬番']}番 {ten.iloc[0]['馬名']}（実際の保存◎は画面最上部を参照）")
+                st.caption('第9項目の過去走着順を相手クラス差で補正。第10項目は下級条件で記録したプラスの末脚評価だけを控えめに割引。クラス不明は中立。係数は仮説値で、評価指数は複勝確率ではありません。')
+                st.caption('予想保存：'+str(geo.get('ten_snapshot') or '未確認'))
+            else:
+                st.warning('正式10項目版を取得できません。'+str(geo.get('ten_error') or 'API未対応'))
+            # Official model: nine features; preserve eight-feature probabilities as reference only.
+            if '正式9項目順位' in df.columns:
+                st.subheader('🔬 比較基準｜9項目ランキング（Phase18.2）')
+                nine=df.sort_values(['正式9項目順位','馬番']).copy()
+                nine.insert(0,'正式印',['◎' if i==0 else '○' if i==1 else '▲' if i==2 else '△' if i==3 else '☆' if i==4 else '' for i in range(len(nine))])
+                nine['9項目評価指数']=nine['正式9項目スコア']*100
+                st.dataframe(nine[['正式印','馬番','馬名','正式9項目順位','9項目評価指数','新ジオ順位']],use_container_width=True,hide_index=True,
+                             column_config={'9項目評価指数':st.column_config.NumberColumn(format='%.2f')})
+                st.info(f"9項目◎：{nine.iloc[0]['馬番']}番 {nine.iloc[0]['馬名']}｜○：{nine.iloc[1]['馬番']}番 {nine.iloc[1]['馬名']}" if len(nine)>1 else f"9項目◎：{nine.iloc[0]['馬番']}番 {nine.iloc[0]['馬名']}")
+                st.caption('9項目評価指数は順位比較用の仮説スコアで、複勝確率ではありません。旧8項目の確率は下に参考表示します。係数0.8は未学習の暫定値です。')
+            else:
+                st.warning('正式9項目版を取得できません。従来8項目のみ表示します: '+str(geo.get('official_error') or 'API未対応'))
+            st.subheader('🧠 従来8項目｜複勝予測ランキング（比較基準）')
+            st.caption("比較基準の従来8項目モデル。以下の◎○▲は従来版の印で、正式9項目版の印ではありません。")
+            columns = [c for c in ("印", "馬番", "馬名", "複勝予測確率 (%)", "オッズ") if c in df.columns]
+            st.dataframe(df[columns], use_container_width=True, hide_index=True,
+                         column_config={"複勝予測確率 (%)": st.column_config.NumberColumn("複勝予測確率 (%)", format="%.1f%%")})
+            if len(df) >= 3:
+                a,b,c = st.columns(3)
+                for col, mark, row in zip((a,b,c), ("◎ 本命", "○ 対抗", "▲ 単穴"), (df.iloc[0],df.iloc[1],df.iloc[2])):
+                    col.metric(f"{mark} {row['馬名']}", f"{row['複勝予測確率 (%)']:.1f}%")
+            st.caption("この確率は各馬が3着以内に入るモデル推定値で、レース内で合計100%になるものではありません。")
+            # Phase18.0 A/B比較。補正スコアは確率ではなく、公式の印は変更しない。
+            st.markdown("---")
+            st.subheader("🏟️ コース補正ジオ｜従来版とのA/B比較")
+            if "コース補正順位" not in df.columns:
+                st.warning("コース補正データを表示できません: " + str(geo.get("course_error") or "API未対応"))
+            else:
+                ab = df.sort_values(["新ジオ順位", "馬番"]).copy()
+                ab["従来順位"] = ab["新ジオ順位"].astype(int)
+                ab["補正順位"] = ab["コース補正順位"].astype(int)
+                ab["順位変動表示"] = ab["順位変動"].map(lambda x: f"↑{int(x)}" if x > 0 else (f"↓{abs(int(x))}" if x < 0 else "→0"))
+                ab["従来複勝予測 (%)"] = ab["新ジオ複勝確率"] * 100
+                ab["コース補正指数"] = ab["コース補正スコア"] * 100
+                show = [c for c in ["馬番", "馬名", "従来順位", "補正順位", "順位変動表示", "従来複勝予測 (%)", "コース補正指数"] if c in ab.columns]
+                st.dataframe(ab[show], use_container_width=True, hide_index=True,
+                             column_config={"従来複勝予測 (%)": st.column_config.NumberColumn(format="%.1f%%"),
+                                            "コース補正指数": st.column_config.NumberColumn(format="%.2f")})
+                st.caption("↑は補正後に順位上昇。倍率補正版は比較用で、正式な印は上の9項目版を参照してください。")
+                changed = int((ab["順位変動"] != 0).sum())
+                st.metric("コース補正で順位が変化した馬", f"{changed}頭")
+                course_top = ab.sort_values(["補正順位", "馬番"]).iloc[0]
+                st.info(f"コース補正版の◎：{course_top['馬番']}番 {course_top['馬名']}（従来{int(course_top['従来順位'])}位 → 補正{int(course_top['補正順位'])}位）")
+                profile = geo.get("course_profile")
+                if isinstance(profile, dict):
+                    with st.expander("コース補正の根拠・係数", expanded=False):
+                        st.write(f"競馬場: {profile.get('venue', '不明')} / 芝ダート: {profile.get('surface', '不明')} / 距離: {profile.get('distance_m', '?')}m")
+                        st.caption("内回り・外回りは現バージョンでは未検証のため補正対象外")
+                        factors = profile.get("factors", {})
+                        if isinstance(factors, dict) and factors:
+                            st.dataframe(pd.DataFrame([{"特徴量": k, "倍率": v} for k, v in factors.items()]), hide_index=True, use_container_width=True)
+                        for reason in profile.get("reasons", []):
+                            st.write("・" + str(reason))
+                snapshot = geo.get("course_snapshot")
+                if isinstance(snapshot, dict):
+                    st.caption("予想スナップショット: " + ("保存済み" if snapshot.get("saved") else "未保存") + " / " + str(snapshot.get("reason", "")))
 
-_vision_render_workspace(_cached_geo if _cached_race_id == str(race_id) else None)
+            # Phase18.2: three-way comparison; nine-feature ranking is official.
+            st.markdown("---")
+            st.subheader("🔬 Phase18.1｜従来・倍率補正・コース適性の3方式比較")
+            if "適性追加順位" not in df.columns:
+                st.warning("コース適性版を表示できません: " + str(geo.get("suitability_error") or "API未対応"))
+            else:
+                tri = df.sort_values(["新ジオ順位", "馬番"]).copy()
+                tri["従来"] = tri["新ジオ順位"].astype(int)
+                tri["倍率補正"] = tri["コース補正順位"].astype(int) if "コース補正順位" in tri.columns else "—"
+                tri["適性追加"] = tri["適性追加順位"].astype(int)
+                tri["適性の変動"] = tri["適性順位変動"].map(lambda x: f"↑{int(x)}" if x>0 else (f"↓{abs(int(x))}" if x<0 else "→0"))
+                st.dataframe(tri[["馬番","馬名","従来","倍率補正","適性追加","適性の変動","適性対象過去走","適性追加指数"]],
+                             use_container_width=True,hide_index=True)
+                best=tri.sort_values(["適性追加","馬番"]).iloc[0]
+                st.info(f"適性追加版◎：{best['馬番']}番 {best['馬名']}（従来{int(best['従来'])}位 → 適性{int(best['適性追加'])}位）")
+                st.caption("適性追加指数は仮説ベースの比較スコア。複勝確率として扱わない。対象過去走が0なら中立補正。坂や直線長を直接測った値ではない。")
+                st.metric("適性追加版で順位が変わった馬",f"{int((tri['適性順位変動']!=0).sum())}頭")
+                sp=geo.get("suitability_payload")
+                if isinstance(sp,dict):
+                    with st.expander("コース適性の計算内訳（過去走のみ）",expanded=False):
+                        rows=[]
+                        for h in sp.get("horses",[]):
+                            d={"馬番":h.get("umaban"),"過去走数":h.get("matched_count"),"同競馬場":h.get("same_venue_count"),"適性補正":h.get("course_fit")}
+                            d.update(h.get("components") or {})
+                            rows.append(d)
+                        st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
+                snapshot=geo.get("abc_snapshot")
+                if isinstance(snapshot,dict):
+                    st.caption("3方式の予想記録: "+("新規保存" if snapshot.get("saved") else "保存済み/対象外")+" / "+str(snapshot.get("reason","")))
 
-if _cached_geo is not None and _cached_race_id == str(race_id):
-    with st.expander("📊 全評価内訳・従来の詳細データを開く", expanded=False):
-        display_geo_prediction(_cached_geo)
-elif not st.session_state.get("sim_executed", False):
-    st.info(
-        "👆 ペース・バイアス等を設定して、"
-        "上のボタンを押すとJRA-VANの過去走を取得して"
-        "統合シミュレーションを実行します。"
-    )
+        return
 
-# =========================================================
-# ============================================================
-# 🏇 開催日全レース自動予想
-# ============================================================
+        if geo is None:
+            st.warning("ジオが判断できるデータがありません。")
+            return
+
+        st.markdown("---")
+        st.markdown('<div class="geo-kicker">GEO AI / RACE INTELLIGENCE</div>', unsafe_allow_html=True)
+        st.subheader("AI予想コマンドセンター")
+        chart_df = geo.get("df_geo")
+        if isinstance(chart_df, pd.DataFrame) and not chart_df.empty:
+            dashboard_df = chart_df.copy()
+            for field in ["ジオ評価", "統合指数", "オッズ", "メンバーレベル"]:
+                if field in dashboard_df.columns:
+                    dashboard_df[field] = pd.to_numeric(dashboard_df[field], errors="coerce")
+            if "ジオ評価" in dashboard_df.columns:
+                dashboard_df = dashboard_df.sort_values("ジオ評価", ascending=False)
+            dashboard_df = dashboard_df.reset_index(drop=True)
+            dashboard_df.insert(0, "順位", range(1, len(dashboard_df)+1))
+            st.markdown(
+                '<div class="geo-v13-banner"><strong>🏆 GEO AI 予想結果 ｜ 試験配点 v13</strong>'
+                '<div class="geo-v13-preset">能力順位 0 ｜ 穴馬 0 ｜ 血統 3倍 ｜ メンバーレベル 3倍 ｜ 自己学習 2倍'
+                '（実効補正は各項目の上限あり）</div></div>',
+                unsafe_allow_html=True,
+            )
+            with st.expander("🆕 初芝・初ダート診断（v19・専用評価適用）", expanded=False):
+                st.caption("過去走全体の芝・ダート区分から初挑戦を判定。過去走が取れない馬は初挑戦と断定せず『要確認』と表示します。")
+                _first_rows = []
+                for _, _h in dashboard_df.iterrows():
+                    _diag = _h.get("芝ダ初挑戦診断", {})
+                    if not isinstance(_diag, dict):
+                        _diag = {}
+                    _first_rows.append({
+                        "馬番": _h.get("馬番"), "馬名": _h.get("馬名"),
+                        "今回": _h.get("芝・ダ", "—"), "判定": _diag.get("判定", "要確認"),
+                        "同種過去走": _diag.get("同種過去走", 0),
+                        "異種過去走": _diag.get("異種過去走", 0),
+                        "区分不明": _diag.get("区分不明過去走", 0),
+                        "理由": _diag.get("判定理由", ""),
+                        "代理能力指数": (_h.get("初挑戦能力材料") or {}).get("代理能力指数") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
+                        "平均着順": (_h.get("初挑戦能力材料") or {}).get("平均着順") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
+                        "能力使用走数": (_h.get("初挑戦能力材料") or {}).get("能力使用走数") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
+                        "転用率": "70%" if _diag.get("判定") in ("初芝", "初ダート") else "—",
+                        "上限前補正": (_h.get("初挑戦能力材料") or {}).get("転用前補正（上限前）") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
+                        "実際の転用補正": (_h.get("統合指数内訳") or {}).get("初挑戦・転用能力") if isinstance(_h.get("統合指数内訳"), dict) else None,
+                        "±6点上限到達": (_h.get("初挑戦能力材料") or {}).get("上限到達") if isinstance(_h.get("初挑戦能力材料"), dict) else None,
+                        "転用以外の統合指数": (float(_h.get("統合指数")) - float((_h.get("統合指数内訳") or {}).get("初挑戦・転用能力", 0))) if isinstance(_h.get("統合指数内訳"), dict) and pd.notna(_h.get("統合指数")) else None,
+                        "最終統合指数": _h.get("統合指数"),
+                        "診断状態": (_h.get("初挑戦能力材料") or {}).get("診断状態", "材料なし" if _diag.get("判定") in ("初芝", "初ダート") else "対象外") if isinstance(_h.get("初挑戦能力材料"), dict) else "材料なし",
+                    })
+                _first_debug_df = pd.DataFrame(_first_rows)
+                st.dataframe(_first_debug_df, use_container_width=True, hide_index=True)
+                _first_only = _first_debug_df[_first_debug_df["判定"].isin(["初芝", "初ダート"])].copy()
+                if not _first_only.empty:
+                    st.markdown("**🔬 初挑戦70%転用・上限の詳細検証（診断専用）**")
+                    _debug_cols = ["馬番", "馬名", "判定", "能力使用走数", "平均着順", "代理能力指数", "転用率", "上限前補正", "実際の転用補正", "±6点上限到達", "転用以外の統合指数", "最終統合指数", "診断状態"]
+                    st.dataframe(_first_only[_debug_cols], use_container_width=True, hide_index=True)
+                    st.caption("計算式：（代理能力指数 − 70）× 0.70 → ±6点に制限。上限前補正が異なるのに実際の転用補正が同じなら、上限で能力差が圧縮されています。診断表示のみ追加し、指数の計算は変更していません。")
+                st.caption("初挑戦馬のみ、異種馬場の直近最大6走の平均着順から代理能力指数を算出。初ダート・初芝とも70%を統合指数へ転用（±6点）。父産駒の既存血統補正を±5点に置換。距離差を±2点で補正。実績馬の計算は維持します。")
+            with st.expander("📈 直近の成長・過去6走中央値の影響（v40・診断専用）", expanded=False):
+                st.caption("GEOの現行走破タイム評価は、同じ芝/ダートの直近最大6走のうち、Excel基準が取得できた走の換算タイムの中央値です。直近2・3走も中央値で仮計算します。予想・順位・学習には一切反映しません。")
+                _growth_summary, _growth_detail = [], []
+                for _, _gh in dashboard_df.iterrows():
+                    _gd = _gh.get("走破タイムクラス診断", {})
+                    if not isinstance(_gd, dict):
+                        continue
+                    _runs = [r for r in (_gd.get("過去走詳細", []) or []) if isinstance(r, dict)]
+                    _values = []
+                    for _ri, _r in enumerate(_runs, 1):
+                        try:
+                            _tv = float(_r.get("換算走破タイム"))
+                        except (ValueError, TypeError):
+                            continue
+                        if not np.isfinite(_tv) or _tv <= 0:
+                            continue
+                        _values.append(_tv)
+                        _growth_detail.append({
+                            "馬番": _gh.get("馬番"), "馬名": _gh.get("馬名"),
+                            "有効走順（新→旧）": _ri,
+                            "年": _r.get("過去年"), "月": _r.get("過去月"), "日": _r.get("過去日"),
+                            "着順": _r.get("過去着順"), "過去クラス": _r.get("過去クラス"),
+                            "過去基準秒": _r.get("過去基準タイム"),
+                            "過去実走秒": _r.get("過去実走秒"),
+                            "今回条件換算秒": _tv,
+                            "クラス補正秒": _r.get("クラス補正秒"),
+                        })
+                    if not _values:
+                        continue
+                    _med6 = float(np.median(_values))
+                    _med2 = float(np.median(_values[:2])) if len(_values) >= 2 else None
+                    _med3 = float(np.median(_values[:3])) if len(_values) >= 3 else None
+                    _older = float(np.median(_values[3:])) if len(_values) >= 5 else None
+                    _growth_summary.append({
+                        "馬番": _gh.get("馬番"), "馬名": _gh.get("馬名"),
+                        "最終ジオ順位": _gh.get("順位"),
+                        "有効走数": len(_values),
+                        "現行中央値秒": round(_med6, 3),
+                        "直近2走中央値秒": round(_med2, 3) if _med2 is not None else None,
+                        "直近3走中央値秒": round(_med3, 3) if _med3 is not None else None,
+                        "古い3走中央値秒": round(_older, 3) if _older is not None else None,
+                        "直近2走改善秒": round(_med6 - _med2, 3) if _med2 is not None else None,
+                        "直近3走改善秒": round(_med6 - _med3, 3) if _med3 is not None else None,
+                        "新旧改善秒": round(_older - _med3, 3) if _older is not None and _med3 is not None else None,
+                    })
+                if _growth_summary:
+                    _growth_df = pd.DataFrame(_growth_summary)
+                    st.markdown("**全頭比較：プラスの改善秒ほど直近の走りが速い（小さい秒数が優秀）**")
+                    st.dataframe(_growth_df, use_container_width=True, hide_index=True)
+                    _growth_horses = [f"{r['馬番']}番 {r['馬名']}" for r in _growth_summary]
+                    _selected_growth = st.selectbox("過去走別の根拠を確認する馬", _growth_horses, key="geo_v40_growth_horse")
+                    _selected_idx = _growth_horses.index(_selected_growth)
+                    _selected_horse = _growth_summary[_selected_idx]
+                    st.write(f"**{_selected_horse['馬名']}**：現行中央値 {_selected_horse['現行中央値秒']}秒 / 直近2走 {_selected_horse['直近2走中央値秒']}秒 / 直近3走 {_selected_horse['直近3走中央値秒']}秒")
+                    _detail_df = pd.DataFrame([r for r in _growth_detail if str(r['馬名']) == str(_selected_horse['馬名']) and str(r['馬番']) == str(_selected_horse['馬番'])])
+                    st.dataframe(_detail_df, use_container_width=True, hide_index=True)
+                    st.caption("注意：直近2/3走は『有効な換算タイムが取れた走』から選びます。過去走が6走未満の場合やExcel参照不能で除外された走がある場合は解釈に注意。改善秒は原因診断であり、加点や勝率ではありません。")
+                    st.caption("過去の富士Sを検証する際は、当時のレース前データ・当時のオッズを使ってください。結果確定後の情報を予想へ混ぜないでください。")
+                else:
+                    st.info("有効な過去走の走破タイムがないため比較できません。")
+            with st.expander("⚖️ 過去6走の直近重視・加重平均比較（v41・診断専用）", expanded=False):
+                st.caption("現行の6走中央値と、直近ほど重くした加重平均を比較します。指数・予想順位・自己学習には反映しません。換算タイムは既存のクラス補正込みです。")
+                _weight_step = st.slider("1走古くなるごとの重みの減少", min_value=0.00, max_value=0.20, value=0.05, step=0.01, key="geo_v41_weight_step", help="0.05なら直近から 1.00, 0.95, 0.90, 0.85, 0.80, 0.75")
+                _weighted_rows = []
+                _weighted_details = []
+                for _, _wh in dashboard_df.iterrows():
+                    _wd = _wh.get("走破タイムクラス診断", {})
+                    if not isinstance(_wd, dict):
+                        continue
+                    _valid_runs = []
+                    for _wr in (_wd.get("過去走詳細", []) or []):
+                        if not isinstance(_wr, dict):
+                            continue
+                        try:
+                            _wt = float(_wr.get("換算走破タイム"))
+                        except (TypeError, ValueError):
+                            continue
+                        if np.isfinite(_wt) and _wt > 0:
+                            _valid_runs.append((_wr, _wt))
+                    if not _valid_runs:
+                        continue
+                    _times = np.asarray([v for _, v in _valid_runs], dtype=float)
+                    _weights = np.asarray([max(0.0, 1.0 - _weight_step * i) for i in range(len(_times))], dtype=float)
+                    _weighted = float(np.average(_times, weights=_weights))
+                    _median = float(np.median(_times))
+                    _weighted_rows.append({
+                        "馬番": _wh.get("馬番"), "馬名": _wh.get("馬名"), "現在のGEO順位": _wh.get("順位"),
+                        "有効走数": len(_times), "現行中央値秒": round(_median, 3),
+                        "直近加重平均秒": round(_weighted, 3),
+                        "加重平均の改善秒": round(_median - _weighted, 3),
+                        "直近2走平均秒": round(float(np.mean(_times[:2])), 3) if len(_times) >= 2 else None,
+                    })
+                    for _i, (_run, _time) in enumerate(_valid_runs):
+                        _weighted_details.append({
+                            "馬番": _wh.get("馬番"), "馬名": _wh.get("馬名"), "有効走順（新→旧）": _i + 1,
+                            "年": _run.get("過去年"), "月": _run.get("過去月"), "日": _run.get("過去日"),
+                            "過去クラス": _run.get("過去クラス"), "換算タイム秒": round(_time, 3),
+                            "重み": round(float(_weights[_i]), 3), "クラス補正秒": _run.get("クラス補正秒"),
+                        })
+                if _weighted_rows:
+                    _wdf = pd.DataFrame(_weighted_rows)
+                    _wdf["現行タイム順位"] = _wdf["現行中央値秒"].rank(method="min", ascending=True).astype(int)
+                    _wdf["加重タイム順位"] = _wdf["直近加重平均秒"].rank(method="min", ascending=True).astype(int)
+                    _wdf["タイム順位改善"] = _wdf["現行タイム順位"] - _wdf["加重タイム順位"]
+                    st.dataframe(_wdf.sort_values("現在のGEO順位"), use_container_width=True, hide_index=True)
+                    st.caption("『タイム順位』は走破タイム単独の参考順位であり、GEO総合順位ではありません。プラスの改善秒＝加重平均が従来中央値より速い。加重平均と中央値は集約方法も異なるため、差の全てが直近重視の効果ではありません。")
+                    _choices = [f"{r['馬番']}番 {r['馬名']}" for r in _weighted_rows]
+                    _choice = st.selectbox("過去走別の重みを確認", _choices, key="geo_v41_weighted_horse")
+                    _selected = _weighted_rows[_choices.index(_choice)]
+                    _detail = [r for r in _weighted_details if str(r["馬番"]) == str(_selected["馬番"]) and str(r["馬名"]) == str(_selected["馬名"])]
+                    st.dataframe(pd.DataFrame(_detail), use_container_width=True, hide_index=True)
+                    st.caption("注意：レース終了後の再予想には対象レース自身や未来の情報が入る場合があります。過去レースの予測精度の検証には、発走前時点のデータだけを使用してください。")
+                else:
+                    st.info("比較できる過去走タイムがありません。")
+            with st.expander("🏇 重み別・仮想最終GEO順位（v43・診断専用）", expanded=False):
+                st.caption("走破タイムの中央値だけを加重平均に置換し、実際の走破タイム加点（×1.2）とコース適性内の走破タイム寄与を同時に再計算。他の評価・最終補正は固定します。実際の予想には反映しません。")
+                _v43_steps = (0.05, 0.10, 0.15, 0.20)
+                _v43_rows = []
+                _v43_surface = "ダ" if "ダ" in str(race_surface) else "芝"
+                _v43_straights = {
+                    "芝": {"新潟":659.9,"東京":525.9,"阪神":473.6,"中京":412.5,"京都":403.9,"中山":310.0,"小倉":293.0,"函館":262.1,"福島":292.0,"札幌":266.1},
+                    "ダ": {"新潟":353.9,"東京":501.6,"阪神":352.7,"中京":410.7,"京都":329.1,"中山":308.0,"小倉":291.0,"函館":260.1,"福島":295.7,"札幌":264.3},
+                }
+                _v43_straight_length = next((v for k,v in _v43_straights[_v43_surface].items() if k in str(race_place)), 400.0)
+                _v43_course_weight = (0.75 if _v43_straight_length < 320 else (0.70 if _v43_straight_length < 400 else 0.60))
+                for _, _v43_h in dashboard_df.iterrows():
+                    _v43_diag = _v43_h.get("走破タイムクラス診断", {})
+                    _v43_parts = _v43_h.get("統合指数内訳", {})
+                    if not isinstance(_v43_diag, dict) or not isinstance(_v43_parts, dict):
+                        continue
+                    _v43_times = []
+                    for _v43_r in (_v43_diag.get("過去走詳細", []) or []):
+                        if not isinstance(_v43_r, dict):
+                            continue
+                        try:
+                            _v43_t = float(_v43_r.get("換算走破タイム"))
+                        except (ValueError, TypeError):
+                            continue
+                        if np.isfinite(_v43_t) and _v43_t > 0:
+                            _v43_times.append(_v43_t)
+                    if not _v43_times:
+                        continue
+                    try:
+                        _v43_base = float(_v43_h.get("ジオ評価"))
+                        _v43_index = float(_v43_h.get("統合指数"))
+                        _v43_detail = _v43_diag.get("過去走詳細", []) or []
+                        _v43_target = float(next(r["今回基準タイム"] for r in _v43_detail if isinstance(r, dict) and r.get("今回基準タイム") is not None))
+                        _v43_existing_soha = float(_v43_parts.get("走破タイム", 0.0))
+                    except (TypeError, ValueError):
+                        continue
+                    if not all(np.isfinite(x) for x in (_v43_base, _v43_index, _v43_target, _v43_existing_soha)):
+                        continue
+                    _v43_a = np.asarray(_v43_times, dtype=float)
+                    _v43_median = float(np.median(_v43_a))
+                    _v43_row = {"馬番": _v43_h.get("馬番"), "馬名": _v43_h.get("馬名"),
+                                "現行GEO順位": _v43_h.get("順位"), "有効走数": len(_v43_a),
+                                "現行中央値秒": round(_v43_median, 3),
+                                "現行ジオ評価": round(_v43_base, 3)}
+                    # 現行の走破タイム点は max(-5,min(12,(対象基準-中央値)*3))、
+                    # 統合指数への寄与は ×1.2 + コース適性中の重み (0.75/0.70/0.60)。
+                    # 最終補正は現行値で固定。表示の丸め誤差は最大数千分の1秒程度。
+                    _v43_original_raw = max(-5.0, min(12.0, (_v43_target - _v43_median) * 3.0))
+                    for _v43_step in _v43_steps:
+                        _v43_w = np.maximum(0.0, 1.0 - _v43_step * np.arange(len(_v43_a)))
+                        _v43_weighted = float(np.average(_v43_a, weights=_v43_w))
+                        _v43_new_raw = max(-5.0, min(12.0, (_v43_target - _v43_weighted) * 3.0))
+                        _v43_delta = (_v43_new_raw - _v43_original_raw) * (1.2 + _v43_course_weight)
+                        _v43_row[f"仮想評価{_v43_step:.2f}"] = round(_v43_base + _v43_delta, 3)
+                        _v43_row[f"変化点{_v43_step:.2f}"] = round(_v43_delta, 3)
+                        _v43_row[f"換算秒{_v43_step:.2f}"] = round(_v43_weighted, 3)
+                    _v43_rows.append(_v43_row)
+                if _v43_rows:
+                    _v43_df = pd.DataFrame(_v43_rows)
+                    for _v43_step in _v43_steps:
+                        _v43_col = f"仮想評価{_v43_step:.2f}"
+                        _v43_df[f"仮想順位{_v43_step:.2f}"] = _v43_df[_v43_col].rank(method="min", ascending=False).astype(int)
+                        _v43_df[f"順位変化{_v43_step:.2f}"] = _v43_df["現行GEO順位"].astype(int) - _v43_df[f"仮想順位{_v43_step:.2f}"]
+                    _v43_columns = ["馬番", "馬名", "現行GEO順位", "現行ジオ評価", "有効走数"]
+                    for _v43_step in _v43_steps:
+                        _v43_columns += [f"仮想順位{_v43_step:.2f}", f"仮想評価{_v43_step:.2f}", f"順位変化{_v43_step:.2f}"]
+                    st.dataframe(_v43_df.sort_values("現行GEO順位")[_v43_columns], use_container_width=True, hide_index=True)
+                    _v43_pick = st.selectbox("馬別の配点差を確認", list(range(len(_v43_df))),
+                                             format_func=lambda i: f"{_v43_df.iloc[i]['馬番']} {_v43_df.iloc[i]['馬名']}",
+                                             key="geo_v43_horse")
+                    _v43_selected = _v43_df.iloc[_v43_pick]
+                    _v43_detail = []
+                    for _v43_step in _v43_steps:
+                        _v43_detail.append({"重み減少": _v43_step,
+                                            "加重平均秒": _v43_selected[f"換算秒{_v43_step:.2f}"],
+                                            "指数変化点": _v43_selected[f"変化点{_v43_step:.2f}"],
+                                            "仮想最終評価": _v43_selected[f"仮想評価{_v43_step:.2f}"],
+                                            "仮想順位": _v43_selected[f"仮想順位{_v43_step:.2f}"]})
+                    st.dataframe(pd.DataFrame(_v43_detail), use_container_width=True, hide_index=True)
+                    st.caption(f"走破タイムのコース適性内係数：{_v43_course_weight:.2f}、単独係数：1.20。順位変化のプラスは順位上昇。")
+                    st.warning("これは現時点の再予想データを使った仮想順位です。富士S終了後の再予想では富士S自身や未来の情報が含まれ得るため、レース前の予想順位や的中率を示すものではありません。また、走破タイム欠損馬がいる場合、表示対象内だけで順位を計算します。")
+                else:
+                    st.info("仮想順位を計算できる走破タイム診断データがありません。")
+            with st.expander("📊 重み0.05・0.10・0.15の全馬一括比較（v42・診断専用）", expanded=False):
+                st.caption("現行中央値と、過去走の直近重視加重平均（重み減少0.05 / 0.10 / 0.15）を全馬同時に比較します。予想・順位・自己学習は変更しません。")
+                _v42_rows = []
+                for _, _v42_h in dashboard_df.iterrows():
+                    _v42_diag = _v42_h.get("走破タイムクラス診断", {})
+                    if not isinstance(_v42_diag, dict):
+                        continue
+                    _v42_times = []
+                    for _v42_r in (_v42_diag.get("過去走詳細", []) or []):
+                        if not isinstance(_v42_r, dict):
+                            continue
+                        try:
+                            _v42_t = float(_v42_r.get("換算走破タイム"))
+                        except (TypeError, ValueError):
+                            continue
+                        if np.isfinite(_v42_t) and _v42_t > 0:
+                            _v42_times.append(_v42_t)
+                    if not _v42_times:
+                        continue
+                    _v42_a = np.asarray(_v42_times, dtype=float)
+                    _v42_row = {"馬番": _v42_h.get("馬番"), "馬名": _v42_h.get("馬名"),
+                                "現行GEO順位": _v42_h.get("順位"), "有効走数": len(_v42_a),
+                                "現行中央値秒": round(float(np.median(_v42_a)), 3)}
+                    for _v42_step in (0.00, 0.05, 0.10, 0.15):
+                        _v42_weights = np.maximum(0.0, 1.0 - _v42_step * np.arange(len(_v42_a)))
+                        _v42_value = float(np.average(_v42_a, weights=_v42_weights))
+                        _v42_label = f"加重平均{_v42_step:.2f}秒"
+                        _v42_row[_v42_label] = round(_v42_value, 3)
+                        _v42_row[f"改善{_v42_step:.2f}秒"] = round(float(np.median(_v42_a)) - _v42_value, 3)
+                    _v42_rows.append(_v42_row)
+                if _v42_rows:
+                    _v42_df = pd.DataFrame(_v42_rows)
+                    _v42_df["現行タイム順位"] = _v42_df["現行中央値秒"].rank(method="min", ascending=True).astype(int)
+                    for _v42_step in (0.00, 0.05, 0.10, 0.15):
+                        _v42_label = f"加重平均{_v42_step:.2f}秒"
+                        _v42_df[f"タイム順位{_v42_step:.2f}"] = _v42_df[_v42_label].rank(method="min", ascending=True).astype(int)
+                    st.markdown("**全馬の換算タイム・参考順位**")
+                    _v42_cols = ["馬番", "馬名", "現行GEO順位", "有効走数", "現行中央値秒", "現行タイム順位"]
+                    _v42_cols += [f"加重平均{x:.2f}秒" for x in (0.00, 0.05, 0.10, 0.15)]
+                    _v42_cols += [f"タイム順位{x:.2f}" for x in (0.00, 0.05, 0.10, 0.15)]
+                    st.dataframe(_v42_df.sort_values("現行GEO順位")[_v42_cols], use_container_width=True, hide_index=True)
+                    st.markdown("**従来中央値からの改善秒（プラス＝加重平均が速い）**")
+                    st.dataframe(_v42_df.sort_values("現行GEO順位")[["馬番", "馬名"] + [f"改善{x:.2f}秒" for x in (0.00, 0.05, 0.10, 0.15)]], use_container_width=True, hide_index=True)
+                    st.caption("0.00は全走の単純平均。0.05/0.10/0.15は1走古くなるごとに重みを減らす値です。中央値と平均の差には集約方法の違いも含まれるため、0.00との比較で重み自体の影響を分けて見てください。")
+                    st.warning("過去レースを終了後に再予想した結果には、対象レース自身や未来の成績が混入する可能性があります。この画面は計算方式の診断であり、当時の予想精度・回収率のバックテストではありません。")
+                else:
+                    st.info("比較できる換算タイムがありません。")
+            with st.expander("🔬 クラス±0.4秒の有無を比較（v39・診断専用）", expanded=False):
+                st.caption("実際の予想は正式採用の±0.4秒補正ありで計算。補正なしは比較表示のみ。Excelの過去走基準と今回基準を使い、同一の過去走について0.4秒補正だけを取り除きます。")
+                _class_rows = []
+                for _, _h in dashboard_df.iterrows():
+                    _cd = _h.get("走破タイムクラス診断", {})
+                    if not isinstance(_cd, dict):
+                        continue
+                    for _i, _p in enumerate(_cd.get("過去走詳細", []) or [], 1):
+                        if not isinstance(_p, dict):
+                            continue
+                        _diff = _p.get("階級差", 0)
+                        _kind = "昇級・格上" if _diff > 0 else ("降級・格下" if _diff < 0 else "同階級")
+                        _with = _p.get("換算走破タイム")
+                        _pen = _p.get("クラス補正秒", 0)
+                        _without = _p.get("クラス補正なし換算")
+                        if _without is None and _with is not None:
+                            try:
+                                _without = round(float(_with) - float(_pen), 3)
+                            except (TypeError, ValueError):
+                                pass
+                        _class_rows.append({
+                            "馬番": _h.get("馬番"), "馬名": _h.get("馬名"), "過去走番号": _i,
+                            "区分": _kind, "過去クラス": _p.get("過去クラス"),
+                            "今回クラス": _p.get("今回クラス"), "階級差": _diff,
+                            "過去基準採用クラス": _p.get("過去基準採用クラス"),
+                            "今回基準採用クラス": _p.get("今回基準採用クラス"),
+                            "過去基準秒": _p.get("過去基準タイム"),
+                            "今回基準秒": _p.get("今回基準タイム"),
+                            "補正あり換算秒": _with, "補正なし換算秒": _without,
+                            "補正による差秒": _pen,
+                        })
+                if _class_rows:
+                    _class_df = pd.DataFrame(_class_rows)
+                    st.dataframe(_class_df, use_container_width=True, hide_index=True)
+                    _class_summary = _class_df.groupby(["馬番", "馬名", "区分"], dropna=False).agg(
+                        有効過去走数=("過去走番号", "count"),
+                        補正あり平均秒=("補正あり換算秒", "mean"),
+                        補正なし平均秒=("補正なし換算秒", "mean"),
+                        平均補正差秒=("補正による差秒", "mean"),
+                    ).reset_index()
+                    st.markdown("**馬別・区分別の比較（過去走の単純平均）**")
+                    st.dataframe(_class_summary.round(3), use_container_width=True, hide_index=True)
+                    st.caption("注意：これは過去走の換算秒数の比較であり、最終ジオ順位の再計算ではありません。実際の走破タイム集約・上がり3F・他の補正を含めた順位変動は別途検証が必要です。")
+                else:
+                    st.info("今回の予想には比較可能な走破タイム診断データがありません。")
+            overview = dashboard_df.copy()
+            overview["補正合計"] = pd.to_numeric(overview["ジオ評価"], errors="coerce") - pd.to_numeric(overview["統合指数"], errors="coerce")
+            overview["印"] = ["◎" if i == 0 else "○" if i == 1 else "▲" if i == 2 else "△" if i == 3 else "☆" if i == 4 else "" for i in range(len(overview))]
+            overview_fields = [c for c in ["印", "馬番", "馬名", "統合指数", "補正合計", "ジオ評価", "オッズ"] if c in overview.columns]
+            overview_display = overview[overview_fields].copy()
+            overview_display = overview_display.rename(columns={"ジオ評価":"最終ジオ評価"})
+            for col in ["統合指数","補正合計","最終ジオ評価","オッズ"]:
+                if col in overview_display:
+                    overview_display[col] = pd.to_numeric(overview_display[col], errors="coerce").round(3)
+            st.dataframe(
+                overview_display, use_container_width=True, hide_index=True,
+                height=min(570, 48 + 36 * len(overview_display)),
+                column_config={"最終ジオ評価": st.column_config.NumberColumn("最終ジオ評価", format="%.3f"),
+                               "補正合計": st.column_config.NumberColumn("補正合計", format="%+.3f")},
+            )
+            st.caption("※ 印と順位は最終ジオ評価順。勝率ではありません。オッズが未取得なら実際の値を表示せず欠損のままにします。")
+            left, right = st.columns([1.1, 1.2], gap="medium")
+            with left:
+                st.markdown('<div class="geo-panel-title">♛ AI予想順位</div>', unsafe_allow_html=True)
+                fields = [c for c in ["順位", "馬番", "馬名", "ジオ評価", "統合指数", "オッズ"] if c in dashboard_df.columns]
+                st.dataframe(dashboard_df[fields], use_container_width=True, hide_index=True, height=410)
+                st.caption("順位はジオ評価によるもの。勝率を表す数値ではありません。")
+            with right:
+                st.markdown('<div class="geo-panel-title">◆ 馬別インテリジェンス</div>', unsafe_allow_html=True)
+                options = list(range(len(dashboard_df)))
+                choice = st.selectbox(
+                    "分析対象馬", options,
+                    format_func=lambda i: f"{dashboard_df.iloc[i].get('馬番','')}番  {dashboard_df.iloc[i].get('馬名','')}",
+                    key="geo_v9_selected_horse",
+                )
+                chosen = dashboard_df.iloc[choice]
+                a,b,c = st.columns(3)
+                a.metric("GEO INDEX", f"{chosen.get('ジオ評価', float('nan')):.1f}" if pd.notna(chosen.get('ジオ評価')) else "—")
+                b.metric("能力指数", f"{chosen.get('統合指数', float('nan')):.1f}" if pd.notna(chosen.get('統合指数')) else "—")
+                member = chosen.get("メンバーレベル")
+                c.metric("メンバーレベル", f"{member:.1f}" if member is not None and pd.notna(member) else "未取得")
+                st.caption(f"脚質：{chosen.get('脚質', '不明')}　父：{chosen.get('父', '不明')}")
+                metrics = {k: float(chosen[k]) for k in ["ジオ評価","統合指数","メンバーレベル"]
+                           if k in chosen.index and pd.notna(chosen[k])}
+                if metrics:
+                    try:
+                        import plotly.graph_objects as go
+                        fig = go.Figure(go.Scatterpolar(
+                            r=list(metrics.values()) + [next(iter(metrics.values()))],
+                            theta=list(metrics.keys()) + [next(iter(metrics.keys()))],
+                            fill="toself", line=dict(color="#43DCE7",width=2),
+                            fillcolor="rgba(67,220,231,0.19)",
+                        ))
+                        fig.update_layout(
+                            height=250,margin=dict(l=35,r=35,t=12,b=20),
+                            paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",
+                            font=dict(color="#BBD7E6"),
+                            polar=dict(bgcolor="rgba(0,0,0,0)",
+                                radialaxis=dict(visible=True,range=[0,max(110,max(metrics.values())*1.1)],
+                                                gridcolor="#34546C"),
+                                angularaxis=dict(gridcolor="#34546C")),
+                            showlegend=False,
+                        )
+                        st.plotly_chart(fig,use_container_width=True)
+                        st.caption("レーダーは異なる指数をそのまま比較表示した参考図。尺度の違いに注意。")
+                    except ImportError:
+                        st.bar_chart(pd.DataFrame({"指数":metrics}),height=220)
+                else:
+                    st.info("指数データがまだありません。")
+            with st.expander("🧮 統合指数の計算内訳｜加点・減点の根拠", expanded=True):
+                st.caption("基礎70点から実際に加算・減算された値です。血統・メンバーレベル・学習補正などの最終ジオ評価への補正とは別です。")
+                details = chosen.get("統合指数内訳")
+                if isinstance(details, dict):
+                    detail_df = pd.DataFrame([
+                        {"ファクター": name, "加減点": round(float(value), 4)}
+                        for name, value in details.items()
+                    ])
+                    st.dataframe(detail_df, use_container_width=True, hide_index=True)
+                    st.bar_chart(detail_df.set_index("ファクター")[["加減点"]], height=260)
+                    total = sum(float(x) for x in details.values())
+                    actual = float(chosen["統合指数"])
+                    st.metric("内訳合計＝統合指数", f"{total:.4f}pt")
+                    if abs(total - actual) > 0.0001:
+                        st.error(f"内訳と統合指数に差があります：{total - actual:+.6f}pt")
+                    else:
+                        st.success("統合指数と内訳合計が一致しています")
+                    st.caption("走破タイムと上がり3Fはコース適性にも含まれています。二重評価の可能性は今後の検証対象です。")
+                else:
+                    st.info("この予想は内訳保存前のデータです。新しいコードで予想を実行すると表示されます。")
+
+            with st.expander("🔬 上がり3F診断｜単位補正後の計算確認", expanded=True):
+                st.caption("上がり3Fの332→33.2秒などの単位補正を予想計算に適用しています。ここでは補正後の計算値を確認できます。")
+                all_f3_rows = []
+                for _, horse in dashboard_df.iterrows():
+                    diag = horse.get("上がり3F診断")
+                    if not isinstance(diag, dict):
+                        continue
+                    all_f3_rows.append({
+                        "馬番": horse.get("馬番"),
+                        "馬名": horse.get("馬名"),
+                        "有効過去走": diag.get("有効過去走数", 0),
+                        "馬場不明で除外": diag.get("除外理由別件数", {}).get("過去馬場状態が不明", 0),
+                        "Excel条件不一致": diag.get("除外理由別件数", {}).get("過去走Excel条件不一致（競馬場/距離/クラス/馬場）", 0),
+                        "対象基準3F": diag.get("対象基準3F"),
+                        "換算3F中央値": diag.get("換算3F中央値"),
+                        "基準差（秒）": diag.get("基準との差（秒）"),
+                        "制限前": diag.get("制限前の3F点"),
+                        "実際の加減点": diag.get("制限後の3F点"),
+                        "下限到達": diag.get("下限-3に到達", False),
+                        "対象Excel一致": diag.get("対象基準Excel一致", False),
+                    })
+                if all_f3_rows:
+                    all_f3_df = pd.DataFrame(all_f3_rows)
+                    st.dataframe(all_f3_df, use_container_width=True, hide_index=True)
+                    at_floor = int(all_f3_df["下限到達"].fillna(False).sum())
+                    valid = int((pd.to_numeric(all_f3_df["有効過去走"], errors="coerce") > 0).sum())
+                    st.caption(f"過去走あり {valid}/{len(all_f3_df)}頭 ｜ −3点下限に到達 {at_floor}頭")
+                    if valid and at_floor == valid:
+                        st.warning("有効過去走のある全馬が−3点の下限に張り付いています。基準値の対応と上がりタイムの単位を確認してください。")
+                    st.info("v15：過去馬場状態をAPIの芝/ダート別実データから取得。上がり3F基準はExcelの競馬場・芝ダート・距離・クラス・馬場状態を厳密照合。未登録条件は3F評価から除外します。")
+                    chosen_f3_diag = chosen.get("上がり3F診断")
+                    if isinstance(chosen_f3_diag, dict):
+                        st.markdown(f"**選択馬：{chosen.get('馬名', '—')} の過去走別診断**")
+                        st.json({k: v for k, v in chosen_f3_diag.items() if k != "過去走詳細"}, expanded=False)
+                        rejected = chosen_f3_diag.get("除外された過去走の例", [])
+                        if rejected:
+                            st.markdown("**除外された過去走（原因調査用）**")
+                            st.dataframe(pd.DataFrame(rejected), use_container_width=True, hide_index=True)
+                        history = chosen_f3_diag.get("過去走詳細", [])
+                        if history:
+                            st.dataframe(pd.DataFrame(history), use_container_width=True, hide_index=True)
+                        else:
+                            st.info("この馬は診断可能な上がり3F過去走がありません。")
+                else:
+                    st.info("診断値がまだありません。新しいコードで予想を実行すると表示されます。")
+
+            with st.expander("🧪 v13 新配点とv11参考配点の比較", expanded=True):
+                st.caption("v13は試験配点を予想に適用中。v11配点は保存された各馬の内訳から比較用に再構成します。オッズを使う旧穴馬加点の判定は予想時のオッズを参照します。")
+                comparisons = []
+                threshold80 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.8)
+                threshold60 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.6)
+                threshold70 = pd.to_numeric(dashboard_df["統合指数"], errors="coerce").quantile(0.7)
+                for _, item in dashboard_df.iterrows():
+                    parts = item.get("最終評価内訳")
+                    if not isinstance(parts, dict):
+                        continue
+                    trial = float(item["ジオ評価"])
+                    idx_score = float(item["統合指数"])
+                    old_ability = 8.0 if idx_score >= threshold80 else (3.0 if idx_score >= threshold60 else 0.0)
+                    old_outsider = 8.0 if float(item.get("オッズ", 999)) >= 8 and idx_score >= threshold70 else 0.0
+                    old = (trial - float(parts.get("能力順位", 0)) - float(parts.get("穴馬評価", 0))
+                           - float(parts.get("血統補正", 0)) * (2.0 / 3.0) - float(parts.get("メンバーレベル", 0)) * (2.0 / 3.0)
+                           - float(parts.get("自己学習", 0)) / 2
+                           + old_ability + old_outsider)
+                    # v13の3倍/3倍/2倍をv11の1倍/1倍/1倍へ参考復元（上限到達時は近似）。
+                    comparisons.append({"馬番":item.get("馬番"), "馬名":item.get("馬名"),
+                                        "試験配点":round(trial,3),"旧配点の参考再構成":round(old,3)})
+                if comparisons:
+                    comp_df = pd.DataFrame(comparisons)
+                    comp_df["試験順位"] = comp_df["試験配点"].rank(method="min",ascending=False).astype(int)
+                    comp_df["旧参考順位"] = comp_df["旧配点の参考再構成"].rank(method="min",ascending=False).astype(int)
+                    st.dataframe(comp_df.sort_values("試験順位"),use_container_width=True,hide_index=True)
+                    st.caption("旧配点は再計算した参考値です。補正の上限に達した馬では厳密な旧スコアと異なる可能性があります。")
+                else:
+                    st.info("比較できる最終評価内訳がありません。")
+
+            with st.expander("🎯 最終ジオ評価の全補正内訳｜配点検証", expanded=True):
+                st.caption("統合指数から最終評価まで、実際に適用された加減点。自己学習はAPIから取得した補正値です。")
+                details = chosen.get("最終評価内訳")
+                if isinstance(details, dict):
+                    final_df = pd.DataFrame([{"ファクター": key, "加減点": round(float(val), 4)} for key, val in details.items()])
+                    st.dataframe(final_df, use_container_width=True, hide_index=True)
+                    st.bar_chart(final_df.set_index("ファクター")[["加減点"]].drop(index="統合指数", errors="ignore"), height=290)
+                    total = sum(float(v) for v in details.values())
+                    actual = float(chosen["ジオ評価"])
+                    x, y, z = st.columns(3)
+                    x.metric("統合指数", f"{float(chosen['統合指数']):.3f}")
+                    y.metric("補正合計", f"{total-float(chosen['統合指数']):+.3f}")
+                    z.metric("最終ジオ評価", f"{actual:.3f}")
+                    if abs(total-actual) < 0.0001:
+                        st.success("最終ジオ評価と補正内訳の合計が一致しています。")
+                    else:
+                        st.error(f"補正内訳の合計と最終評価が一致しません（差 {total-actual:+.6f}pt）。")
+                    st.caption("v12試験配点を適用しています。変更前のv11をバックアップし、今週末の予想と結果を比較してください。")
+                else:
+                    st.info("この予想には最終評価の内訳がありません。新しいコードで予想した場合に表示されます。")
+
+            tabs = st.tabs(["📊 指数比較", "🧬 血統・メンバー", "🏇 展開データ"])
+            with tabs[0]:
+                cols = [c for c in ["ジオ評価","統合指数","メンバーレベル"] if c in dashboard_df.columns and dashboard_df[c].notna().any()]
+                if cols:
+                    st.bar_chart(dashboard_df.head(10).set_index("馬名")[cols],height=280)
+                else:
+                    st.info("比較可能な指数がありません。")
+            with tabs[1]:
+                st.caption("父系の血統適性とメンバーレベルを表示。欠損値は推測で補いません。")
+                blood_cols = [c for c in dashboard_df.columns if "血統" in str(c) or "メンバー" in str(c)]
+                if blood_cols:
+                    st.dataframe(dashboard_df[["馬名"]+blood_cols],use_container_width=True,hide_index=True)
+                else:
+                    st.info("血統・メンバーレベルの比較列はありません。下の根拠診断で確認してください。")
+            with tabs[2]:
+                st.caption("予想時点の脚質データです。走行位置のアニメーションや未計算の能力値は表示しません。")
+                if "脚質" in dashboard_df.columns:
+                    st.dataframe(dashboard_df[[c for c in ["馬番","馬名","脚質","ジオ評価"] if c in dashboard_df.columns]],
+                                 use_container_width=True,hide_index=True)
+                else:
+                    st.info("脚質データがありません。")
+        else:
+            st.info("レース予想を実行するとAI順位表・馬別分析が表示されます。")
+        st.subheader("🧠 ジオの最終判断")
+
+        cols = st.columns(3)
+        horse_data = [
+            ("◎ 本命", geo["honmei"]),
+            ("○ 対抗", geo["second"]),
+            ("▲ 単穴", geo["third"]),
+        ]
+
+        for col, (label, horse) in zip(cols, horse_data):
+            with col:
+                if horse is None:
+                    st.info(f"{label}\n\n該当なし")
+                    continue
+
+                st.markdown(
+                    f"""<div class="geo-horse-card">
+    <div class="geo-horse-label">{html.escape(label)} / AI RANKING</div>
+    <div class="geo-horse-name">{html.escape(str(horse['馬名']))}</div>
+    <div class="geo-horse-number">HORSE NO. {html.escape(str(horse['馬番']))}</div>
+    <div class="geo-score">{float(horse['ジオ評価']):.1f}</div>
+    <div class="geo-horse-meta">統合指数 {float(horse['統合指数']):.1f}　/　オッズ {float(horse['オッズ']):.1f}<br>
+    脚質 {html.escape(str(horse.get('脚質', '')))}<br>
+    父 {html.escape(str(horse.get('父', '不明')))}<br>
+    母 {html.escape(str(horse.get('母', '不明')))}</div>
+    </div>""",
+                    unsafe_allow_html=True,
+                )
+                member_score = horse.get("メンバーレベル")
+                try:
+                    if pd.notna(member_score):
+                        st.write(f"メンバーレベル：**{float(member_score):.1f}点**（{horse.get('メンバーレベル判定', '判定材料不足')}）")
+                    else:
+                        st.write("メンバーレベル：判定材料不足（補正なし）")
+                except (TypeError, ValueError):
+                    st.write("メンバーレベル：判定材料不足（補正なし）")
+                horse_reasons = (geo.get("reasons", {}) or {}).get(str(horse.get("馬名", "")), [])
+                if horse_reasons:
+                    st.markdown("**評価理由**")
+                    for reason in horse_reasons[:4]:
+                        st.write(f"・{reason}")
+
+        with st.expander("📊 AI分析ダッシュボード｜全頭指数・血統・メンバーレベル", expanded=True):
+            st.caption("実際の予想計算に使用した値を可視化します。勝率や的中確率を新たに推定するものではありません。")
+            chart_df = geo.get("df_geo")
+            if isinstance(chart_df, pd.DataFrame) and not chart_df.empty and "馬名" in chart_df.columns:
+                chart_df = chart_df.copy()
+                for metric in ["ジオ評価", "統合指数", "メンバーレベル"]:
+                    if metric in chart_df.columns:
+                        chart_df[metric] = pd.to_numeric(chart_df[metric], errors="coerce")
+                top = chart_df.sort_values("ジオ評価", ascending=False).head(10) if "ジオ評価" in chart_df.columns else chart_df.head(10)
+                metrics = [c for c in ["ジオ評価", "統合指数", "メンバーレベル"] if c in top.columns and top[c].notna().any()]
+                if metrics:
+                    st.markdown("**全頭AI指数ランキング（上位10頭）**")
+                    st.bar_chart(top.set_index("馬名")[metrics], height=320)
+                st.markdown("**◎○▲ 血統適性とコース一致サンプル**")
+                pedigree_rows = []
+                for label, h in horse_data:
+                    if not isinstance(h, dict): continue
+                    blood = h.get("血統適性") or {}
+                    if not isinstance(blood, dict): blood = {}
+                    father = blood.get("father") or {}
+                    if not isinstance(father, dict): father = {}
+                    pedigree_rows.append({
+                        "印": label, "馬名": h.get("馬名", ""),
+                        "血統スコア": blood.get("score"),
+                        "信頼度": blood.get("confidence"),
+                        "コース一致出走数": father.get("exact_course_sample"),
+                        "コース一致勝率%": father.get("exact_course_win_rate"),
+                        "コース一致複勝率%": father.get("exact_course_top3_rate"),
+                    })
+                if pedigree_rows:
+                    pedigree_df = pd.DataFrame(pedigree_rows)
+                    st.dataframe(pedigree_df, use_container_width=True, hide_index=True)
+                    if pedigree_df["血統スコア"].notna().any():
+                        st.bar_chart(pedigree_df.set_index("馬名")[["血統スコア"]], height=220)
+                st.caption("血統は父の産駒実績に基づきます。完全一致サンプルが少ない場合は過信しないでください。")
+            else:
+                st.info("まだ全頭の予想結果がありません。レースを分析すると表示されます。")
+
+        with st.expander("🧬 血統・学習補正の根拠", expanded=False):
+            st.caption("血統スコアは父の産駒実績100%で算出。母の産駒実績はスコアに使いません。条件別成績はサンプル数と一緒に確認してください。")
+            diagnostic_rows = []
+            for label, horse in horse_data:
+                if horse is None:
+                    continue
+                blood = horse.get("血統適性", {})
+                blood = blood if isinstance(blood, dict) else {}
+                # APIの血統スコアは combined object。条件別内訳は father の中にある。
+                father_diag = blood.get("father", {}) if isinstance(blood.get("father", {}), dict) else {}
+                comps = father_diag.get("components", {}) if isinstance(father_diag.get("components", {}), dict) else {}
+                row = {
+                    "印": label,
+                    "馬番": str(horse.get("馬番", "")),
+                    "馬名": str(horse.get("馬名", "")),
+                    "血統スコア": blood.get("score", None),
+                    "信頼度": blood.get("confidence", "不明"),
+                    "コース一致 出走数": father_diag.get("exact_course_sample", 0),
+                    "コース一致 勝率%": father_diag.get("exact_course_win_rate", None),
+                    "コース一致 複勝率%": father_diag.get("exact_course_top3_rate", None),
+                    "コース＋馬場 出走数": father_diag.get("exact_course_going_sample", 0),
+                    "コース＋馬場 勝率%": father_diag.get("exact_course_going_win_rate", None),
+                    "コース＋馬場 複勝率%": father_diag.get("exact_course_going_top3_rate", None),
+                    "父産駒の芝/ダート出走数": (comps.get("surface") or {}).get("sample", 0),
+                    "父産駒の距離帯出走数": (comps.get("distance") or {}).get("sample", 0),
+                    "学習補正": horse.get("学習補正", 0),
+                    "学習一致条件": horse.get("学習一致条件", "未取得"),
+                    "学習補正内訳": horse.get("学習補正内訳", "未取得"),
+                }
+                diagnostic_rows.append(row)
+            if diagnostic_rows:
+                st.dataframe(pd.DataFrame(diagnostic_rows), use_container_width=True, hide_index=True)
+            st.caption("『コース＋馬場』の出走数が少ない場合、信頼度が中・高でも完全一致条件の根拠は薄い可能性があります。ここでは数値を表示し、信頼度判定そのものは今回変更していません。")
+
+        with st.expander("🔍 v44 メンバーレベル・全馬比較（診断専用）", expanded=False):
+            st.caption("過去の対戦相手の後続成績から計算したスコアと、実際の加点を全馬で確認。直近最大3走の平均であり、出走歴全体の重賞経験を直接加点する指標ではありません。")
+            _member_rows = []
+            for _, _mr in dashboard_df.iterrows():
+                _raw = pd.to_numeric(_mr.get("メンバーレベル"), errors="coerce")
+                _used = pd.to_numeric(_mr.get("メンバーレベル使用レース数"), errors="coerce")
+                _parts = _mr.get("最終評価内訳")
+                if not isinstance(_parts, dict):
+                    _parts = {}
+                _member_rows.append({
+                    "馬番": _mr.get("馬番"), "馬名": _mr.get("馬名"),
+                    "現行GEO順位": _mr.get("ジオ順位"),
+                    "メンバーレベル原点": round(float(_raw), 2) if pd.notna(_raw) else None,
+                    "使用過去レース数": int(_used) if pd.notna(_used) else 0,
+                    "最大3走の不足数": max(0, 3 - int(_used)) if pd.notna(_used) else 3,
+                    "実際のメンバー加点": _parts.get("メンバーレベル"),
+                    "信頼度係数": _mr.get("メンバーレベル信頼度"),
+                    "後続走数": _mr.get("メンバーレベル後続走数"),
+                    "判定": _mr.get("メンバーレベル判定"),
+                    "取得状況": _mr.get("メンバーレベル取得状況"),
+                })
+            if _member_rows:
+                _member_table = pd.DataFrame(_member_rows)
+                st.dataframe(_member_table, use_container_width=True, hide_index=True)
+                st.caption("使用レース数が少ない＝弱い相手とは限りません。直近のレースほど相手の『その後』の成績が少ないため、データ不足による評価の偏りがないか確認します。")
+                _valid_member = _member_table[pd.to_numeric(_member_table["メンバーレベル原点"], errors="coerce").notna()]
+                if not _valid_member.empty:
+                    st.write("**メンバーレベルが低い順**")
+                    st.dataframe(_valid_member.sort_values("メンバーレベル原点").head(10), use_container_width=True, hide_index=True)
+            else:
+                st.info("全馬の診断データがありません。予想を実行してください。")
+
+        with st.expander("🔬 v45 メンバーレベル・過去3走の相手別内訳", expanded=False):
+            st.caption("診断専用。既存の予想・加点は変更しません。対象日を指定すると、相手馬の後続成績をその日までに制限します。")
+            _v45_horses = []
+            for _, _v45_row in dashboard_df.iterrows():
+                _v45_hid = str(_v45_row.get("血統登録番号", "") or "").strip()
+                if _v45_hid and _v45_hid.lower() not in ("none", "nan"):
+                    _v45_horses.append((str(_v45_row.get("馬名", "")), _v45_hid))
+            if not _v45_horses:
+                st.warning("血統登録番号がありません。")
+            else:
+                _v45_names = [x[0] for x in _v45_horses]
+                _v45_default = next((i for i, n in enumerate(_v45_names) if "アンパドゥ" in n), 0)
+                _v45_index = st.selectbox("診断する馬", range(len(_v45_names)), index=_v45_default,
+                                         format_func=lambda i: _v45_names[i], key="geo_v45_horse")
+                _v45_name, _v45_hid = _v45_horses[_v45_index]
+                _v45_asof = st.date_input("集計締切日（この日までの相手の後続成績）", value=__import__("datetime").date.today(),
+                                          key="geo_v45_asof")
+                st.caption("過去のレース前検証では、そのレースの前日を指定。ただし診断APIは対象馬の過去走自体を日付で除外しないため、厳密な当時の予想再現ではありません。")
+                if st.button("この馬の過去3走を詳しく調べる", key="geo_v45_fetch"):
+                    try:
+                        from urllib.parse import quote as _v45_quote
+                        _v45_resp = requests.get(
+                            f"{API_BASE.rstrip('/')}/geo/field-quality/debug/{_v45_quote(_v45_hid, safe='')}",
+                            params={"asof": _v45_asof.isoformat(), "limit": 6}, timeout=(10, 90))
+                        _v45_resp.raise_for_status()
+                        _v45_payload = _v45_resp.json()
+                        if not _v45_payload.get("ok"):
+                            raise ValueError(_v45_payload.get("error", "診断APIの応答異常"))
+                        st.session_state["geo_v45_details"] = {"horse_id": _v45_hid, "asof": _v45_asof.isoformat(), "payload": _v45_payload}
+                    except Exception as _v45_err:
+                        st.error(f"診断取得エラー: {type(_v45_err).__name__}: {_v45_err}")
+                _v45_saved = st.session_state.get("geo_v45_details", {})
+                if _v45_saved.get("horse_id") == _v45_hid and _v45_saved.get("asof") == _v45_asof.isoformat():
+                    _v45_runs = _v45_saved.get("payload", {}).get("runs", []) or []
+                    _v45_cutoff = _v45_asof.strftime("%Y%m%d")
+                    _v45_rows = []
+                    _v45_kept = []
+                    for _v45_r in _v45_runs:
+                        _v45_rdate = str(_v45_r.get("kaisai_nen", "")) + str(_v45_r.get("kaisai_gappi", "")).zfill(4)
+                        if _v45_rdate >= _v45_cutoff:
+                            continue
+                        _v45_kept.append(_v45_r)
+                        if len(_v45_kept) >= 3:
+                            break
+                    if len(_v45_kept) < 3:
+                        st.warning("締切日以前の過去走が3走未満です。APIの取得対象6走より前に対象走がある場合、正確な3走抽出にはAPI側の日付絞り込みが必要です。")
+                    for _v45_i, _v45_r in enumerate(_v45_kept, 1):
+                        _v45_fq = _v45_r.get("field_quality") or {}
+                        _v45_rdate = str(_v45_r.get("kaisai_nen", "")) + str(_v45_r.get("kaisai_gappi", "")).zfill(4)
+                        _v45_rows.append({
+                            "過去走": _v45_i, "日付": _v45_rdate, "レース名": _v45_r.get("kyosomei_hondai"),
+                            "自身の着順": _v45_r.get("kakutei_chakujun"), "メンバーレベル": _v45_fq.get("score"),
+                            "対戦相手数": _v45_fq.get("opponents_in_race"),
+                            "後続成績ありの相手数": _v45_fq.get("opponents_with_followup_results"),
+                            "後続走数": _v45_fq.get("followup_starts_used"),
+                            "後続3着内率%": _v45_fq.get("followup_top3_rate_pct")})
+                    if _v45_rows:
+                        st.write("**過去3走のレース別評価**")
+                        st.dataframe(pd.DataFrame(_v45_rows), use_container_width=True, hide_index=True)
+                        _v45_scores = [float(x["メンバーレベル"]) for x in _v45_rows if x["メンバーレベル"] is not None]
+                        if _v45_scores:
+                            st.write(f"この3走の単純平均: **{sum(_v45_scores)/len(_v45_scores):.2f}点**")
+                        for _v45_i, _v45_r in enumerate(_v45_kept, 1):
+                            _v45_fq = _v45_r.get("field_quality") or {}
+                            with st.expander(f"{_v45_i}走前：{_v45_r.get('kyosomei_hondai') or _v45_r.get('race_code')} ／ スコア {_v45_fq.get('score')}"):
+                                _v45_details = _v45_fq.get("followup_details") or []
+                                if _v45_details:
+                                    _v45_detail_rows = [{
+                                        "対戦相手": x.get("opponent_name"), "後続日": x.get("followup_date"),
+                                        "後続レース": x.get("race_name"), "後続クラス": x.get("class_label"),
+                                        "後続着順": x.get("finish"), "頭数": x.get("field_size"),
+                                        "着順スコア": x.get("score_before"), "クラス加点": x.get("class_bonus"),
+                                        "採用スコア": x.get("score_after")}
+                                        for x in _v45_details]
+                                    st.dataframe(pd.DataFrame(_v45_detail_rows), use_container_width=True, hide_index=True)
+                                else:
+                                    st.info("相手の後続成績がありません。")
+                        st.caption("注意：診断GETと本番の一括APIは別実装です。スコアが本番表示と一致するか確認してください。過去レースの当時の再現には対象馬の過去走選択もAPI側で日付制限する必要があります。")
+                    else:
+                        st.info("締切日より前の対象走が見つかりません。")
+
+        with st.expander("🧪 メンバーレベル取得診断", expanded=False):
+            diag = st.session_state.get("geo_field_quality_diagnostics")
+            if not diag:
+                st.info("診断情報がありません。レース予想を実行してください。")
+            else:
+                st.write(f"API URL: `{diag.get('api_base', '')}`")
+                st.write(f"対象日: {diag.get('asof_date', '')}")
+                st.write(f"出走馬: {diag.get('horses_total', 0)}頭 / 血統登録番号あり: {diag.get('horses_with_id', 0)}頭 / スコア取得成功: {diag.get('scores_ok', 0)}頭")
+                st.write(f"一括API処理時間: {diag.get('elapsed_seconds', '不明')} 秒")
+                st.write("取得状況の内訳")
+                st.json(diag.get("status_counts", {}))
+                if diag.get("samples"):
+                    st.dataframe(pd.DataFrame(diag["samples"]), use_container_width=True, hide_index=True)
+                st.caption("接続エラーなら、APIサーバー起動時に表示される最新のtrycloudflare.com URLを JRA_VAN_API_BASE に設定し、アプリを再起動してください。")
+
+        st.markdown("### 🎯 ジオの結論")
+        st.success(f"{geo['decision']} ｜ ジオ独自の自信度 **{geo['confidence']}%**")
+        st.caption("※この自信度はジオ独自の判断指標で、実際の的中確率・勝率ではありません。")
+
+        st.markdown("### 💭 ジオの考察")
+        for text in geo["comment"]:
+            st.write("・" + text)
+
+        if geo["tickets"]:
+            st.markdown("### 🎫 ジオの3連単")
+            for i, ticket in enumerate(geo["tickets"], 1):
+                st.write(f"**{i}. {ticket}**")
+
+        with st.expander("🔎 ジオが見たレース条件"):
+            st.write(f"ペース：{geo['pace']}")
+            st.write(f"馬場バイアス：{geo['bias']}")
+            st.write(f"馬場状態：{geo['condition']}")
+
+        with st.expander("📊 ジオの全頭評価"):
+            show_cols = [
+                "着順予測",
+                "馬番",
+                "馬名",
+                "ジオ評価",
+                "統合指数",
+                "予測走破タイム",
+                "オッズ",
+                "脚質",
+                "メンバーレベル",
+                "メンバーレベル判定",
+            ]
+            show_cols = [c for c in show_cols if c in geo["df_geo"].columns]
+            st.dataframe(
+                geo["df_geo"][show_cols],
+                use_container_width=True,
+                hide_index=True
+            )
+
+        st.session_state["geo_prediction"] = geo
+
+
+    # =========================================================
+    # 結果表示
+    # =========================================================
+
+    if (
+        st.session_state.get("sim_executed", False)
+        and "df_simulated" in st.session_state
+    ):
+        st.markdown(
+            f"""
+            <br>
+            <h3>
+                🏆 総合指数ランキング
+                （{race_place} {race_class} /
+                JRA-VAN完全連携版）
+            </h3>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        df_simulated = st.session_state["df_simulated"]
+
+        display_columns = [
+            c for c in [
+                "着順予測",
+                "馬番",
+                "馬名",
+                "ライジングスター",
+                "オッズ",
+                "脚質",
+                "得意馬場",
+                "統合指数",
+                "予測走破タイム",
+            ]
+            if c in df_simulated.columns
+        ]
+
+        display_df = df_simulated[display_columns].copy()
+        display_df["統合指数"] = display_df["統合指数"].apply(lambda x: f"{x:.1f}pt")
+
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        if "master_data_jv" in st.session_state:
+            master_debug = st.session_state["master_data_jv"]
+            st.caption(f"📊 JRA-VANから取得した過去走データ: {len(master_debug)}件")
+
+
+    # =========================================================
+    # 🧠 ジオ予想実行
+    # =========================================================
+    st.markdown('<span id="geo-predict" class="geo-anchor"></span>', unsafe_allow_html=True)
+    st.markdown('<div class="geo-section-label">02 / GEO PREDICTION</div>', unsafe_allow_html=True)
+
+    if (
+        st.session_state.get("sim_executed", False)
+        and "df_simulated" in st.session_state
+    ):
+        st.markdown("---")
+
+    # Phase16.49: explicitly prepare the as-of-date model, separate from predictions.
+    _geo49_date = str(race_id or '')[:8]
+    if len(_geo49_date)==8 and _geo49_date.isdigit():
+        _geo49_base=API_BASE.rstrip('/')
+        try:
+            _geo49_ready_resp=requests.get(f'{_geo49_base}/geo/new/model/ready/{_geo49_date}',timeout=(5,12))
+            _geo49_ready=_geo49_ready_resp.ok and _geo49_ready_resp.json().get('ready',False)
+        except (requests.RequestException,ValueError):
+            _geo49_ready=False
+        if _geo49_ready:
+            st.success('新ジオの学習済みモデルは準備完了。予想ボタンを押せるで。')
+        else:
+            st.info('新ジオのモデルが未準備です。最初に「モデルを事前準備」を実行してください。進捗は保存され、途中から再開できます。')
+            if st.button('🧠 新ジオのモデルを事前準備',key='geo49_prepare_model'):
+                try:
+                    _g49r=requests.get(f'{_geo49_base}/geo/new/model/prepare/{_geo49_date}/async',timeout=(5,30))
+                    _g49r.raise_for_status()
+                    _g49data=_g49r.json()
+                    st.session_state['geo49_model_job_id']=_g49data['job_id']
+                except (requests.RequestException,KeyError,ValueError) as _g49err:
+                    st.error(f'モデル準備開始エラー: {_g49err}')
+            _g49job=st.session_state.get('geo49_model_job_id')
+            if _g49job:
+                try:
+                    _g49s=requests.get(f'{_geo49_base}/geo/new/predict/status/{_g49job}',timeout=(5,15)).json()
+                    _g49stage=_g49s.get('stage','準備中')
+                    st.info(f"モデル準備: {_g49s.get('status')} / {_g49stage} / {_g49s.get('done',0)}/{_g49s.get('total',0)}レース / {_g49s.get('elapsed_seconds',0)}秒")
+                    if _g49s.get('status')=='complete':
+                        st.success('学習完了！画面を再読み込みして予想ボタンを押してな。')
+                    elif _g49s.get('status')=='error':
+                        st.error(str(_g49s.get('error')))
+                except (requests.RequestException,ValueError) as _g49err:
+                    st.warning(f'モデル準備状態を取得できません: {_g49err}')
+            st.caption('モデル準備中は、画面を再読み込みすると進捗を確認できるで。')
+
+    if st.button(
+        "🧠 ジオにレースを分析させる",
+        key="geo_prediction_button",
+        type="primary"
+    ):
+        if not st.session_state.get("sim_executed", False) or "df_simulated" not in st.session_state:
+            st.warning("先に『🚀 走破タイム×上がり3F完全統合シミュレーションを実行』を押してください。")
+            st.stop()
+        if len(_geo49_date)==8 and _geo49_date.isdigit() and not _geo49_ready:
+            st.warning('新ジオの学習済みモデルがまだ準備できていません。先に「モデルを事前準備」を実行してな。')
+            st.stop()
+        geo_result = run_geo_prediction(
+            st.session_state["df_simulated"],
+            selected_pace,
+            selected_bias,
+            selected_condition,
+            venue=race_place,
+            race_id=str(race_id or "").strip(),
+            asof_date=(selected_race_summary.get("date") or selected_race_summary.get("kaisai_date") or race_meta.get("date") or race_meta.get("kaisai_date")),
+        )
+
+        if geo_result is not None:
+            # 現在サイドバーで選択しているレースを必ず使用
+            current_race_id = str(race_id or "").strip()
+
+            if not current_race_id:
+                try:
+                    if "df_race" in globals() and "レースID" in df_race.columns:
+                        ids = df_race["レースID"].dropna().astype(str)
+                        if len(ids) > 0:
+                            current_race_id = ids.iloc[0].strip()
+                except Exception:
+                    pass
+
+            # 現在選択中のレース情報を作成
+            current_race_info = {
+                "date": selected_race_summary.get("date", selected_race_summary.get("kaisai_date", "")),
+                "venue": selected_race_summary.get("venue", selected_race_summary.get("place", "")),
+                "race_no": selected_race_summary.get("race_no", selected_race_summary.get("race_bango", "")),
+                "name": selected_race_summary.get("name", selected_race_summary.get("kyosomei_hondai", race_name)),
+            }
+
+            # 空欄は詳細レース情報から補完
+            current_race_info["date"] = current_race_info.get("date") or race_meta.get("date", race_meta.get("kaisai_date", ""))
+            current_race_info["venue"] = current_race_info.get("venue") or race_place
+            current_race_info["race_no"] = current_race_info.get("race_no") or race_meta.get("race_no", race_meta.get("race_bango", ""))
+            current_race_info["name"] = current_race_info.get("name") or race_name
+
+            if current_race_id:
+                st.session_state["current_race_id"] = current_race_id
+
+                # ----------------------------------------------------
+                # 個別予想は「手動分析」として画面表示のみ。
+                # 全自動予想の保存データには書き込まない。
+                #
+                # これにより、開催日全レース自動予想で固定した
+                # ◎○▲が、レース開催中の個別分析によって
+                # 上書きされることを完全に防ぐ。
+                # ----------------------------------------------------
+                st.info(
+                    "👤 個別予想モード：この予想は画面表示のみで保存しません。"
+                    "全自動予想の◎○▲・馬券検証には影響しません。"
+                )
+            else:
+                st.warning(
+                    "⚠️ race_idが取得できないため、個別予想を表示します。"
+                )
+
+        if geo_result is not None:
+            st.session_state["geo_prediction"] = geo_result
+            st.session_state["geo_prediction_race_id"] = str(race_id)
+
+    # Streamlitはselectboxを変更するたびにスクリプトを再実行する。
+    # ボタンの押下状態ではなく、保存済みの予想とレースIDを基準に表示を維持する。
+    _cached_geo = st.session_state.get("geo_prediction")
+    _cached_race_id = st.session_state.get("geo_prediction_race_id")
+    # GEO VISION telemetry uses only existing prediction outputs; no recalculation.
+    def _vision_render_workspace(geo, only_analysis=False):
+        if not isinstance(geo, dict) or not isinstance(geo.get("df_geo"), pd.DataFrame):
+            if not only_analysis:
+                with _vision_middle_slot.container():
+                    st.markdown('<div class="vision-panel-heading">02 / GEO PREDICTION</div><div class="vision-empty">予想待機中<br><small>下の「統合シミュレーション」→「ジオにレースを分析させる」を実行</small></div>', unsafe_allow_html=True)
+            with _vision_right_slot.container():
+                st.markdown('<div class="vision-panel-heading">03 / RACING LAB</div><div class="vision-empty">分析データ待機中<br><small>予想実行後に10項目の内訳を表示します</small></div>', unsafe_allow_html=True)
+            return
+        frame=geo["df_geo"]
+        rank="学習10項目順位" if str(geo.get("prediction_model", "")).startswith("Phase18.5") else "正式10項目順位"
+        score="学習10項目スコア" if rank=="学習10項目順位" else "正式10項目スコア"
+        if rank not in frame.columns: return
+        frame=frame.sort_values([rank,"馬番"]).head(5)
+        if frame.empty: return
+        lead=frame.iloc[0]
+        esc=lambda x: html.escape(str(x))
+        def score_text(v):
+            n=pd.to_numeric(v,errors="coerce")
+            return f"{float(n)*100:.1f}" if pd.notna(n) else "—"
+        if not only_analysis:
+            with _vision_middle_slot.container():
+                st.markdown('<div class="vision-panel-heading">02 / GEO PREDICTION</div>',unsafe_allow_html=True)
+                st.markdown(f'<div class="vision-hero-pick"><div class="vision-hero-kicker">♛　GEO TOP PICK / 本命</div><div class="vision-hero-name"><span>◎</span> {esc(lead.get("馬番",""))}番　{esc(lead.get("馬名",""))}</div><div class="vision-hero-score">GEO INDEX <strong>{score_text(lead.get(score))}</strong></div></div>',unsafe_allow_html=True)
+                marks=['◎','○','▲','△','☆']
+                cards=[]
+                for i,(_,horse) in enumerate(frame.iterrows()):
+                    n=pd.to_numeric(horse.get(score),errors="coerce")
+                    width=max(0,min(100,float(n)*100)) if pd.notna(n) else 0
+                    cards.append(f'<div class="vision-rank-row"><b class="vision-mark">{marks[i]}</b><span class="vision-number">{esc(horse.get("馬番",""))}</span><span class="vision-horse">{esc(horse.get("馬名",""))}</span><strong>{score_text(n)}</strong><span class="vision-meter"><i style="width:{width:.1f}%"></i></span></div>')
+                st.markdown('<div class="vision-rank-list">'+''.join(cards)+'</div><div class="vision-small-note">正式モデル順位。指数は勝率ではありません。</div>',unsafe_allow_html=True)
+        with _vision_right_slot.container():
+            st.markdown('<span id="geo-lab-mobile"></span><div class="vision-panel-heading">03 / RACING LAB</div>',unsafe_allow_html=True)
+            names=[f"{r.get('馬番','')}番 {r.get('馬名','')}" for _,r in frame.iterrows()]
+            choice=st.selectbox("分析対象馬",range(len(names)),format_func=lambda i:names[i],key=("vision_analysis_horse_tab" if only_analysis else "vision_analysis_horse"))
+            chosen=frame.iloc[choice]
+            st.markdown(f'<div class="vision-analysis-head"><span>{esc(chosen.get("馬番",""))}番　{esc(chosen.get("馬名",""))}</span><strong>{score_text(chosen.get(score))}</strong></div>',unsafe_allow_html=True)
+            payload=(geo.get('joint_payload') or {}) if str(geo.get('prediction_model','')).startswith('Phase18.5') else (geo.get('ten_payload') or {})
+            horses=payload.get('horses') or []
+            selected_num=pd.to_numeric(chosen.get('馬番'),errors='coerce')
+            details=next((h for h in horses if pd.to_numeric(h.get('umaban'),errors='coerce')==selected_num),{})
+            parts=details.get('feature_breakdown') or {}
+            labels={'ability_recent':'直近能力','ability_similar':'類似条件能力','jockey':'騎手','forward':'先行力','lead':'逃げ能力','hill_sessions':'坂路4F PB更新','wood_sessions':'ウッド6F PB更新','sire_condition_edge':'血統適性','course_fit':'コース適性','closing_kick':'末脚力'}
+            if parts:
+                rows=[]
+                for key,label in labels.items():
+                    part=parts.get(key) or {}
+                    raw=pd.to_numeric(part.get('raw'),errors='coerce')
+                    val='—' if pd.isna(raw) else f'{raw:.3f}'
+                    contrib=pd.to_numeric(part.get('logit_contribution'),errors='coerce')
+                    bar=min(100,max(0,50+(float(contrib)*60))) if pd.notna(contrib) else 50
+                    rows.append(f'<div class="vision-feature"><span>{label}</span><div class="vision-feature-track"><i style="width:{bar:.1f}%"></i></div><b>{val}</b></div>')
+                st.markdown('<div class="vision-feature-list">'+''.join(rows)+'</div><div class="vision-small-note">数値はモデルの生特徴量。棒はlogit寄与を相対表示（中央が0）。</div>',unsafe_allow_html=True)
+            else:
+                if str(geo.get('prediction_model','')).startswith('Phase18.4'):
+                    st.info('Phase18.4のAPIは10項目の個別寄与値を返していません。順位・指数は正常に表示されています。')
+                    _fields=[('末脚力（残差）','closing_kick'),('末脚評価走数','sample_count'),('末脚クラス移行係数','class_transfer_factor'),('昇級クラス補正','class_adjustment_in_ninth')]
+                    _available=[{'指標':label,'API値':details.get(key)} for label,key in _fields if details.get(key) is not None]
+                    if _available: st.dataframe(pd.DataFrame(_available),hide_index=True,use_container_width=True)
+                    st.caption('正式10項目の全特徴量内訳を表示するにはAPI側の返却拡張が必要です。推定値は作成しません。')
+                else:
+                    st.info('Phase18.5の学習済み内訳がAPIから返されていません。学習状態・APIレスポンスを確認してください。')
+            st.caption('モデル：'+str(geo.get('prediction_model') or '不明'))
+
+    _vision_render_workspace(_cached_geo if _cached_race_id == str(race_id) else None)
+
+    if _cached_geo is not None and _cached_race_id == str(race_id):
+        with st.expander("📊 全評価内訳・従来の詳細データを開く", expanded=False):
+            display_geo_prediction(_cached_geo)
+    elif not st.session_state.get("sim_executed", False):
+        st.info(
+            "👆 ペース・バイアス等を設定して、"
+            "上のボタンを押すとJRA-VANの過去走を取得して"
+            "統合シミュレーションを実行します。"
+        )
+
+    # =========================================================
+    # ============================================================
+    # 🏇 開催日全レース自動予想
+    # ============================================================
+
+
+# A separate, genuine analysis screen using the same prediction response and renderer.
+with _geo_tabs[1]:
+    st.markdown('<div class="vision-workspace-title">RACING LAB <span>/ 10 FACTOR ANALYSIS</span></div>',unsafe_allow_html=True)
+    _vision_right_slot = st.empty()
+    _vision_render_workspace(_cached_geo if _cached_race_id == str(race_id) else None, only_analysis=True)
+    if _cached_geo is not None and _cached_race_id == str(race_id):
+        with st.expander("全評価内訳・元データを確認", expanded=False):
+            display_geo_prediction(_cached_geo)
 
 def geo_auto_race_context(race_summary, race_detail):
     if isinstance(race_detail, dict) and isinstance(race_detail.get("race"), dict):
@@ -4938,687 +4944,691 @@ def geo_auto_detect_pace(df):
     return "M（ミドル）"
 
 
-st.markdown('<span id="geo-batch" class="geo-anchor"></span>', unsafe_allow_html=True)
-st.markdown('<div class="geo-section-label">03 / BATCH PREDICTION</div>', unsafe_allow_html=True)
-if st.button("🏇 開催日全レース自動予想", key="geo_all_race_auto_predict", type="primary", use_container_width=True):
-    # 払い戻し・結果確定とは完全分離した「予想だけ」の一括処理
-    def _normalize_date(value):
-        return "".join(ch for ch in str(value or "") if ch.isdigit())[:8]
+with _geo_tabs[2]:
+    st.markdown('<span id="geo-batch" class="geo-anchor"></span>', unsafe_allow_html=True)
+    st.markdown('<div class="geo-section-label">03 / BATCH PREDICTION</div>', unsafe_allow_html=True)
+    if st.button("🏇 開催日全レース自動予想", key="geo_all_race_auto_predict", type="primary", use_container_width=True):
+        # 払い戻し・結果確定とは完全分離した「予想だけ」の一括処理
+        def _normalize_date(value):
+            return "".join(ch for ch in str(value or "") if ch.isdigit())[:8]
 
-    target_date_raw = selected_race_summary.get("date", selected_race_summary.get("kaisai_date", ""))
-    target_date = _normalize_date(target_date_raw)
+        target_date_raw = selected_race_summary.get("date", selected_race_summary.get("kaisai_date", ""))
+        target_date = _normalize_date(target_date_raw)
 
-    # 開始時に最新のレース一覧を取得（古いキャッシュに依存しない）
-    fresh = api_get("/races/latest?days=7", timeout=30)
-    if isinstance(fresh, dict):
-        source_races = fresh.get("races", [])
-    elif isinstance(fresh, list):
-        source_races = fresh
-    else:
-        source_races = race_list
-
-    day_races = [
-        r for r in source_races
-        if _normalize_date(r.get("date", r.get("kaisai_date", ""))) == target_date
-    ]
-
-    # race_id重複を除去
-    unique = {}
-    for r in day_races:
-        rid = str(r.get("race_id", r.get("id", r.get("race_code", ""))) or "").strip()
-        if rid:
-            unique[rid] = r
-    day_races = list(unique.values())
-
-    def _race_sort_key(x):
-        place = str(x.get("place", x.get("venue", "")))
-        raw_no = str(x.get("race_no", x.get("race_bango", "0"))).replace("R", "").strip()
-        return (place, int(raw_no) if raw_no.isdigit() else 0)
-
-    day_races.sort(key=_race_sort_key)
-
-    if not day_races:
-        st.error(f"⚠️ {target_date_raw} の開催レースを取得できませんでした。")
-    else:
-        # 既存予想だけ確認。払い戻しDBはここでは見ない。
-        saved_ids_data = api_get("/geo/prediction_ids?limit=10000", timeout=30)
-        saved_ids = set()
-        if isinstance(saved_ids_data, dict) and saved_ids_data.get("ok"):
-            saved_ids = {
-                str(x.get("race_id", "")).strip()
-                for x in saved_ids_data.get("predictions", [])
-                if str(x.get("race_id", "")).strip()
-            }
-
-        # v35: 確定着順が既にDBにあるレースは予想前に除外する。
-        # API側の409保護はそのまま維持し、事後予想の学習混入を防止。
-        settled_info = api_get(f"/geo/settled-race-ids?date={target_date}", timeout=30)
-        if not isinstance(settled_info, dict) or not settled_info.get("ok"):
-            st.error("⚠️ 確定結果の事前確認ができないため、全レース自動予想を開始しません。Flask APIをv35に更新してください。")
-            st.stop()
-        settled_ids = {str(x).strip() for x in settled_info.get("race_ids", [])}
-
-        pending = []
-        already_saved = []
-        already_settled = []
-        for item in day_races:
-            rid = str(item.get("race_id", item.get("id", item.get("race_code", ""))) or "").strip()
-            if not rid:
-                continue
-            if rid in saved_ids:
-                already_saved.append(item)
-            elif rid in settled_ids:
-                already_settled.append(item)
-            else:
-                pending.append(item)
-
-        st.info(f"📅 {target_date_raw} の開催日全{len(day_races)}Rを確認。未予想 {len(pending)}R / 保存済み {len(already_saved)}R / 確定済み・新規保存不可 {len(already_settled)}R")
-        if already_settled:
-            st.warning("⚠️ 確定済みレースは事後予想を学習に混ぜないため自動除外しました。")
-
-        if not pending:
-            st.success("✅ この開催日の予想はすべて保存済みです。")
+        # 開始時に最新のレース一覧を取得（古いキャッシュに依存しない）
+        fresh = api_get("/races/latest?days=7", timeout=30)
+        if isinstance(fresh, dict):
+            source_races = fresh.get("races", [])
+        elif isinstance(fresh, list):
+            source_races = fresh
         else:
-            progress = st.progress(0, text=f"全レース自動予想を開始… 0/{len(pending)}R")
-            success_count = 0
-            skip_count = 0
-            error_count = 0
-            errors = []
+            source_races = race_list
 
-            for idx, race_summary in enumerate(pending, start=1):
-                rid = str(race_summary.get("race_id", race_summary.get("id", race_summary.get("race_code", ""))) or "").strip()
-                label = race_display_name(race_summary)
-                progress.progress((idx - 1) / max(len(pending), 1), text=f"🧠 {idx}/{len(pending)}R {label}：血統・過去走を取得中…")
+        day_races = [
+            r for r in source_races
+            if _normalize_date(r.get("date", r.get("kaisai_date", ""))) == target_date
+        ]
 
-                try:
-                    # ① レース詳細取得
-                    detail = api_get(f"/race/{rid}", timeout=30)
-                    if not detail:
-                        skip_count += 1
-                        errors.append(f"{label}: レース詳細取得失敗")
-                        continue
+        # race_id重複を除去
+        unique = {}
+        for r in day_races:
+            rid = str(r.get("race_id", r.get("id", r.get("race_code", ""))) or "").strip()
+            if rid:
+                unique[rid] = r
+        day_races = list(unique.values())
 
-                    # ② 出走馬→血統→血統適性を、このレース専用に構築
-                    context = geo_auto_race_context(race_summary, detail)
-                    if context is None:
-                        skip_count += 1
-                        errors.append(f"{label}: 出走馬データなし")
-                        continue
+        def _race_sort_key(x):
+            place = str(x.get("place", x.get("venue", "")))
+            raw_no = str(x.get("race_no", x.get("race_bango", "0"))).replace("R", "").strip()
+            return (place, int(raw_no) if raw_no.isdigit() else 0)
 
-                    df_auto = context["df_race"]
-                    if len(df_auto) < 3:
-                        skip_count += 1
-                        errors.append(f"{label}: 出走馬3頭未満")
-                        continue
+        day_races.sort(key=_race_sort_key)
 
-                    # 血統が全部空なら、血統を取得できていないので予想しない
-                    missing_pedigree = sum(
-                        1 for _, h in df_auto.iterrows()
-                        if not (
-                            str(h.get("父", "") or "").strip()
-                            or str(h.get("母", "") or "").strip()
-                            or str(h.get("父血統登録番号", "") or "").strip()
-                            or str(h.get("母血統登録番号", "") or "").strip()
+        if not day_races:
+            st.error(f"⚠️ {target_date_raw} の開催レースを取得できませんでした。")
+        else:
+            # 既存予想だけ確認。払い戻しDBはここでは見ない。
+            saved_ids_data = api_get("/geo/prediction_ids?limit=10000", timeout=30)
+            saved_ids = set()
+            if isinstance(saved_ids_data, dict) and saved_ids_data.get("ok"):
+                saved_ids = {
+                    str(x.get("race_id", "")).strip()
+                    for x in saved_ids_data.get("predictions", [])
+                    if str(x.get("race_id", "")).strip()
+                }
+
+            # v35: 確定着順が既にDBにあるレースは予想前に除外する。
+            # API側の409保護はそのまま維持し、事後予想の学習混入を防止。
+            settled_info = api_get(f"/geo/settled-race-ids?date={target_date}", timeout=30)
+            if not isinstance(settled_info, dict) or not settled_info.get("ok"):
+                st.error("⚠️ 確定結果の事前確認ができないため、全レース自動予想を開始しません。Flask APIをv35に更新してください。")
+                st.stop()
+            settled_ids = {str(x).strip() for x in settled_info.get("race_ids", [])}
+
+            pending = []
+            already_saved = []
+            already_settled = []
+            for item in day_races:
+                rid = str(item.get("race_id", item.get("id", item.get("race_code", ""))) or "").strip()
+                if not rid:
+                    continue
+                if rid in saved_ids:
+                    already_saved.append(item)
+                elif rid in settled_ids:
+                    already_settled.append(item)
+                else:
+                    pending.append(item)
+
+            st.info(f"📅 {target_date_raw} の開催日全{len(day_races)}Rを確認。未予想 {len(pending)}R / 保存済み {len(already_saved)}R / 確定済み・新規保存不可 {len(already_settled)}R")
+            if already_settled:
+                st.warning("⚠️ 確定済みレースは事後予想を学習に混ぜないため自動除外しました。")
+
+            if not pending:
+                st.success("✅ この開催日の予想はすべて保存済みです。")
+            else:
+                progress = st.progress(0, text=f"全レース自動予想を開始… 0/{len(pending)}R")
+                success_count = 0
+                skip_count = 0
+                error_count = 0
+                errors = []
+
+                for idx, race_summary in enumerate(pending, start=1):
+                    rid = str(race_summary.get("race_id", race_summary.get("id", race_summary.get("race_code", ""))) or "").strip()
+                    label = race_display_name(race_summary)
+                    progress.progress((idx - 1) / max(len(pending), 1), text=f"🧠 {idx}/{len(pending)}R {label}：血統・過去走を取得中…")
+
+                    try:
+                        # ① レース詳細取得
+                        detail = api_get(f"/race/{rid}", timeout=30)
+                        if not detail:
+                            skip_count += 1
+                            errors.append(f"{label}: レース詳細取得失敗")
+                            continue
+
+                        # ② 出走馬→血統→血統適性を、このレース専用に構築
+                        context = geo_auto_race_context(race_summary, detail)
+                        if context is None:
+                            skip_count += 1
+                            errors.append(f"{label}: 出走馬データなし")
+                            continue
+
+                        df_auto = context["df_race"]
+                        if len(df_auto) < 3:
+                            skip_count += 1
+                            errors.append(f"{label}: 出走馬3頭未満")
+                            continue
+
+                        # 血統が全部空なら、血統を取得できていないので予想しない
+                        missing_pedigree = sum(
+                            1 for _, h in df_auto.iterrows()
+                            if not (
+                                str(h.get("父", "") or "").strip()
+                                or str(h.get("母", "") or "").strip()
+                                or str(h.get("父血統登録番号", "") or "").strip()
+                                or str(h.get("母血統登録番号", "") or "").strip()
+                            )
                         )
-                    )
-                    if missing_pedigree == len(df_auto):
-                        skip_count += 1
-                        errors.append(f"{label}: 血統データを取得できなかったため中止")
-                        continue
+                        if missing_pedigree == len(df_auto):
+                            skip_count += 1
+                            errors.append(f"{label}: 血統データを取得できなかったため中止")
+                            continue
 
-                    # ③ 自動ペース・馬場
-                    auto_pace = geo_auto_detect_pace(df_auto)
-                    auto_bias = "フラット"
-                    auto_condition = context["default_baba"]
+                        # ③ 自動ペース・馬場
+                        auto_pace = geo_auto_detect_pace(df_auto)
+                        auto_bias = "フラット"
+                        auto_condition = context["default_baba"]
 
-                    # ④ 過去走取得→統合シミュレーション
-                    master_data = build_master_data_from_jv(df_auto)
-                    if master_data.empty:
-                        skip_count += 1
-                        errors.append(f"{label}: 過去走データなし")
-                        continue
+                        # ④ 過去走取得→統合シミュレーション
+                        master_data = build_master_data_from_jv(df_auto)
+                        if master_data.empty:
+                            skip_count += 1
+                            errors.append(f"{label}: 過去走データなし")
+                            continue
 
-                    df_sim = run_integrated_simulation(
-                        df_auto, auto_pace, auto_bias, auto_condition, master_data,
-                        context["race_category"], context["straight_len"], context["race_place"],
-                        context["race_surface"], context["course_toughness"], context["race_class"],
-                        df_base_master, df_f3_master,
-                    )
+                        df_sim = run_integrated_simulation(
+                            df_auto, auto_pace, auto_bias, auto_condition, master_data,
+                            context["race_category"], context["straight_len"], context["race_place"],
+                            context["race_surface"], context["course_toughness"], context["race_class"],
+                            df_base_master, df_f3_master,
+                        )
 
-                    # ⑤ ジオ予想
-                    geo = run_geo_prediction(
-                        df_sim, auto_pace, auto_bias, auto_condition,
-                        venue=context["race_place"],
-                        race_id=rid,
-                        asof_date=context.get("date") or context.get("kaisai_date") or str(rid)[:8],
-                    )
-                    if geo is None:
-                        skip_count += 1
-                        errors.append(f"{label}: ジオ予想生成失敗")
-                        continue
+                        # ⑤ ジオ予想
+                        geo = run_geo_prediction(
+                            df_sim, auto_pace, auto_bias, auto_condition,
+                            venue=context["race_place"],
+                            race_id=rid,
+                            asof_date=context.get("date") or context.get("kaisai_date") or str(rid)[:8],
+                        )
+                        if geo is None:
+                            skip_count += 1
+                            errors.append(f"{label}: ジオ予想生成失敗")
+                            continue
 
-                    # ⑥ ◎○▲保存 → 保存後は必ず次のRへ
-                    saved_ok = save_geo_prediction(
-                        race_id=rid, geo=geo, pace=auto_pace, bias=auto_bias,
-                        condition=auto_condition, race_info=context["race_info"]
-                    )
-                    if saved_ok:
-                        verify = api_get(f"/geo/prediction/{rid}", timeout=15)
-                        if isinstance(verify, dict) and verify.get("ok"):
-                            success_count += 1
+                        # ⑥ ◎○▲保存 → 保存後は必ず次のRへ
+                        saved_ok = save_geo_prediction(
+                            race_id=rid, geo=geo, pace=auto_pace, bias=auto_bias,
+                            condition=auto_condition, race_info=context["race_info"]
+                        )
+                        if saved_ok:
+                            verify = api_get(f"/geo/prediction/{rid}", timeout=15)
+                            if isinstance(verify, dict) and verify.get("ok"):
+                                success_count += 1
+                            else:
+                                error_count += 1
+                                errors.append(f"{label}: 保存APIは成功したがDB保存確認に失敗")
                         else:
                             error_count += 1
-                            errors.append(f"{label}: 保存APIは成功したがDB保存確認に失敗")
-                    else:
+                            errors.append(f"{label}: SQLite保存失敗")
+
+                    except Exception as e:
+                        # 1Rの失敗で全体を止めない
                         error_count += 1
-                        errors.append(f"{label}: SQLite保存失敗")
+                        errors.append(f"{label}: {type(e).__name__}: {e}")
+                        continue
 
-                except Exception as e:
-                    # 1Rの失敗で全体を止めない
-                    error_count += 1
-                    errors.append(f"{label}: {type(e).__name__}: {e}")
-                    continue
+                    progress.progress(idx / max(len(pending), 1), text=f"✅ {idx}/{len(pending)}R 完了。次のレースへ…")
 
-                progress.progress(idx / max(len(pending), 1), text=f"✅ {idx}/{len(pending)}R 完了。次のレースへ…")
-
-            progress.progress(1.0, text="🏁 開催日全レース自動予想 完了")
-            st.success(f"🏁 自動予想完了：新規保存 {success_count}R / スキップ {skip_count}R / エラー {error_count}R / 保存済み {len(already_saved)}R")
-            if errors:
-                with st.expander("⚠️ スキップ・エラー詳細"):
-                    for message in errors:
-                        st.write("・" + message)
+                progress.progress(1.0, text="🏁 開催日全レース自動予想 完了")
+                st.success(f"🏁 自動予想完了：新規保存 {success_count}R / スキップ {skip_count}R / エラー {error_count}R / 保存済み {len(already_saved)}R")
+                if errors:
+                    with st.expander("⚠️ スキップ・エラー詳細"):
+                        for message in errors:
+                            st.write("・" + message)
 
 
-# =========================================================
-# Geo自動馬券検証に成績管理を一本化
-# =========================================================
-
-st.markdown('<span id="geo-results" class="geo-anchor"></span>', unsafe_allow_html=True)
-st.markdown('<div class="geo-section-label">04 / RESULTS & LEARNING</div>', unsafe_allow_html=True)
-st.markdown("<h2>🎯 Geo自動馬券検証</h2>", unsafe_allow_html=True)
-
-# 採点ボードは廃止し、自動馬券検証へ一本化
-st.markdown("### 🎯 保存データ管理")
-
-reset_confirm = st.checkbox(
-    "保存済みのGeo予想・結果をすべて削除する",
-    key="geo_reset_confirm"
-)
-
-if st.button(
-    "🗑️ 保存データをリセット",
-    key="geo_reset_button",
-    disabled=not reset_confirm,
-    use_container_width=True
-):
-    try:
-        response = requests.post(
-            f"{API_BASE.rstrip('/')}/prediction/reset",
-            timeout=20
-        )
-        result = response.json()
-        if response.status_code == 200 and result.get("ok"):
-            st.success(
-                f"✅ 保存データをリセットしました。"
-                f" 予想{result.get('deleted_predictions', 0)}R / "
-                f"結果{result.get('deleted_results', 0)}件を削除。"
-            )
-            st.session_state.pop("geo_prediction", None)
-            st.session_state.pop("df_simulated", None)
-            st.session_state.pop("master_data_jv", None)
-            st.session_state["sim_executed"] = False
-        else:
-            st.error(f"❌ リセット失敗: {result.get('error', response.text)}")
-    except Exception as e:
-        st.error(f"❌ リセット通信エラー: {e}")
-
-st.markdown("---")
+    # =========================================================
+    # Geo自動馬券検証に成績管理を一本化
+    # =========================================================
 
 
-st.markdown("### 🏆 GEO 28点方式｜新馬券バックテスト")
-st.caption("◎単勝・複勝／◎から○▲△☆へ馬連・馬単／◎軸3連複／◎1着固定3連単。各点100円・計28点。旧11点方式とは別集計です。")
-new_data = api_get("/prediction/bet_verification_v2?limit=500")
-if new_data and new_data.get("ok"):
-    ov = new_data.get("overall", {})
-    x1,x2,x3,x4 = st.columns(4)
-    x1.metric("検証対象", f"{new_data.get('eligible_races',0)}R")
-    x2.metric("総投資", f"{ov.get('投資',0):,}円")
-    x3.metric("総払戻", f"{ov.get('払戻',0):,}円")
-    x4.metric("回収率", f"{ov.get('回収率',0):.1f}%")
-    st.metric("収支", f"{ov.get('収支',0):+,}円")
-    st.markdown("#### 🎯 印別予想精度｜◎〜☆")
-    st.caption("28点方式の検証対象レースにおける、当時保存された印と確定着順の照合結果。着順不明の馬は分母から除外します。")
-    mark_data = new_data.get("by_mark", {})
-    if mark_data:
-        mark_rows=[]
-        for mark in ["◎","○","▲","△","☆"]:
-            v=mark_data.get(mark,{})
-            mark_rows.append({"印":mark,"対象R":v.get("対象R",0),"勝率":f"{v.get('勝率',0):.1f}%", "連対率":f"{v.get('連対率',0):.1f}%", "複勝率":f"{v.get('複勝率',0):.1f}%", "1着":v.get("1着",0),"2着以内":v.get("2着以内",0),"3着以内":v.get("3着以内",0)})
-        st.dataframe(pd.DataFrame(mark_rows),use_container_width=True,hide_index=True)
-        if any(v.get("対象R",0)<new_data.get("eligible_races",0) for v in mark_data.values()):
-            st.warning("一部の印に確定着順の欠損があります。該当馬は印別成績から除外しています。")
-    else:
-        st.info("印別成績を表示するにはAPI側も更新してください。")
-    st.markdown("#### 券種別回収率")
-    new_rows=[]
-    for name in ["単勝","複勝","馬連","馬単","3連複","3連単"]:
-        v=new_data.get("by_type",{}).get(name,{})
-        new_rows.append({"券種":name,"点数":v.get("点数",0),"的中":v.get("的中",0),"的中率":f"{v.get('的中率',0):.1f}%","投資":v.get("投資",0),"払戻":v.get("払戻",0),"収支":v.get("収支",0),"回収率":f"{v.get('回収率',0):.1f}%"})
-    st.dataframe(pd.DataFrame(new_rows),use_container_width=True,hide_index=True)
-    new_races=new_data.get("races",[])
-    if new_races:
-        records=[]
-        for r in new_races:
-            d=pd.to_datetime(r.get("race_date"),errors="coerce")
-            if pd.notna(d):
-                records.append({"日付":d.normalize(),"投資":r.get("投資",0),"払戻":r.get("払戻",0)})
-        if records:
-            df28=pd.DataFrame(records)
-            df28["月"]=df28["日付"].dt.strftime("%Y-%m")
-            tabs=st.tabs(["📅 日別","🗓️ 月別"])
-            for tab,group in zip(tabs,["日付","月"]):
-                with tab:
-                    summary=df28.groupby(group,as_index=False)[["投資","払戻"]].sum()
-                    summary["収支"]=summary["払戻"]-summary["投資"]
-                    summary["回収率%"]=(summary["払戻"]/summary["投資"]*100).round(1)
-                    st.dataframe(summary,use_container_width=True,hide_index=True)
-        with st.expander("レース別買い目・結果"):
-            for r in new_races:
-                with st.expander(f"{r.get('race_date')} {r.get('venue')} {r.get('race_no')}R｜投資 {r.get('投資',0):,}円／払戻 {r.get('払戻',0):,}円"):
-                    st.write(r.get("印",{}))
-                    st.dataframe(pd.DataFrame((r.get("verification") or {}).get("bets",[])),use_container_width=True,hide_index=True)
-    if new_data.get("excluded_races",0):
-        st.warning(f"{new_data['excluded_races']}Rは当時の5頭の印または払戻を確認できず、集計から除外しました。欠損を推測で補完していません。")
-        with st.expander("除外理由を確認"):
-            st.dataframe(pd.DataFrame(new_data.get("excluded",[])),use_container_width=True,hide_index=True)
-else:
-    st.info("新28点方式のAPIが未導入、または通信できません。API側を先に更新してください。")
-st.markdown("---")
-st.markdown("### 📚 旧11点方式｜従来の実績（比較用）")
+with _geo_tabs[3]:
+    st.markdown('<span id="geo-results" class="geo-anchor"></span>', unsafe_allow_html=True)
+    st.markdown('<div class="geo-section-label">04 / RESULTS & LEARNING</div>', unsafe_allow_html=True)
+    st.markdown("<h2>🎯 Geo自動馬券検証</h2>", unsafe_allow_html=True)
 
-st.markdown("### 🎯 Geo自動馬券検証")
-st.caption("◎○▲から11点を自動生成し、JRA-VANのharaimodoshiと照合します。各点100円で計算します。")
+    # 採点ボードは廃止し、自動馬券検証へ一本化
+    st.markdown("### 🎯 保存データ管理")
 
-auto_data = api_get("/prediction/bet_verification?limit=500")
-
-if auto_data and auto_data.get("ok"):
-    overall = auto_data.get("overall", {})
-    by_type = auto_data.get("by_type", {})
-    races = auto_data.get("races", [])
-
-    c1, c2, c3, c4, c5 = st.columns(5)
-    with c1:
-        st.metric("払戻確認済み", f"{auto_data.get('払戻確認済みレース数', 0)}R")
-    with c2:
-        st.metric("総投資", f"{overall.get('投資', 0):,}円")
-    with c3:
-        st.metric("総払戻", f"{overall.get('払戻', 0):,}円")
-    with c4:
-        st.metric("回収率", f"{overall.get('回収率', 0):.1f}%")
-    with c5:
-        st.metric("収支", f"{overall.get('収支', 0):+,}円")
-
-    # -------------------------------------------------
-    # ◎○▲の予想精度
-    # レース結果が確定しているものを自動集計
-    # -------------------------------------------------
-    # ============================================================
-    # GEO AI SELF-LEARNING MONITOR (read only)
-    # ============================================================
-    with st.expander("🩺 自己学習が0点になる原因を診断", expanded=False):
-        st.caption("診断は読み取り専用です。学習ルールの作成・有効化や過去結果の変更は行いません。")
-        if st.button("🔍 自己学習の状態を診断", key="geo_v13_learning_zero_diagnosis"):
-            try:
-                status_response = requests.get(f"{API_BASE.rstrip('/')}/geo/learning/status", timeout=15)
-                status_response.raise_for_status()
-                status_data = status_response.json()
-                if not status_data.get("ok"):
-                    st.error(f"学習ステータスAPIがエラーを返しました: {status_data.get('error', '詳細なし')}")
-                else:
-                    a, b, c, d = st.columns(4)
-                    a.metric("学習ルール総数", status_data.get("profiles", 0))
-                    b.metric("有効ルール", status_data.get("active", 0))
-                    c.metric("予想補正に使用可能", status_data.get("usable_active", 0))
-                    d.metric("確定済み結果", status_data.get("settled_races", 0))
-                    st.caption(f"ルール有効化の基準サンプル数: {status_data.get('active_sample', '不明')}")
-                    if int(status_data.get("usable_active") or 0) == 0:
-                        st.warning("予想補正に使える有効ルールが0件です。現状のAPIでは自己学習補正は原則0点になります。2倍にしても0点のままです。")
-                    else:
-                        st.info("使用可能なルールがあります。今回のレース条件に一致しないか、APIへの送信内容が異なる可能性があります。")
-                    with st.expander("API応答の詳細"):
-                        st.json(status_data)
-            except Exception as exc:
-                st.error(f"学習ステータス取得に失敗: {type(exc).__name__}: {exc}")
-                st.info("APIが起動しているか、app.pyのAPI_BASEが現在のトンネルURLと一致するか確認してください。")
-    with st.expander("🧠 GEO自己学習モニター｜保存・検証・新ファクター", expanded=False):
-        st.caption("予想・結果データの蓄積状況を確認します。新ファクターの本番自動採用はまだ実装されていません。")
-        if st.button("📡 学習状況を更新", key="geo_premium_monitor_refresh"):
-            try:
-                resp = requests.get(f"{API_BASE.rstrip('/')}/geo/learning/data-diagnostics", timeout=45)
-                resp.raise_for_status()
-                payload = resp.json()
-                if not payload.get("ok"):
-                    st.error(str(payload.get("error") or "診断に失敗しました"))
-                else:
-                    counts = payload.get("counts") or {}
-                    cols = st.columns(4)
-                    fields = [
-                        ("保存済み予想", "saved_predictions"),
-                        ("全頭特徴量", "runner_observations"),
-                        ("結果照合済み", "settled_predictions"),
-                        ("メンバー特徴付きR", "races_with_member_feature"),
-                    ]
-                    for col,(label,key) in zip(cols,fields):
-                        col.metric(label, int(counts.get(key) or 0))
-                    st.caption("結果照合済み予想数と、全頭特徴量に着順が紐づいた件数は異なります。")
-                    st.write("学習に使えない理由",payload.get("reasons") or {})
-                    st.info("新ファクター候補の探索は下の「ジオ自己学習・メンバーレベル検証 v4」で実行できます。採用は未実装です。")
-            except Exception as exc:
-                st.error(f"学習モニター取得失敗: {exc}")
-
-    # ============================================================
-    # Geo v5: 学習データ蓄積・結果照合の診断
-    # ============================================================
-    with st.expander("🔍 ジオ学習データ診断 v6", expanded=False):
-        st.caption("新規の全自動予想から全頭特徴量を保存します。過去107件の欠損は復元しません。既存予想・確定結果を上書きせず、診断は読み取り専用です。")
-        if st.button("📋 学習データの保存状況を確認", key="geo_v5_data_diagnostics"):
-            try:
-                response = requests.get(f"{API_BASE.rstrip('/')}/geo/learning/data-diagnostics", timeout=45)
-                response.raise_for_status()
-                data = response.json()
-                if not data.get('ok'):
-                    st.error(str(data.get('error','診断APIエラー')))
-                else:
-                    c=data.get('counts',{})
-                    st.write("保存・結果照合の集計",c)
-                    st.write("学習対象にならない理由",data.get('reasons',{}))
-                    if data.get('recent_races'):
-                        st.dataframe(pd.DataFrame(data['recent_races']),use_container_width=True)
-                    else:
-                        st.info('保存済み予想がありません。予想保存処理から確認してください。')
-                    for note in data.get('notes',[]):
-                        st.caption(note)
-            except Exception as e:
-                st.error(f"学習データ診断の取得に失敗: {e}")
-
-    # ============================================================
-    # Geo v4: 検証・ファクター候補診断（手動起動、予想には未反映）
-    # ============================================================
-    with st.expander("🧠 ジオ自己学習・メンバーレベル検証 v4", expanded=False):
-        st.caption("既存の予想ロジックは変更せず、保存済みの確定結果を検証します。")
-        if st.button("📊 メンバーレベル有無を比較", key="geo_v4_member_audit"):
-            try:
-                response = requests.get(f"{API_BASE.rstrip('/')}/geo/backtest/member-ablation", timeout=60)
-                data = response.json()
-                if data.get('ok'):
-                    st.write("全体", data.get('overall'))
-                    st.write("前半70%", data.get('early_70pct'))
-                    st.write("後半30%", data.get('late_30pct'))
-                    if data.get('races'):
-                        st.dataframe(pd.DataFrame(data['races']), use_container_width=True)
-                    for note in data.get('limitations', []): st.caption(note)
-                else:
-                    st.error(str(data.get('error', '検証API失敗')))
-            except Exception as e:
-                st.error(f"メンバーレベル検証に失敗: {e}")
-        if st.button("🔎 新ファクター候補を探索", key="geo_v4_discover"):
-            try:
-                response=requests.post(f"{API_BASE.rstrip('/')}/geo/learning/discover", json={}, timeout=90)
-                data=response.json()
-                if not data.get('ok'):
-                    st.error(str(data.get('error','探索API失敗')))
-                elif not data.get('ready'):
-                    st.info(data.get('message','学習用データが不足しています。'))
-                else:
-                    st.write(f"検証レース: {data.get('races')} / 合格候補: {data.get('validated_count')}")
-                    st.write('訓練データ基準',data.get('train_baseline'))
-                    st.write('後半検証データ基準',data.get('test_baseline'))
-                    if data.get('candidates'):
-                        st.dataframe(pd.DataFrame(data['candidates']),use_container_width=True)
-                    else:
-                        st.info('現時点で候補はありません。')
-                    st.caption('合格候補も本番予想へ自動加点しません。重複検証と前向き検証が必要です。')
-            except Exception as e:
-                st.error(f"ファクター探索に失敗: {e}")
-
-    mark_stats = auto_data.get("mark_stats", {})
-    st.markdown("#### 🏇 ジオ印の予想精度")
-    st.caption(
-        f"着順確認済み: {auto_data.get('着順確認済みレース数', 0)}R。 "
-        "馬券の回収率とは別に、ジオ自身の予想精度を表示します。"
+    reset_confirm = st.checkbox(
+        "保存済みのGeo予想・結果をすべて削除する",
+        key="geo_reset_confirm"
     )
 
-    mark_rows = []
-    for mark in ["◎", "○", "▲"]:
-        x = mark_stats.get(mark, {})
-        mark_rows.append({
-            "印": mark,
-            "対象R": x.get("対象R", 0),
-            "勝率": f"{x.get('勝率', 0):.1f}%",
-            "連対率": f"{x.get('連対率', 0):.1f}%",
-            "複勝率": f"{x.get('複勝率', 0):.1f}%",
-            "1着": x.get("1着", 0),
-            "2着以内": x.get("2着以内", 0),
-            "3着以内": x.get("3着以内", 0),
-        })
-    st.dataframe(pd.DataFrame(mark_rows), use_container_width=True, hide_index=True)
-
-    st.markdown("#### 券種別成績")
-    type_rows = []
-    for name in ["単勝", "複勝", "馬連", "ワイド", "馬単", "3連複", "3連単"]:
-        x = by_type.get(name, {})
-        type_rows.append({
-            "券種": name,
-            "点数": x.get("点数", 0),
-            "的中": x.get("的中", 0),
-            "的中率": f"{x.get('的中率', 0):.1f}%",
-            "投資": f"{x.get('投資', 0):,}円",
-            "払戻": f"{x.get('払戻', 0):,}円",
-            "収支": f"{x.get('収支', 0):+,}円",
-            "回収率": f"{x.get('回収率', 0):.1f}%",
-        })
-    st.dataframe(pd.DataFrame(type_rows), use_container_width=True, hide_index=True)
-
-    st.markdown("#### 💰 馬券成績ダッシュボード")
-    st.caption("払戻照合済みレースを日別・月別に集計。◎の勝率・複勝率もこの対象内で計算します（全確定レースの印別成績とは母集団が異なる場合があります）。")
-    if races:
-        history = []
-        for race in races:
-            bets = (race.get("verification") or {}).get("bets") or []
-            raw_date = str(race.get("race_date") or "")
-            date_parsed = pd.to_datetime(raw_date, errors="coerce")
-            if pd.isna(date_parsed):
-                continue
-            invested = sum(float(b.get("投資") or 0) for b in bets)
-            paid = sum(float(b.get("払戻") or 0) for b in bets)
-            finish_raw = race.get("◎着順")
-            try:
-                finish = int(finish_raw)
-            except (TypeError, ValueError):
-                finish = None
-            history.append({"日付":date_parsed.normalize(),"投資":invested,"払戻":paid,
-                            "本命判定数": int(finish is not None or finish_raw == "着外"),
-                            "本命1着":int(finish == 1),"本命3着内":int(finish is not None and finish <= 3)})
-        if history:
-            daily = pd.DataFrame(history).groupby("日付",as_index=False)[["投資","払戻","本命判定数","本命1着","本命3着内"]].sum()
-            daily["収支"] = daily["払戻"]-daily["投資"]
-            daily["回収率%"] = daily.apply(lambda x:round(x["払戻"]/x["投資"]*100,1) if x["投資"]>0 else float("nan"),axis=1)
-            daily["本命勝率%"] = daily.apply(lambda x:round(x["本命1着"]/x["本命判定数"]*100,1) if x["本命判定数"] else float("nan"),axis=1)
-            daily["本命複勝率%"] = daily.apply(lambda x:round(x["本命3着内"]/x["本命判定数"]*100,1) if x["本命判定数"] else float("nan"),axis=1)
-            daily["月"] = daily["日付"].dt.strftime("%Y-%m")
-            monthly = daily.groupby("月",as_index=False)[["投資","払戻","収支","本命判定数","本命1着","本命3着内"]].sum()
-            monthly["回収率%"] = monthly.apply(lambda x:round(x["払戻"]/x["投資"]*100,1) if x["投資"]>0 else float("nan"),axis=1)
-            monthly["本命勝率%"] = monthly.apply(lambda x:round(x["本命1着"]/x["本命判定数"]*100,1) if x["本命判定数"] else float("nan"),axis=1)
-            monthly["本命複勝率%"] = monthly.apply(lambda x:round(x["本命3着内"]/x["本命判定数"]*100,1) if x["本命判定数"] else float("nan"),axis=1)
-            tab_day,tab_month = st.tabs(["📅 日別","🗓️ 月別"])
-            with tab_day:
-                st.line_chart(daily.set_index("日付")[["回収率%","本命勝率%","本命複勝率%"]],height=220)
-                st.dataframe(daily,use_container_width=True,hide_index=True)
-            with tab_month:
-                st.bar_chart(monthly.set_index("月")[["収支"]],height=220)
-                st.line_chart(monthly.set_index("月")[["回収率%","本命勝率%","本命複勝率%"]],height=220)
-                st.dataframe(monthly,use_container_width=True,hide_index=True)
-        else:
-            st.info("日付が登録された払戻確定レースがありません。日別・月別グラフはデータ取得後に表示します。")
-    else:
-        st.info("払戻確定データがありません。")
-
-    st.markdown("#### 🏇 レース別成績")
-    if races:
-        # -------------------------------------------------
-        # レースごとのサマリーを先に一覧表示
-        # → 何のレースで当たったかを一目で確認できるようにする
-        # -------------------------------------------------
-        race_summary_rows = []
-        prepared_races = []
-
-        for race in races:
-            bets = race.get("verification", {}).get("bets", [])
-            hit_count = sum(1 for bet in bets if bet.get("hit"))
-            bet_count = len(bets)
-            payout = sum(int(bet.get("払戻", 0) or 0) for bet in bets)
-            investment = sum(int(bet.get("投資", 0) or 0) for bet in bets)
-            profit = payout - investment
-
-            # -------------------------------------------------
-            # 過去に保存したGeo予想は、旧形式のため
-            # race_date / venue / race_no / race_name が
-            # NULLになっている場合がある。
-            # その場合はrace_idから /race/<race_id> を参照して
-            # JRA-VANのレース情報を補完する。
-            # -------------------------------------------------
-            race_date = str(race.get("race_date") or "")
-            venue = str(race.get("venue") or "")
-            race_no = str(race.get("race_no") or "")
-            race_name = str(race.get("race_name") or "")
-
-            if not (race_date and venue and race_no and race_name):
-                try:
-                    race_id = str(race.get("race_id") or "").strip()
-                    if race_id:
-                        race_detail = api_get(f"/race/{race_id}")
-                        race_meta = (
-                            race_detail.get("race", {})
-                            if isinstance(race_detail, dict)
-                            else {}
-                        )
-                        race_date = race_date or str(race_meta.get("date") or "")
-                        venue = venue or str(race_meta.get("venue") or "")
-                        race_no = race_no or str(race_meta.get("race_no") or "")
-                        race_name = race_name or str(race_meta.get("name") or "")
-                except Exception:
-                    pass
-
-            marks = f"◎{race.get('◎')} ○{race.get('○')} ▲{race.get('▲')}"
-
-            if hit_count > 0:
-                result_label = f"🎯 {hit_count}/{bet_count}"
-            else:
-                result_label = f"❌ 0/{bet_count}"
-
-            # 表示用に補完済みのレース情報をraceへ保持
-            race["_display_race_date"] = race_date
-            race["_display_venue"] = venue
-            race["_display_race_no"] = race_no
-            race["_display_race_name"] = race_name
-
-            race_summary_rows.append({
-                "日付": race_date,
-                "場所": venue,
-                "R": race_no,
-                "レース名": race_name,
-                "◎○▲": marks,
-                "的中": result_label,
-                "払戻": f"{payout:,}円",
-                "収支": f"{profit:+,}円",
-            })
-            prepared_races.append((race, hit_count, bet_count, payout, investment, profit, marks))
-
-        # 的中あり／全ての切り替え
-        filter_mode = st.radio(
-            "表示",
-            ["全レース", "🎯 的中あり", "❌ 全滅"],
-            horizontal=True,
-            key="geo_bet_race_filter",
-        )
-
-        if filter_mode == "🎯 的中あり":
-            filtered_races = [x for x in prepared_races if x[1] > 0]
-        elif filter_mode == "❌ 全滅":
-            filtered_races = [x for x in prepared_races if x[1] == 0]
-        else:
-            filtered_races = prepared_races
-
-        filtered_summary_rows = []
-        for race, hit_count, bet_count, payout, investment, profit, marks in filtered_races:
-            # prepared_races作成時に補完した表示情報を使う
-            race_date = str(race.get("_display_race_date") or race.get("race_date") or "")
-            venue = str(race.get("_display_venue") or race.get("venue") or "")
-            race_no = str(race.get("_display_race_no") or race.get("race_no") or "")
-            race_name = str(race.get("_display_race_name") or race.get("race_name") or "")
-            filtered_summary_rows.append({
-                "日付": race_date,
-                "場所": venue,
-                "R": race_no,
-                "レース名": race_name,
-                "◎○▲": marks,
-                "的中": f"🎯 {hit_count}/{bet_count}" if hit_count > 0 else f"❌ 0/{bet_count}",
-                "払戻": f"{payout:,}円",
-                "収支": f"{profit:+,}円",
-            })
-
-        st.dataframe(
-            pd.DataFrame(filtered_summary_rows),
-            use_container_width=True,
-            hide_index=True,
-        )
-
-        st.caption("💡 表の下からレースを開くと、11点それぞれの的中・払戻・収支を確認できます。")
-
-        # -------------------------------------------------
-        # 各レースの11点詳細
-        # -------------------------------------------------
-        st.markdown("#### 🔎 レース別詳細")
-        if filtered_races:
-            for race, hit_count, bet_count, payout, investment, profit, marks in filtered_races:
-                race_title = " ".join(str(x) for x in [
-                    race.get("_display_race_date") or race.get("race_date") or "",
-                    race.get("_display_venue") or race.get("venue") or "",
-                    race.get("_display_race_no") or race.get("race_no") or "",
-                    race.get("_display_race_name") or race.get("race_name") or ""
-                ] if x)
-
-                result_mark = "🎯" if hit_count > 0 else "❌"
-                expander_title = (
-                    f"{result_mark} {race_title}　{marks}　"
-                    f"{hit_count}/{bet_count}的中　"
-                    f"払戻 {payout:,}円　収支 {profit:+,}円"
+    if st.button(
+        "🗑️ 保存データをリセット",
+        key="geo_reset_button",
+        disabled=not reset_confirm,
+        use_container_width=True
+    ):
+        try:
+            response = requests.post(
+                f"{API_BASE.rstrip('/')}/prediction/reset",
+                timeout=20
+            )
+            result = response.json()
+            if response.status_code == 200 and result.get("ok"):
+                st.success(
+                    f"✅ 保存データをリセットしました。"
+                    f" 予想{result.get('deleted_predictions', 0)}R / "
+                    f"結果{result.get('deleted_results', 0)}件を削除。"
                 )
+                st.session_state.pop("geo_prediction", None)
+                st.session_state.pop("df_simulated", None)
+                st.session_state.pop("master_data_jv", None)
+                st.session_state["sim_executed"] = False
+            else:
+                st.error(f"❌ リセット失敗: {result.get('error', response.text)}")
+        except Exception as e:
+            st.error(f"❌ リセット通信エラー: {e}")
 
-                with st.expander(expander_title):
-                    bets = race.get("verification", {}).get("bets", [])
-                    detail_rows = []
-                    for bet in bets:
-                        detail_rows.append({
-                            "券種": bet.get("券種"),
-                            "買い目": bet.get("買い目"),
-                            "判定": "🎯 的中" if bet.get("hit") else "－",
-                            "投資": f"{bet.get('投資', 0):,}円",
-                            "払戻": f"{bet.get('払戻', 0):,}円",
-                            "収支": f"{bet.get('収支', 0):+,}円",
-                        })
-                    st.dataframe(
-                        pd.DataFrame(detail_rows),
-                        use_container_width=True,
-                        hide_index=True,
-                    )
+    st.markdown("---")
+
+
+    st.markdown("### 🏆 GEO 28点方式｜新馬券バックテスト")
+    st.caption("◎単勝・複勝／◎から○▲△☆へ馬連・馬単／◎軸3連複／◎1着固定3連単。各点100円・計28点。旧11点方式とは別集計です。")
+    new_data = api_get("/prediction/bet_verification_v2?limit=500")
+    if new_data and new_data.get("ok"):
+        ov = new_data.get("overall", {})
+        x1,x2,x3,x4 = st.columns(4)
+        x1.metric("検証対象", f"{new_data.get('eligible_races',0)}R")
+        x2.metric("総投資", f"{ov.get('投資',0):,}円")
+        x3.metric("総払戻", f"{ov.get('払戻',0):,}円")
+        x4.metric("回収率", f"{ov.get('回収率',0):.1f}%")
+        st.metric("収支", f"{ov.get('収支',0):+,}円")
+        st.markdown("#### 🎯 印別予想精度｜◎〜☆")
+        st.caption("28点方式の検証対象レースにおける、当時保存された印と確定着順の照合結果。着順不明の馬は分母から除外します。")
+        mark_data = new_data.get("by_mark", {})
+        if mark_data:
+            mark_rows=[]
+            for mark in ["◎","○","▲","△","☆"]:
+                v=mark_data.get(mark,{})
+                mark_rows.append({"印":mark,"対象R":v.get("対象R",0),"勝率":f"{v.get('勝率',0):.1f}%", "連対率":f"{v.get('連対率',0):.1f}%", "複勝率":f"{v.get('複勝率',0):.1f}%", "1着":v.get("1着",0),"2着以内":v.get("2着以内",0),"3着以内":v.get("3着以内",0)})
+            st.dataframe(pd.DataFrame(mark_rows),use_container_width=True,hide_index=True)
+            if any(v.get("対象R",0)<new_data.get("eligible_races",0) for v in mark_data.values()):
+                st.warning("一部の印に確定着順の欠損があります。該当馬は印別成績から除外しています。")
         else:
-            st.info("選択した条件に該当するレースはありません。")
+            st.info("印別成績を表示するにはAPI側も更新してください。")
+        st.markdown("#### 券種別回収率")
+        new_rows=[]
+        for name in ["単勝","複勝","馬連","馬単","3連複","3連単"]:
+            v=new_data.get("by_type",{}).get(name,{})
+            new_rows.append({"券種":name,"点数":v.get("点数",0),"的中":v.get("的中",0),"的中率":f"{v.get('的中率',0):.1f}%","投資":v.get("投資",0),"払戻":v.get("払戻",0),"収支":v.get("収支",0),"回収率":f"{v.get('回収率',0):.1f}%"})
+        st.dataframe(pd.DataFrame(new_rows),use_container_width=True,hide_index=True)
+        new_races=new_data.get("races",[])
+        if new_races:
+            records=[]
+            for r in new_races:
+                d=pd.to_datetime(r.get("race_date"),errors="coerce")
+                if pd.notna(d):
+                    records.append({"日付":d.normalize(),"投資":r.get("投資",0),"払戻":r.get("払戻",0)})
+            if records:
+                df28=pd.DataFrame(records)
+                df28["月"]=df28["日付"].dt.strftime("%Y-%m")
+                tabs=st.tabs(["📅 日別","🗓️ 月別"])
+                for tab,group in zip(tabs,["日付","月"]):
+                    with tab:
+                        summary=df28.groupby(group,as_index=False)[["投資","払戻"]].sum()
+                        summary["収支"]=summary["払戻"]-summary["投資"]
+                        summary["回収率%"]=(summary["払戻"]/summary["投資"]*100).round(1)
+                        st.dataframe(summary,use_container_width=True,hide_index=True)
+            with st.expander("レース別買い目・結果"):
+                for r in new_races:
+                    with st.expander(f"{r.get('race_date')} {r.get('venue')} {r.get('race_no')}R｜投資 {r.get('投資',0):,}円／払戻 {r.get('払戻',0):,}円"):
+                        st.write(r.get("印",{}))
+                        st.dataframe(pd.DataFrame((r.get("verification") or {}).get("bets",[])),use_container_width=True,hide_index=True)
+        if new_data.get("excluded_races",0):
+            st.warning(f"{new_data['excluded_races']}Rは当時の5頭の印または払戻を確認できず、集計から除外しました。欠損を推測で補完していません。")
+            with st.expander("除外理由を確認"):
+                st.dataframe(pd.DataFrame(new_data.get("excluded",[])),use_container_width=True,hide_index=True)
     else:
-        st.info("払戻データが確認できるGeo予想はまだありません。")
+        st.info("新28点方式のAPIが未導入、または通信できません。API側を先に更新してください。")
+    st.markdown("---")
+    st.markdown("### 📚 旧11点方式｜従来の実績（比較用）")
 
-    missing = auto_data.get("払戻未登録レース数", 0)
-    if missing:
-        st.info(f"払戻データ未登録: {missing}R。払戻データがDBに入れば自動で検証対象になります。")
-else:
-    st.warning("自動馬券検証APIからデータを取得できませんでした。API側の更新後に再読み込みしてください。")
+    st.markdown("### 🎯 Geo自動馬券検証")
+    st.caption("◎○▲から11点を自動生成し、JRA-VANのharaimodoshiと照合します。各点100円で計算します。")
+
+    auto_data = api_get("/prediction/bet_verification?limit=500")
+
+    if auto_data and auto_data.get("ok"):
+        overall = auto_data.get("overall", {})
+        by_type = auto_data.get("by_type", {})
+        races = auto_data.get("races", [])
+
+        c1, c2, c3 = st.columns(3)
+        c4, c5 = st.columns(2)
+        with c1:
+            st.metric("払戻確認済み", f"{auto_data.get('払戻確認済みレース数', 0)}R")
+        with c2:
+            st.metric("総投資", f"{overall.get('投資', 0):,}円")
+        with c3:
+            st.metric("総払戻", f"{overall.get('払戻', 0):,}円")
+        with c4:
+            st.metric("回収率", f"{overall.get('回収率', 0):.1f}%")
+        with c5:
+            st.metric("収支", f"{overall.get('収支', 0):+,}円")
+
+        # -------------------------------------------------
+        # ◎○▲の予想精度
+        # レース結果が確定しているものを自動集計
+        # -------------------------------------------------
+        # ============================================================
+        # GEO AI SELF-LEARNING MONITOR (read only)
+        # ============================================================
+        with st.expander("🩺 自己学習が0点になる原因を診断", expanded=False):
+            st.caption("診断は読み取り専用です。学習ルールの作成・有効化や過去結果の変更は行いません。")
+            if st.button("🔍 自己学習の状態を診断", key="geo_v13_learning_zero_diagnosis"):
+                try:
+                    status_response = requests.get(f"{API_BASE.rstrip('/')}/geo/learning/status", timeout=15)
+                    status_response.raise_for_status()
+                    status_data = status_response.json()
+                    if not status_data.get("ok"):
+                        st.error(f"学習ステータスAPIがエラーを返しました: {status_data.get('error', '詳細なし')}")
+                    else:
+                        a, b, c, d = st.columns(4)
+                        a.metric("学習ルール総数", status_data.get("profiles", 0))
+                        b.metric("有効ルール", status_data.get("active", 0))
+                        c.metric("予想補正に使用可能", status_data.get("usable_active", 0))
+                        d.metric("確定済み結果", status_data.get("settled_races", 0))
+                        st.caption(f"ルール有効化の基準サンプル数: {status_data.get('active_sample', '不明')}")
+                        if int(status_data.get("usable_active") or 0) == 0:
+                            st.warning("予想補正に使える有効ルールが0件です。現状のAPIでは自己学習補正は原則0点になります。2倍にしても0点のままです。")
+                        else:
+                            st.info("使用可能なルールがあります。今回のレース条件に一致しないか、APIへの送信内容が異なる可能性があります。")
+                        with st.expander("API応答の詳細"):
+                            st.json(status_data)
+                except Exception as exc:
+                    st.error(f"学習ステータス取得に失敗: {type(exc).__name__}: {exc}")
+                    st.info("APIが起動しているか、app.pyのAPI_BASEが現在のトンネルURLと一致するか確認してください。")
+        with st.expander("🧠 GEO自己学習モニター｜保存・検証・新ファクター", expanded=False):
+            st.caption("予想・結果データの蓄積状況を確認します。新ファクターの本番自動採用はまだ実装されていません。")
+            if st.button("📡 学習状況を更新", key="geo_premium_monitor_refresh"):
+                try:
+                    resp = requests.get(f"{API_BASE.rstrip('/')}/geo/learning/data-diagnostics", timeout=45)
+                    resp.raise_for_status()
+                    payload = resp.json()
+                    if not payload.get("ok"):
+                        st.error(str(payload.get("error") or "診断に失敗しました"))
+                    else:
+                        counts = payload.get("counts") or {}
+                        cols = st.columns(4)
+                        fields = [
+                            ("保存済み予想", "saved_predictions"),
+                            ("全頭特徴量", "runner_observations"),
+                            ("結果照合済み", "settled_predictions"),
+                            ("メンバー特徴付きR", "races_with_member_feature"),
+                        ]
+                        for col,(label,key) in zip(cols,fields):
+                            col.metric(label, int(counts.get(key) or 0))
+                        st.caption("結果照合済み予想数と、全頭特徴量に着順が紐づいた件数は異なります。")
+                        st.write("学習に使えない理由",payload.get("reasons") or {})
+                        st.info("新ファクター候補の探索は下の「ジオ自己学習・メンバーレベル検証 v4」で実行できます。採用は未実装です。")
+                except Exception as exc:
+                    st.error(f"学習モニター取得失敗: {exc}")
+
+        # ============================================================
+        # Geo v5: 学習データ蓄積・結果照合の診断
+        # ============================================================
+        with st.expander("🔍 ジオ学習データ診断 v6", expanded=False):
+            st.caption("新規の全自動予想から全頭特徴量を保存します。過去107件の欠損は復元しません。既存予想・確定結果を上書きせず、診断は読み取り専用です。")
+            if st.button("📋 学習データの保存状況を確認", key="geo_v5_data_diagnostics"):
+                try:
+                    response = requests.get(f"{API_BASE.rstrip('/')}/geo/learning/data-diagnostics", timeout=45)
+                    response.raise_for_status()
+                    data = response.json()
+                    if not data.get('ok'):
+                        st.error(str(data.get('error','診断APIエラー')))
+                    else:
+                        c=data.get('counts',{})
+                        st.write("保存・結果照合の集計",c)
+                        st.write("学習対象にならない理由",data.get('reasons',{}))
+                        if data.get('recent_races'):
+                            st.dataframe(pd.DataFrame(data['recent_races']),use_container_width=True)
+                        else:
+                            st.info('保存済み予想がありません。予想保存処理から確認してください。')
+                        for note in data.get('notes',[]):
+                            st.caption(note)
+                except Exception as e:
+                    st.error(f"学習データ診断の取得に失敗: {e}")
+
+        # ============================================================
+        # Geo v4: 検証・ファクター候補診断（手動起動、予想には未反映）
+        # ============================================================
+        with st.expander("🧠 ジオ自己学習・メンバーレベル検証 v4", expanded=False):
+            st.caption("既存の予想ロジックは変更せず、保存済みの確定結果を検証します。")
+            if st.button("📊 メンバーレベル有無を比較", key="geo_v4_member_audit"):
+                try:
+                    response = requests.get(f"{API_BASE.rstrip('/')}/geo/backtest/member-ablation", timeout=60)
+                    data = response.json()
+                    if data.get('ok'):
+                        st.write("全体", data.get('overall'))
+                        st.write("前半70%", data.get('early_70pct'))
+                        st.write("後半30%", data.get('late_30pct'))
+                        if data.get('races'):
+                            st.dataframe(pd.DataFrame(data['races']), use_container_width=True)
+                        for note in data.get('limitations', []): st.caption(note)
+                    else:
+                        st.error(str(data.get('error', '検証API失敗')))
+                except Exception as e:
+                    st.error(f"メンバーレベル検証に失敗: {e}")
+            if st.button("🔎 新ファクター候補を探索", key="geo_v4_discover"):
+                try:
+                    response=requests.post(f"{API_BASE.rstrip('/')}/geo/learning/discover", json={}, timeout=90)
+                    data=response.json()
+                    if not data.get('ok'):
+                        st.error(str(data.get('error','探索API失敗')))
+                    elif not data.get('ready'):
+                        st.info(data.get('message','学習用データが不足しています。'))
+                    else:
+                        st.write(f"検証レース: {data.get('races')} / 合格候補: {data.get('validated_count')}")
+                        st.write('訓練データ基準',data.get('train_baseline'))
+                        st.write('後半検証データ基準',data.get('test_baseline'))
+                        if data.get('candidates'):
+                            st.dataframe(pd.DataFrame(data['candidates']),use_container_width=True)
+                        else:
+                            st.info('現時点で候補はありません。')
+                        st.caption('合格候補も本番予想へ自動加点しません。重複検証と前向き検証が必要です。')
+                except Exception as e:
+                    st.error(f"ファクター探索に失敗: {e}")
+
+        mark_stats = auto_data.get("mark_stats", {})
+        st.markdown("#### 🏇 ジオ印の予想精度")
+        st.caption(
+            f"着順確認済み: {auto_data.get('着順確認済みレース数', 0)}R。 "
+            "馬券の回収率とは別に、ジオ自身の予想精度を表示します。"
+        )
+
+        mark_rows = []
+        for mark in ["◎", "○", "▲"]:
+            x = mark_stats.get(mark, {})
+            mark_rows.append({
+                "印": mark,
+                "対象R": x.get("対象R", 0),
+                "勝率": f"{x.get('勝率', 0):.1f}%",
+                "連対率": f"{x.get('連対率', 0):.1f}%",
+                "複勝率": f"{x.get('複勝率', 0):.1f}%",
+                "1着": x.get("1着", 0),
+                "2着以内": x.get("2着以内", 0),
+                "3着以内": x.get("3着以内", 0),
+            })
+        st.dataframe(pd.DataFrame(mark_rows), use_container_width=True, hide_index=True)
+
+        st.markdown("#### 券種別成績")
+        type_rows = []
+        for name in ["単勝", "複勝", "馬連", "ワイド", "馬単", "3連複", "3連単"]:
+            x = by_type.get(name, {})
+            type_rows.append({
+                "券種": name,
+                "点数": x.get("点数", 0),
+                "的中": x.get("的中", 0),
+                "的中率": f"{x.get('的中率', 0):.1f}%",
+                "投資": f"{x.get('投資', 0):,}円",
+                "払戻": f"{x.get('払戻', 0):,}円",
+                "収支": f"{x.get('収支', 0):+,}円",
+                "回収率": f"{x.get('回収率', 0):.1f}%",
+            })
+        st.dataframe(pd.DataFrame(type_rows), use_container_width=True, hide_index=True)
+
+        st.markdown("#### 💰 馬券成績ダッシュボード")
+        st.caption("払戻照合済みレースを日別・月別に集計。◎の勝率・複勝率もこの対象内で計算します（全確定レースの印別成績とは母集団が異なる場合があります）。")
+        if races:
+            history = []
+            for race in races:
+                bets = (race.get("verification") or {}).get("bets") or []
+                raw_date = str(race.get("race_date") or "")
+                date_parsed = pd.to_datetime(raw_date, errors="coerce")
+                if pd.isna(date_parsed):
+                    continue
+                invested = sum(float(b.get("投資") or 0) for b in bets)
+                paid = sum(float(b.get("払戻") or 0) for b in bets)
+                finish_raw = race.get("◎着順")
+                try:
+                    finish = int(finish_raw)
+                except (TypeError, ValueError):
+                    finish = None
+                history.append({"日付":date_parsed.normalize(),"投資":invested,"払戻":paid,
+                                "本命判定数": int(finish is not None or finish_raw == "着外"),
+                                "本命1着":int(finish == 1),"本命3着内":int(finish is not None and finish <= 3)})
+            if history:
+                daily = pd.DataFrame(history).groupby("日付",as_index=False)[["投資","払戻","本命判定数","本命1着","本命3着内"]].sum()
+                daily["収支"] = daily["払戻"]-daily["投資"]
+                daily["回収率%"] = daily.apply(lambda x:round(x["払戻"]/x["投資"]*100,1) if x["投資"]>0 else float("nan"),axis=1)
+                daily["本命勝率%"] = daily.apply(lambda x:round(x["本命1着"]/x["本命判定数"]*100,1) if x["本命判定数"] else float("nan"),axis=1)
+                daily["本命複勝率%"] = daily.apply(lambda x:round(x["本命3着内"]/x["本命判定数"]*100,1) if x["本命判定数"] else float("nan"),axis=1)
+                daily["月"] = daily["日付"].dt.strftime("%Y-%m")
+                monthly = daily.groupby("月",as_index=False)[["投資","払戻","収支","本命判定数","本命1着","本命3着内"]].sum()
+                monthly["回収率%"] = monthly.apply(lambda x:round(x["払戻"]/x["投資"]*100,1) if x["投資"]>0 else float("nan"),axis=1)
+                monthly["本命勝率%"] = monthly.apply(lambda x:round(x["本命1着"]/x["本命判定数"]*100,1) if x["本命判定数"] else float("nan"),axis=1)
+                monthly["本命複勝率%"] = monthly.apply(lambda x:round(x["本命3着内"]/x["本命判定数"]*100,1) if x["本命判定数"] else float("nan"),axis=1)
+                tab_day,tab_month = st.tabs(["📅 日別","🗓️ 月別"])
+                with tab_day:
+                    st.line_chart(daily.set_index("日付")[["回収率%","本命勝率%","本命複勝率%"]],height=220)
+                    st.dataframe(daily,use_container_width=True,hide_index=True)
+                with tab_month:
+                    st.bar_chart(monthly.set_index("月")[["収支"]],height=220)
+                    st.line_chart(monthly.set_index("月")[["回収率%","本命勝率%","本命複勝率%"]],height=220)
+                    st.dataframe(monthly,use_container_width=True,hide_index=True)
+            else:
+                st.info("日付が登録された払戻確定レースがありません。日別・月別グラフはデータ取得後に表示します。")
+        else:
+            st.info("払戻確定データがありません。")
+
+        st.markdown("#### 🏇 レース別成績")
+        if races:
+            # -------------------------------------------------
+            # レースごとのサマリーを先に一覧表示
+            # → 何のレースで当たったかを一目で確認できるようにする
+            # -------------------------------------------------
+            race_summary_rows = []
+            prepared_races = []
+
+            for race in races:
+                bets = race.get("verification", {}).get("bets", [])
+                hit_count = sum(1 for bet in bets if bet.get("hit"))
+                bet_count = len(bets)
+                payout = sum(int(bet.get("払戻", 0) or 0) for bet in bets)
+                investment = sum(int(bet.get("投資", 0) or 0) for bet in bets)
+                profit = payout - investment
+
+                # -------------------------------------------------
+                # 過去に保存したGeo予想は、旧形式のため
+                # race_date / venue / race_no / race_name が
+                # NULLになっている場合がある。
+                # その場合はrace_idから /race/<race_id> を参照して
+                # JRA-VANのレース情報を補完する。
+                # -------------------------------------------------
+                race_date = str(race.get("race_date") or "")
+                venue = str(race.get("venue") or "")
+                race_no = str(race.get("race_no") or "")
+                race_name = str(race.get("race_name") or "")
+
+                if not (race_date and venue and race_no and race_name):
+                    try:
+                        race_id = str(race.get("race_id") or "").strip()
+                        if race_id:
+                            race_detail = api_get(f"/race/{race_id}")
+                            race_meta = (
+                                race_detail.get("race", {})
+                                if isinstance(race_detail, dict)
+                                else {}
+                            )
+                            race_date = race_date or str(race_meta.get("date") or "")
+                            venue = venue or str(race_meta.get("venue") or "")
+                            race_no = race_no or str(race_meta.get("race_no") or "")
+                            race_name = race_name or str(race_meta.get("name") or "")
+                    except Exception:
+                        pass
+
+                marks = f"◎{race.get('◎')} ○{race.get('○')} ▲{race.get('▲')}"
+
+                if hit_count > 0:
+                    result_label = f"🎯 {hit_count}/{bet_count}"
+                else:
+                    result_label = f"❌ 0/{bet_count}"
+
+                # 表示用に補完済みのレース情報をraceへ保持
+                race["_display_race_date"] = race_date
+                race["_display_venue"] = venue
+                race["_display_race_no"] = race_no
+                race["_display_race_name"] = race_name
+
+                race_summary_rows.append({
+                    "日付": race_date,
+                    "場所": venue,
+                    "R": race_no,
+                    "レース名": race_name,
+                    "◎○▲": marks,
+                    "的中": result_label,
+                    "払戻": f"{payout:,}円",
+                    "収支": f"{profit:+,}円",
+                })
+                prepared_races.append((race, hit_count, bet_count, payout, investment, profit, marks))
+
+            # 的中あり／全ての切り替え
+            filter_mode = st.radio(
+                "表示",
+                ["全レース", "🎯 的中あり", "❌ 全滅"],
+                horizontal=True,
+                key="geo_bet_race_filter",
+            )
+
+            if filter_mode == "🎯 的中あり":
+                filtered_races = [x for x in prepared_races if x[1] > 0]
+            elif filter_mode == "❌ 全滅":
+                filtered_races = [x for x in prepared_races if x[1] == 0]
+            else:
+                filtered_races = prepared_races
+
+            filtered_summary_rows = []
+            for race, hit_count, bet_count, payout, investment, profit, marks in filtered_races:
+                # prepared_races作成時に補完した表示情報を使う
+                race_date = str(race.get("_display_race_date") or race.get("race_date") or "")
+                venue = str(race.get("_display_venue") or race.get("venue") or "")
+                race_no = str(race.get("_display_race_no") or race.get("race_no") or "")
+                race_name = str(race.get("_display_race_name") or race.get("race_name") or "")
+                filtered_summary_rows.append({
+                    "日付": race_date,
+                    "場所": venue,
+                    "R": race_no,
+                    "レース名": race_name,
+                    "◎○▲": marks,
+                    "的中": f"🎯 {hit_count}/{bet_count}" if hit_count > 0 else f"❌ 0/{bet_count}",
+                    "払戻": f"{payout:,}円",
+                    "収支": f"{profit:+,}円",
+                })
+
+            st.dataframe(
+                pd.DataFrame(filtered_summary_rows),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            st.caption("💡 表の下からレースを開くと、11点それぞれの的中・払戻・収支を確認できます。")
+
+            # -------------------------------------------------
+            # 各レースの11点詳細
+            # -------------------------------------------------
+            st.markdown("#### 🔎 レース別詳細")
+            if filtered_races:
+                for race, hit_count, bet_count, payout, investment, profit, marks in filtered_races:
+                    race_title = " ".join(str(x) for x in [
+                        race.get("_display_race_date") or race.get("race_date") or "",
+                        race.get("_display_venue") or race.get("venue") or "",
+                        race.get("_display_race_no") or race.get("race_no") or "",
+                        race.get("_display_race_name") or race.get("race_name") or ""
+                    ] if x)
+
+                    result_mark = "🎯" if hit_count > 0 else "❌"
+                    expander_title = (
+                        f"{result_mark} {race_title}　{marks}　"
+                        f"{hit_count}/{bet_count}的中　"
+                        f"払戻 {payout:,}円　収支 {profit:+,}円"
+                    )
+
+                    with st.expander(expander_title):
+                        bets = race.get("verification", {}).get("bets", [])
+                        detail_rows = []
+                        for bet in bets:
+                            detail_rows.append({
+                                "券種": bet.get("券種"),
+                                "買い目": bet.get("買い目"),
+                                "判定": "🎯 的中" if bet.get("hit") else "－",
+                                "投資": f"{bet.get('投資', 0):,}円",
+                                "払戻": f"{bet.get('払戻', 0):,}円",
+                                "収支": f"{bet.get('収支', 0):+,}円",
+                            })
+                        st.dataframe(
+                            pd.DataFrame(detail_rows),
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+            else:
+                st.info("選択した条件に該当するレースはありません。")
+        else:
+            st.info("払戻データが確認できるGeo予想はまだありません。")
+
+        missing = auto_data.get("払戻未登録レース数", 0)
+        if missing:
+            st.info(f"払戻データ未登録: {missing}R。払戻データがDBに入れば自動で検証対象になります。")
+    else:
+        st.warning("自動馬券検証APIからデータを取得できませんでした。API側の更新後に再読み込みしてください。")
