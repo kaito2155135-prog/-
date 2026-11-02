@@ -591,6 +591,40 @@ race_list = load_race_list()
 # =========================================================
 
 # GEO VISION: actual three-column workspace. All controls remain native Streamlit.
+# Mobile view switcher: changes presentation only, never prediction/model state.
+_geo_mobile_mode = st.segmented_control(
+    "モバイル画面", ["予想", "10項目分析", "全レース", "成績・学習"],
+    default="予想", key="geo_mobile_mode", label_visibility="collapsed",
+)
+_geo_mobile_mode = _geo_mobile_mode or "予想"
+_geo_mobile_class = {"予想": "prediction", "10項目分析": "analysis", "全レース": "batch", "成績・学習": "results"}[_geo_mobile_mode]
+st.markdown(f"""<style>
+/* Mobile-only switch: preserve all native Streamlit widgets and their state. */
+@media (min-width: 901px) {{ [data-testid="stSegmentedControl"]:has([aria-label="モバイル画面"]) {{display:none!important}} }}
+@media (max-width: 900px) {{
+  .geo-mobile-bottom {{display:flex!important}}
+  .block-container {{padding-bottom:96px!important}}
+  /* This is the workspace's only horizontal block containing its section headings. */
+  div[data-testid="stHorizontalBlock"]:has(.vision-panel-heading) {{display:block!important}}
+  div[data-testid="stHorizontalBlock"]:has(.vision-panel-heading) > div[data-testid="stColumn"] {{width:100%!important;min-width:0!important;flex:1 1 100%!important}}
+  {('div[data-testid="stHorizontalBlock"]:has(.vision-panel-heading) > div[data-testid="stColumn"]:nth-child(3){display:none!important}' if _geo_mobile_class == 'prediction' else '')}
+  {('div[data-testid="stHorizontalBlock"]:has(.vision-panel-heading) > div[data-testid="stColumn"]:nth-child(-n+2){display:none!important}' if _geo_mobile_class == 'analysis' else '')}
+  {('div[data-testid="stHorizontalBlock"]:has(.vision-panel-heading){display:none!important}' if _geo_mobile_class in ('batch','results') else '')}
+}}
+</style>""", unsafe_allow_html=True)
+st.markdown("""<nav class="geo-mobile-bottom" aria-label="画面移動">
+<a href="#geo-race">🏇<small>予想</small></a><a href="#geo-lab-mobile">📊<small>分析</small></a>
+<a href="#geo-batch">⚡<small>全レース</small></a><a href="#geo-results">📈<small>成績・学習</small></a>
+</nav>""", unsafe_allow_html=True)
+
+
+st.markdown("""<style>
+.geo-mobile-bottom{display:none;position:fixed;bottom:0;left:0;right:0;z-index:99999;background:#081827f5;border-top:1px solid #24647a;padding:8px 8px max(9px,env(safe-area-inset-bottom));gap:4px;justify-content:space-around;backdrop-filter:blur(16px)}
+.geo-mobile-bottom a{flex:1;text-align:center;text-decoration:none!important;color:#64e6ea!important;font-size:19px;line-height:1.15;padding:6px 0;border-radius:10px}
+.geo-mobile-bottom a small{display:block;color:#e4f3fc;font-size:10px;margin-top:3px;font-weight:700}
+@media(max-width:900px){.vision-workspace-title{font-size:10px}.vision-hero-pick{padding:18px 15px}.vision-rank-row{gap:8px}.vision-feature{grid-template-columns:minmax(88px,1.1fr) minmax(50px,1fr) 55px}}
+</style>""",unsafe_allow_html=True)
+
 st.markdown('<span id="geo-race"></span><div class="vision-workspace-title">RACE CONTROL <span> / PREDICTION / TELEMETRY</span></div>', unsafe_allow_html=True)
 _vision_left, _vision_middle, _vision_right = st.columns([1.05, 1.38, 1.38], gap="small")
 _vision_middle_slot = _vision_middle.empty()
@@ -4731,17 +4765,17 @@ def _vision_render_workspace(geo):
             cards.append(f'<div class="vision-rank-row"><b class="vision-mark">{marks[i]}</b><span class="vision-number">{esc(horse.get("馬番",""))}</span><span class="vision-horse">{esc(horse.get("馬名",""))}</span><strong>{score_text(n)}</strong><span class="vision-meter"><i style="width:{width:.1f}%"></i></span></div>')
         st.markdown('<div class="vision-rank-list">'+''.join(cards)+'</div><div class="vision-small-note">正式モデル順位。指数は勝率ではありません。</div>',unsafe_allow_html=True)
     with _vision_right_slot.container():
-        st.markdown('<div class="vision-panel-heading">03 / RACING LAB</div>',unsafe_allow_html=True)
+        st.markdown('<span id="geo-lab-mobile"></span><div class="vision-panel-heading">03 / RACING LAB</div>',unsafe_allow_html=True)
         names=[f"{r.get('馬番','')}番 {r.get('馬名','')}" for _,r in frame.iterrows()]
         choice=st.selectbox("分析対象馬",range(len(names)),format_func=lambda i:names[i],key="vision_analysis_horse")
         chosen=frame.iloc[choice]
         st.markdown(f'<div class="vision-analysis-head"><span>{esc(chosen.get("馬番",""))}番　{esc(chosen.get("馬名",""))}</span><strong>{score_text(chosen.get(score))}</strong></div>',unsafe_allow_html=True)
-        payload=geo.get('joint_payload') or {}
+        payload=(geo.get('joint_payload') or {}) if str(geo.get('prediction_model','')).startswith('Phase18.5') else (geo.get('ten_payload') or {})
         horses=payload.get('horses') or []
         selected_num=pd.to_numeric(chosen.get('馬番'),errors='coerce')
         details=next((h for h in horses if pd.to_numeric(h.get('umaban'),errors='coerce')==selected_num),{})
         parts=details.get('feature_breakdown') or {}
-        labels={'ability_recent':'直近能力','ability_similar':'類似条件能力','jockey':'騎手','forward':'先行力','lead':'逃げ能力','hill_sessions':'坂路4F 調教','wood_sessions':'ウッド6F 調教','sire_condition_edge':'血統適性','course_fit':'コース適性','closing_kick':'末脚力'}
+        labels={'ability_recent':'直近能力','ability_similar':'類似条件能力','jockey':'騎手','forward':'先行力','lead':'逃げ能力','hill_sessions':'坂路4F PB更新','wood_sessions':'ウッド6F PB更新','sire_condition_edge':'血統適性','course_fit':'コース適性','closing_kick':'末脚力'}
         if parts:
             rows=[]
             for key,label in labels.items():
@@ -4753,7 +4787,14 @@ def _vision_render_workspace(geo):
                 rows.append(f'<div class="vision-feature"><span>{label}</span><div class="vision-feature-track"><i style="width:{bar:.1f}%"></i></div><b>{val}</b></div>')
             st.markdown('<div class="vision-feature-list">'+''.join(rows)+'</div><div class="vision-small-note">数値はモデルの生特徴量。棒はlogit寄与を相対表示（中央が0）。</div>',unsafe_allow_html=True)
         else:
-            st.markdown('<div class="vision-empty vision-compact">10項目の詳細データがありません。<br><small>モデルの内訳が返った場合に表示します。</small></div>',unsafe_allow_html=True)
+            if str(geo.get('prediction_model','')).startswith('Phase18.4'):
+                st.info('Phase18.4のAPIは10項目の個別寄与値を返していません。順位・指数は正常に表示されています。')
+                _fields=[('末脚力（残差）','closing_kick'),('末脚評価走数','sample_count'),('末脚クラス移行係数','class_transfer_factor'),('昇級クラス補正','class_adjustment_in_ninth')]
+                _available=[{'指標':label,'API値':details.get(key)} for label,key in _fields if details.get(key) is not None]
+                if _available: st.dataframe(pd.DataFrame(_available),hide_index=True,use_container_width=True)
+                st.caption('正式10項目の全特徴量内訳を表示するにはAPI側の返却拡張が必要です。推定値は作成しません。')
+            else:
+                st.info('Phase18.5の学習済み内訳がAPIから返されていません。学習状態・APIレスポンスを確認してください。')
         st.caption('モデル：'+str(geo.get('prediction_model') or '不明'))
 
 _vision_render_workspace(_cached_geo if _cached_race_id == str(race_id) else None)
