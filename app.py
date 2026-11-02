@@ -220,25 +220,38 @@ html { scroll-behavior:smooth; }
  .geo-hero {min-height:115px;}
  .geo-name {font-size:34px;}
 }
+
+/* GEO VISION × RACING LAB: layout / presentation only */
+:root{--v-bg:#060d18;--v-card:#101d2d;--v-line:#233b51;--v-accent:#36e0e6}
+.stApp,[data-testid="stAppViewContainer"]{background:radial-gradient(ellipse at 55% -20%,#17334c 0%,#081523 43%,#060d18 100%)!important}
+.block-container{max-width:1580px!important;padding-top:1.2rem!important}
+.vision-masthead{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:19px 24px;margin-bottom:15px;border:1px solid #28455a;border-radius:19px;background:linear-gradient(110deg,#0d2031,#091524 70%,#102337);box-shadow:0 12px 40px #0004}
+.vision-brand{display:flex;align-items:center;gap:15px}.vision-symbol{width:53px;height:53px;border:1px solid #207d8c;border-radius:15px;background:#0d3444;color:#42e5e9;display:grid;place-items:center;font-size:35px;box-shadow:inset 0 0 18px #1fc5d323}
+.vision-name{font-size:clamp(24px,3vw,38px);font-weight:900;letter-spacing:.04em;line-height:1.05;color:#f3f9ff}.vision-name span{color:#48e4e8}.vision-sub{color:#9db9ca;font-size:10px;font-weight:700;letter-spacing:.25em;margin-top:7px}
+.vision-live{font-size:11px;letter-spacing:.08em;color:#75e5c1;background:#0b2a2b;border:1px solid #1a665d;border-radius:999px;padding:10px 15px;white-space:nowrap;font-weight:800}.vision-live i{display:inline-block;width:8px;height:8px;background:#32d99d;border-radius:50%;margin-right:6px;box-shadow:0 0 10px #32d99d}
+.geo-command-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 18px}.geo-command-nav a{border-radius:12px;background:#101e2e;border:1px solid #274156;min-height:52px;display:flex;align-items:center;justify-content:center;gap:10px;color:#d8edf7!important;text-decoration:none!important;font-weight:700;transition:background .15s,border-color .15s}.geo-command-nav a:hover{background:#133b4a;border-color:#36e0e6}.geo-command-nav .geo-nav-number{font-size:10px;color:#46dce1}
+.vision-race{background:linear-gradient(120deg,#102b3e,#0d1b2c);border:1px solid #2b5265;border-radius:18px;padding:23px 26px;margin:12px 0 18px}.vision-overline{font-size:11px;font-weight:850;color:#49e4e9;letter-spacing:.14em;margin-bottom:9px}.vision-race-name{font-size:clamp(21px,2.8vw,32px);font-weight:850;color:#f5faff;line-height:1.35}.vision-race-name span{color:#45e1e7}.vision-race-metadata{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}.vision-race-metadata span{font-size:12px;color:#c6dfed;border:1px solid #2e5266;border-radius:999px;padding:6px 12px;background:#132e42}
+.vision-featured{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid #1d9aa9;border-radius:18px;padding:22px 25px;margin:12px 0;background:radial-gradient(ellipse at 80% 100%,#24366b 0%,transparent 52%),linear-gradient(115deg,#103843,#101b32);box-shadow:0 12px 30px #0004}.vision-featured-name{font-size:clamp(19px,2.6vw,29px);font-weight:850;color:#fff;line-height:1.4}.vision-featured-name span{color:#f2c777;margin-right:6px}.vision-featured-note{font-size:12px;color:#9ebdcb;margin-top:7px}.vision-featured-right{text-align:right;white-space:nowrap}.vision-featured-right small{display:block;color:#9fcad9;letter-spacing:.12em;font-size:10px}.vision-featured-right strong{font-size:clamp(29px,4vw,48px);color:#f3f8ff;line-height:1.15}
+.geo-picks{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:9px}.geo-pick{border-radius:12px!important;background:#102234!important;min-height:78px!important;padding:12px!important}.geo-pick:first-child{border-color:#1c9eac!important;background:#133646!important}
+[data-testid="stExpander"]{border-radius:13px!important}[data-testid="stSidebar"]{background:#0a1726!important}
+@media(max-width:760px){.block-container{padding:12px 10px 75px!important}.vision-masthead{padding:14px;gap:8px}.vision-symbol{width:39px;height:39px;font-size:25px;border-radius:11px}.vision-brand{gap:9px}.vision-name{font-size:23px}.vision-sub{font-size:8px;letter-spacing:.08em}.vision-live{font-size:8px;padding:7px 8px;max-width:108px;white-space:normal;text-align:center}.geo-command-nav{gap:5px}.geo-command-nav a{flex-direction:column;gap:3px;font-size:10px;min-height:49px;padding:7px 3px;text-align:center}.vision-race{padding:16px}.vision-race-name{font-size:21px}.vision-race-metadata{gap:5px}.vision-race-metadata span{font-size:10px;padding:5px 8px}.vision-featured{padding:15px;gap:8px}.vision-featured-name{font-size:18px}.vision-featured-right strong{font-size:29px}.geo-picks{grid-template-columns:1fr 1fr}.geo-pick{min-width:0}.geo-pick-main strong{font-size:12px}.geo-pick-score{font-size:17px}.geo-pick-mark{font-size:24px}}
+@media(max-width:420px){.geo-picks{grid-template-columns:1fr}.vision-live{font-size:7px;max-width:90px}.vision-name{font-size:20px}}
 </style>
     """,
     unsafe_allow_html=True,
 )
 
 st.markdown(
-    """<div class="geo-hero">
-<div class="geo-eyebrow">GEO INTELLIGENCE SYSTEM · JRA-VAN</div>
-<div class="geo-name">GEO <span>AI</span></div>
-<div class="geo-tag">RACING INTELLIGENCE / 展開予測・血統解析・自己学習</div>
+    """<div class="vision-masthead">
+<div class="vision-brand"><div class="vision-symbol">◈</div><div><div class="vision-name">GEO <span>VISION</span></div><div class="vision-sub">RACING AI ANALYSIS SYSTEM</div></div></div>
+<div class="vision-live"><i></i> PHASE 18.5 / AI SYSTEM</div>
 </div>
 <nav class="geo-command-nav" aria-label="画面内ショートカット">
 <a href="#geo-race"><span class="geo-nav-number">01</span>レース選択</a>
-<a href="#geo-predict"><span class="geo-nav-number">02</span>AI予想</a>
+<a href="#geo-predict"><span class="geo-nav-number">02</span>予想・分析</a>
 <a href="#geo-batch"><span class="geo-nav-number">03</span>全レース</a>
 <a href="#geo-results"><span class="geo-nav-number">04</span>成績・学習</a>
-</nav>
-<div class="geo-status-strip"><span><b>●</b> GEO COMMAND</span><span>JRA-VAN連携</span><span>PC / MOBILE</span><span>Phase 18.x</span></div>""",
-    unsafe_allow_html=True,
+</nav>""", unsafe_allow_html=True,
 )
 
 
@@ -602,19 +615,24 @@ def race_display_name(r):
     )
 
 
-race_options = [
-    race_display_name(r)
-    for r in race_list
-]
-
-selected_race_label = st.sidebar.selectbox(
-    "🎯 レース",
-    race_options,
-)
+# GEO VISION: race discovery controls (presentation only; race IDs are unchanged).
+_race_dates = sorted({str(r.get("date") or "") for r in race_list if r.get("date")}, reverse=True)
+if _race_dates:
+    _race_date = st.sidebar.selectbox("開催日", _race_dates, key="vision_date")
+    _day_races = [r for r in race_list if str(r.get("date") or "") == _race_date]
+else:
+    _day_races = race_list
+_venue_options = sorted({str(r.get("venue") or r.get("place") or "不明") for r in _day_races})
+_venue = st.sidebar.selectbox("競馬場", ["すべて"] + _venue_options, key="vision_venue")
+_visible_races = [r for r in _day_races if _venue == "すべて" or str(r.get("venue") or r.get("place") or "不明") == _venue]
+if not _visible_races:
+    _visible_races = _day_races
+race_options = [race_display_name(r) for r in _visible_races]
+selected_race_label = st.sidebar.selectbox("レース", race_options, key="vision_race")
 
 
 selected_index = race_options.index(selected_race_label)
-selected_race_summary = race_list[selected_index]
+selected_race_summary = _visible_races[selected_index]
 
 
 race_id = selected_race_summary.get(
@@ -1082,17 +1100,17 @@ st.sidebar.info(
 
 st.markdown('<span id="geo-race" class="geo-anchor"></span>', unsafe_allow_html=True)
 st.markdown(
-    f"""<div class="race-info-box">
-<div class="geo-section-label">RACE INTELLIGENCE / JRA-VAN DATA CONNECTED</div>
-<div class="geo-race-title">{html.escape(str(race_place))} · {html.escape(str(race_class))} · {html.escape(str(race_distance))}m</div>
-<div class="geo-pills">
-<span class="geo-pill"><b>COURSE</b> {html.escape(str(race_surface))}</span>
-<span class="geo-pill"><b>TRACK</b> {html.escape(str(default_baba))}</span>
-<span class="geo-pill"><b>RUNNERS</b> {len(df_race)}頭</span>
-<span class="geo-pill"><b>STRAIGHT</b> {straight_len}m</span>
-</div></div>""",
-    unsafe_allow_html=True,
+    f"""<section class="vision-race">
+<div class="vision-overline">RACE CONTROL / {html.escape(str(selected_race_summary.get('date','')))}</div>
+<div class="vision-race-name">{html.escape(str(race_place))} <span>{html.escape(str(selected_race_summary.get('race_no','')))}R</span> · {html.escape(str(selected_race_summary.get('name') or race_class))}</div>
+<div class="vision-race-metadata"><span>{html.escape(str(race_surface))} {html.escape(str(race_distance))}m</span><span>{html.escape(str(race_class))}</span><span>馬場 {html.escape(str(default_baba))}</span><span>{len(df_race)}頭</span><span>直線 {straight_len}m</span></div>
+</section>""", unsafe_allow_html=True,
 )
+with st.expander("🏁 同開催日のレース一覧 / クイック確認", expanded=False):
+    _quick = []
+    for _r in _day_races:
+        _quick.append({"競馬場":_r.get('venue') or _r.get('place') or '', "R":str(_r.get('race_no') or ''), "レース":_r.get('name') or '', "発走":_r.get('post_time') or ''})
+    st.dataframe(pd.DataFrame(_quick), use_container_width=True, hide_index=True)
 
 
 # =========================================================
@@ -1130,34 +1148,35 @@ edit_columns = [
 ]
 
 
-edited_df = st.data_editor(
-    df_race[edit_columns],
-    column_config={
-        "脚質": st.column_config.SelectboxColumn(
-            "脚質",
-            options=["逃げ", "先行", "差し", "追込"],
-            required=True,
-        ),
-        "得意馬場": st.column_config.SelectboxColumn(
-            "得意馬場",
-            options=[
-                "指定なし",
-                "良",
-                "稍重",
-                "重",
-                "不良",
-            ],
-            required=True,
-        ),
-        "オッズ": st.column_config.NumberColumn(
-            "オッズ",
-            format="%.1f",
-        ),
-    },
-    use_container_width=True,
-    hide_index=True,
-    key="race_data_editor",
-)
+with st.expander("出馬表の確認・編集（必要な場合のみ開く）", expanded=False):
+    edited_df = st.data_editor(
+        df_race[edit_columns],
+        column_config={
+            "脚質": st.column_config.SelectboxColumn(
+                "脚質",
+                options=["逃げ", "先行", "差し", "追込"],
+                required=True,
+            ),
+            "得意馬場": st.column_config.SelectboxColumn(
+                "得意馬場",
+                options=[
+                    "指定なし",
+                    "良",
+                    "稍重",
+                    "重",
+                    "不良",
+                ],
+                required=True,
+            ),
+            "オッズ": st.column_config.NumberColumn(
+                "オッズ",
+                format="%.1f",
+            ),
+        },
+        use_container_width=True,
+        hide_index=True,
+        key="race_data_editor",
+    )
 
 
 for col in edit_columns:
@@ -3485,6 +3504,12 @@ def display_geo_prediction(geo):
         _score = pd.to_numeric(_horse.get(_score_key), errors="coerce")
         _score_text = f"{_score * 100:.1f}" if pd.notna(_score) else "—"
         _cards.append(f'<div class="geo-pick"><span class="geo-pick-mark" style="color:{_colors[_i]}">{_marks[_i]}</span><div class="geo-pick-main"><span class="geo-pick-role">{_roles[_i]} · {_i+1}位</span><strong>{_num}番 {_name}</strong></div><span class="geo-pick-score">{_score_text}<small>INDEX</small></span></div>')
+    _leader = df.iloc[0]
+    _leader_name = html.escape(str(_leader.get("馬名", "")))
+    _leader_num = html.escape(str(_leader.get("馬番", "—")).replace(".0", ""))
+    _leader_score = pd.to_numeric(_leader.get(_score_key), errors="coerce")
+    _leader_score_label = f"{_leader_score * 100:.1f}" if pd.notna(_leader_score) else "—"
+    st.markdown(f"""<div class="vision-featured"><div class="vision-featured-left"><div class="vision-overline">◈ GEO TOP PICK / 本命</div><div class="vision-featured-name"><span>◎</span> {_leader_num}番 {_leader_name}</div><div class="vision-featured-note">正式10項目モデルの最上位評価</div></div><div class="vision-featured-right"><small>GEO INDEX</small><strong>{_leader_score_label}</strong></div></div>""", unsafe_allow_html=True)
     st.markdown('<div class="geo-picks">' + ''.join(_cards) + '</div>', unsafe_allow_html=True)
     st.caption("上位5頭は現行正式モデルの順位。指数は勝率・複勝率ではありません。買い目と保存内容は従来どおりです。")
 
