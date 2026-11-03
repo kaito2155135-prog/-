@@ -4758,6 +4758,31 @@ with _geo_tabs[0]:
     # ボタンの押下状態ではなく、保存済みの予想とレースIDを基準に表示を維持する。
     _cached_geo = st.session_state.get("geo_prediction")
     _cached_race_id = st.session_state.get("geo_prediction_race_id")
+    # OBSIDIAN: 枠番は出走表から照合する。馬番から枠を推定しない。
+    _geo_waku_palette = {
+        1: ('#F4F5F7', '#111827'), 2: ('#202329', '#FFFFFF'),
+        3: ('#CF343D', '#FFFFFF'), 4: ('#2863B5', '#FFFFFF'),
+        5: ('#E9C83E', '#141923'), 6: ('#248451', '#FFFFFF'),
+        7: ('#DE762D', '#FFFFFF'), 8: ('#D675A4', '#161923'),
+    }
+    def _geo_horse_number_badge(horse, source=None):
+        number = str(horse.get('馬番', '')).strip()
+        waku = horse.get('枠番')
+        if waku is None or str(waku).strip() in ('', 'nan', 'None'):
+            # 同一レースの出走表に存在する馬番のみを照合する。
+            if isinstance(source, pd.DataFrame) and {'馬番', '枠番'}.issubset(source.columns):
+                matched = source.loc[source['馬番'].astype(str).str.strip().str.lstrip('0').replace('', '0') == (number.lstrip('0') or '0')]
+                if len(matched) == 1:
+                    waku = matched.iloc[0]['枠番']
+        try:
+            waku = int(float(waku))
+        except (TypeError, ValueError):
+            waku = None
+        bg, fg = _geo_waku_palette.get(waku, ('#26384B', '#EAF1F8'))
+        safe_number = html.escape(number)
+        tooltip = f'{waku}枠・{number}番' if waku else f'{number}番（枠番未取得）'
+        return f'<span class="geo-waku-badge" style="background:{bg};color:{fg}" title="{html.escape(tooltip)}">{safe_number}</span>'
+
     # GEO VISION telemetry uses only existing prediction outputs; no recalculation.
     def _vision_render_workspace(geo, only_analysis=False):
         if not isinstance(geo, dict) or not isinstance(geo.get("df_geo"), pd.DataFrame):
@@ -4774,6 +4799,7 @@ with _geo_tabs[0]:
         frame=frame.sort_values([rank,"馬番"]).head(5)
         if frame.empty: return
         lead=frame.iloc[0]
+        _vision_race_entries = df_race if "df_race" in globals() and isinstance(df_race, pd.DataFrame) else None
         esc=lambda x: html.escape(str(x))
         def score_text(v):
             n=pd.to_numeric(v,errors="coerce")
@@ -4781,13 +4807,13 @@ with _geo_tabs[0]:
         if not only_analysis:
             with _vision_middle_slot.container():
                 st.markdown('<div class="vision-panel-heading">02 / GEO PREDICTION</div>',unsafe_allow_html=True)
-                st.markdown(f'<div class="vision-hero-pick"><div class="vision-hero-kicker">♛　GEO TOP PICK / 本命</div><div class="vision-hero-name"><span>◎</span> {esc(lead.get("馬番",""))}番　{esc(lead.get("馬名",""))}</div><div class="vision-hero-score">GEO INDEX <strong>{score_text(lead.get(score))}</strong></div></div>',unsafe_allow_html=True)
+                st.markdown(f'<div class="vision-hero-pick"><div class="vision-hero-kicker">♛　GEO TOP PICK / 本命</div><div class="vision-hero-name"><span>◎</span> {_geo_horse_number_badge(lead, _vision_race_entries)} {esc(lead.get("馬名",""))}</div><div class="vision-hero-score">GEO INDEX <strong>{score_text(lead.get(score))}</strong></div></div>',unsafe_allow_html=True)
                 marks=['◎','○','▲','△','☆']
                 cards=[]
                 for i,(_,horse) in enumerate(frame.iterrows()):
                     n=pd.to_numeric(horse.get(score),errors="coerce")
                     width=max(0,min(100,float(n)*100)) if pd.notna(n) else 0
-                    cards.append(f'<div class="vision-rank-row"><b class="vision-mark">{marks[i]}</b><span class="vision-number">{esc(horse.get("馬番",""))}</span><span class="vision-horse">{esc(horse.get("馬名",""))}</span><strong>{score_text(n)}</strong><span class="vision-meter"><i style="width:{width:.1f}%"></i></span></div>')
+                    cards.append(f'<div class="vision-rank-row"><b class="vision-mark">{marks[i]}</b>{_geo_horse_number_badge(horse, _vision_race_entries)}<span class="vision-horse">{esc(horse.get("馬名",""))}</span><strong>{score_text(n)}</strong><span class="vision-meter"><i style="width:{width:.1f}%"></i></span></div>')
                 st.markdown('<div class="vision-rank-list">'+''.join(cards)+'</div><div class="vision-small-note">正式モデル順位。指数は勝率ではありません。</div>',unsafe_allow_html=True)
         with _vision_right_slot.container():
             st.markdown('<span id="geo-lab-mobile"></span><div class="vision-panel-heading">03 / RACING LAB · MODEL TELEMETRY</div>',unsafe_allow_html=True)
@@ -4808,7 +4834,7 @@ with _geo_tabs[0]:
             details=matching(joint if learned else ten)
             nine_details=matching(nine)
             esc=lambda x:html.escape(str(x))
-            st.markdown(f'<div class="vision-analysis-head"><span>{esc(chosen.get("馬番",""))}番　{esc(chosen.get("馬名",""))}</span><strong>{score_text(chosen.get(score))}</strong></div>',unsafe_allow_html=True)
+            st.markdown(f'<div class="vision-analysis-head"><span>{_geo_horse_number_badge(chosen, _vision_race_entries)} {esc(chosen.get("馬名",""))}</span><strong>{score_text(chosen.get(score))}</strong></div>',unsafe_allow_html=True)
             st.caption('採用モデル：'+str(geo.get('prediction_model') or '不明')+' ／ INDEXは勝率・複勝率ではありません')
             if only_analysis:
                 comparison=st.selectbox('比較する馬（任意）',['比較しない']+[f"{r.get('馬番','')}番 {r.get('馬名','')}" for _,r in all_horses.iterrows() if pd.to_numeric(r.get('馬番'),errors='coerce')!=selected_num],key='vision_compare_horse')
@@ -5700,3 +5726,37 @@ with _geo_tabs[3]:
             st.info(f"払戻データ未登録: {missing}R。払戻データがDBに入れば自動で検証対象になります。")
     else:
         st.warning("自動馬券検証APIからデータを取得できませんでした。API側の更新後に再読み込みしてください。")
+
+
+# GEO VISION OBSIDIAN / refined cockpit theme — visual only
+st.markdown("""<style>
+:root{--geo-obs-bg:#080e18;--geo-obs-panel:#111e2d;--geo-obs-line:#263b50;--geo-obs-accent:#31c7d4;--geo-obs-gold:#d4b477}
+[data-testid="stAppViewContainer"]{background:radial-gradient(ellipse at 55% -15%,#132235 0%,#080e18 56%,#070c14 100%)!important;color:#eaf2f9!important}
+.geo-v3-masthead{background:#0c1725!important;border-color:#263b50!important;box-shadow:none!important;padding:12px 17px!important;min-height:68px!important}
+.geo-v3-masthead:after{height:1px!important;background:#314f62!important;opacity:.6!important}
+.geo-v3-logo strong{color:#eaf2f9!important;text-shadow:none!important;letter-spacing:.06em!important}
+.geo-v3-symbol{color:#31c7d4!important;text-shadow:none!important;font-size:34px!important}
+.geo-v3-status{background:#11252a!important;color:#79c9b5!important;border-color:#2b4c4c!important}
+.vision-panel-heading{background:#101f2e!important;color:#9eb7c6!important;border:1px solid #263b50!important;box-shadow:none!important;letter-spacing:.09em!important}
+.vision-hero-pick{background:linear-gradient(145deg,#142638,#101b2b 65%,#1b2334)!important;border:1px solid #385268!important;box-shadow:0 12px 30px #0003!important;padding:19px 20px!important}
+.vision-hero-kicker{color:#d4b477!important}
+.vision-hero-name{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:12px 0!important}
+.vision-hero-name span:first-child{color:#d4b477!important}
+.vision-hero-score{color:#96aebf!important}
+.vision-rank-list,.vision-feature-list{background:#111e2d!important;border:1px solid #263b50!important;box-shadow:none!important}
+.vision-rank-row{background:#111e2d!important;border-bottom:1px solid #263b50!important;min-height:49px!important}
+.vision-rank-row:first-child{background:#182a39!important;box-shadow:inset 2px 0 #31c7d4!important}
+.vision-mark{color:#c8d7e2!important}
+.vision-meter{background:#293b4d!important}.vision-meter i{background:#31c7d4!important}
+.vision-analysis-head{background:#132536!important;border:1px solid #30475b!important}
+.vision-analysis-head strong{color:#eaf2f9!important}
+.geo-waku-badge{display:inline-flex;flex:none;align-items:center;justify-content:center;min-width:35px;height:35px;border-radius:6px;font-size:17px;line-height:1;font-weight:850;box-shadow:inset 0 0 0 1px #ffffff25;vertical-align:middle;letter-spacing:0}
+.vision-hero-name .geo-waku-badge{font-size:19px!important;min-width:40px;height:40px;color:inherit;text-shadow:none}
+.vision-analysis-head .geo-waku-badge{margin-right:6px}
+[data-testid="stTabs"] [data-baseweb="tab-list"]{background:#0b1724!important;border-color:#263b50!important;box-shadow:none!important}
+[data-testid="stTabs"] button[role="tab"]{background:#142234!important;color:#b6c6d4!important;border-color:#263b50!important;box-shadow:none!important}
+[data-testid="stTabs"] button[role="tab"][aria-selected="true"]{background:#1a3540!important;color:#f2f7fa!important;border-color:#31c7d4!important;box-shadow:none!important}
+[data-testid="stSelectbox"] [data-baseweb="select"]>div,[data-testid="stSegmentedControl"] button{background:#152437!important;color:#eaf2f9!important;border-color:#354b60!important}
+[data-testid="stMetric"]{background:#111e2d!important;border:1px solid #263b50!important;box-shadow:none!important}
+@media(max-width:760px){.geo-v3-masthead{margin-bottom:8px!important;padding:10px 12px!important}.geo-v3-logo strong{font-size:20px!important}.vision-hero-pick{padding:15px!important;min-height:0!important}.vision-rank-row{padding:11px 9px!important;gap:7px!important}.geo-waku-badge{min-width:32px;height:32px;font-size:15px}.vision-hero-name .geo-waku-badge{min-width:35px;height:35px;font-size:16px!important}}
+</style>""",unsafe_allow_html=True)
