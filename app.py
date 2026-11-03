@@ -4761,37 +4761,76 @@ with _geo_tabs[0]:
                     cards.append(f'<div class="vision-rank-row"><b class="vision-mark">{marks[i]}</b><span class="vision-number">{esc(horse.get("馬番",""))}</span><span class="vision-horse">{esc(horse.get("馬名",""))}</span><strong>{score_text(n)}</strong><span class="vision-meter"><i style="width:{width:.1f}%"></i></span></div>')
                 st.markdown('<div class="vision-rank-list">'+''.join(cards)+'</div><div class="vision-small-note">正式モデル順位。指数は勝率ではありません。</div>',unsafe_allow_html=True)
         with _vision_right_slot.container():
-            st.markdown('<span id="geo-lab-mobile"></span><div class="vision-panel-heading">03 / RACING LAB</div>',unsafe_allow_html=True)
-            names=[f"{r.get('馬番','')}番 {r.get('馬名','')}" for _,r in frame.iterrows()]
-            choice=st.selectbox("分析対象馬",range(len(names)),format_func=lambda i:names[i],key=("vision_analysis_horse_tab" if only_analysis else "vision_analysis_horse"))
-            chosen=frame.iloc[choice]
-            st.markdown(f'<div class="vision-analysis-head"><span>{esc(chosen.get("馬番",""))}番　{esc(chosen.get("馬名",""))}</span><strong>{score_text(chosen.get(score))}</strong></div>',unsafe_allow_html=True)
-            payload=(geo.get('joint_payload') or {}) if str(geo.get('prediction_model','')).startswith('Phase18.5') else (geo.get('ten_payload') or {})
-            horses=payload.get('horses') or []
+            st.markdown('<span id="geo-lab-mobile"></span><div class="vision-panel-heading">03 / RACING LAB · MODEL TELEMETRY</div>',unsafe_allow_html=True)
+            # Read-only display of API values; no changes to prediction, model, or storage.
+            all_horses=geo["df_geo"].sort_values([rank,"馬番"])
+            names=[f"{r.get('馬番','')}番 {r.get('馬名','')}" for _,r in all_horses.iterrows()]
+            key_suffix='tab' if only_analysis else 'desk'
+            choice=st.selectbox('分析対象馬',range(len(names)),format_func=lambda i:names[i],key='vision_analysis_horse_'+key_suffix)
+            chosen=all_horses.iloc[choice]
             selected_num=pd.to_numeric(chosen.get('馬番'),errors='coerce')
-            details=next((h for h in horses if pd.to_numeric(h.get('umaban'),errors='coerce')==selected_num),{})
+            def matching(payload):
+                horses=(payload or {}).get('horses') or []
+                return next((h for h in horses if pd.to_numeric(h.get('umaban'),errors='coerce')==selected_num),{})
+            joint=geo.get('joint_payload') or {}
+            ten=geo.get('ten_payload') or {}
+            nine=geo.get('official_payload') or {}
+            learned=str(geo.get('prediction_model','')).startswith('Phase18.5')
+            details=matching(joint if learned else ten)
+            nine_details=matching(nine)
+            esc=lambda x:html.escape(str(x))
+            st.markdown(f'<div class="vision-analysis-head"><span>{esc(chosen.get("馬番",""))}番　{esc(chosen.get("馬名",""))}</span><strong>{score_text(chosen.get(score))}</strong></div>',unsafe_allow_html=True)
+            st.caption('採用モデル：'+str(geo.get('prediction_model') or '不明')+' ／ INDEXは勝率・複勝率ではありません')
+            if only_analysis:
+                comparison=st.selectbox('比較する馬（任意）',['比較しない']+[f"{r.get('馬番','')}番 {r.get('馬名','')}" for _,r in all_horses.iterrows() if pd.to_numeric(r.get('馬番'),errors='coerce')!=selected_num],key='vision_compare_horse')
+                if comparison!='比較しない':
+                    opponent=next((r for _,r in all_horses.iterrows() if f"{r.get('馬番','')}番 {r.get('馬名','')}"==comparison),None)
+                    if opponent is not None:
+                        left=pd.to_numeric(chosen.get(score),errors='coerce')
+                        right=pd.to_numeric(opponent.get(score),errors='coerce')
+                        if pd.notna(left) and pd.notna(right):
+                            c1,c2,c3=st.columns(3)
+                            c1.metric('選択馬',f'{left*100:.1f}')
+                            c2.metric('比較馬',f'{right*100:.1f}')
+                            c3.metric('INDEX差',f'{(left-right)*100:+.1f}')
+                            st.caption('同一モデルの順位指数比較。確率差ではありません。')
+            labels={'ability_recent':'直近能力','ability_similar':'類似条件能力','jockey':'騎手','forward':'先行力','lead':'逃げ能力','hill_sessions':'坂路4F PB特徴量','wood_sessions':'ウッド6F PB特徴量','sire_condition_edge':'父産駒血統適性','course_fit':'コース適性','closing_kick':'末脚力'}
             parts=details.get('feature_breakdown') or {}
-            labels={'ability_recent':'直近能力','ability_similar':'類似条件能力','jockey':'騎手','forward':'先行力','lead':'逃げ能力','hill_sessions':'坂路4F PB更新','wood_sessions':'ウッド6F PB更新','sire_condition_edge':'血統適性','course_fit':'コース適性','closing_kick':'末脚力'}
-            if parts:
+            if learned and parts:
+                st.markdown('#### 10項目のモデル寄与')
                 rows=[]
                 for key,label in labels.items():
                     part=parts.get(key) or {}
                     raw=pd.to_numeric(part.get('raw'),errors='coerce')
-                    val='—' if pd.isna(raw) else f'{raw:.3f}'
-                    contrib=pd.to_numeric(part.get('logit_contribution'),errors='coerce')
-                    bar=min(100,max(0,50+(float(contrib)*60))) if pd.notna(contrib) else 50
-                    rows.append(f'<div class="vision-feature"><span>{label}</span><div class="vision-feature-track"><i style="width:{bar:.1f}%"></i></div><b>{val}</b></div>')
-                st.markdown('<div class="vision-feature-list">'+''.join(rows)+'</div><div class="vision-small-note">数値はモデルの生特徴量。棒はlogit寄与を相対表示（中央が0）。</div>',unsafe_allow_html=True)
+                    contribution=pd.to_numeric(part.get('logit_contribution'),errors='coerce')
+                    rows.append({'項目':label,'生特徴量':float(raw) if pd.notna(raw) else None,'寄与(logit)':float(contribution) if pd.notna(contribution) else None,'欠損補完':'あり' if part.get('imputed') else ''})
+                chart_df=pd.DataFrame(rows)
+                st.bar_chart(chart_df.set_index('項目')['寄与(logit)'],horizontal=True)
+                st.dataframe(chart_df,hide_index=True,use_container_width=True)
+                st.caption('棒は学習済み係数による符号付きlogit寄与。生特徴量は0〜100点に正規化した値ではありません。')
+                if details.get('logit_total') is not None:
+                    st.caption(f"切片 {details.get('logit_intercept')} / 合計logit {details.get('logit_total')}")
+                if only_analysis:
+                    st.markdown('#### 調教PB特徴量')
+                    pb=[]
+                    for k,label in [('wood_sessions','ウッド6F'),('hill_sessions','坂路4F')]:
+                        val=(parts.get(k) or {}).get('raw')
+                        pb.append({'調教':label,'モデル入力値':val,'欠損':(parts.get(k) or {}).get('imputed')})
+                    st.dataframe(pd.DataFrame(pb),hide_index=True,use_container_width=True)
+                    st.caption('APIが返すモデル入力値です。実際のPB時計・更新秒数はこのレスポンスに含まれません。')
             else:
-                if str(geo.get('prediction_model','')).startswith('Phase18.4'):
-                    st.info('Phase18.4のAPIは10項目の個別寄与値を返していません。順位・指数は正常に表示されています。')
-                    _fields=[('末脚力（残差）','closing_kick'),('末脚評価走数','sample_count'),('末脚クラス移行係数','class_transfer_factor'),('昇級クラス補正','class_adjustment_in_ninth')]
-                    _available=[{'指標':label,'API値':details.get(key)} for label,key in _fields if details.get(key) is not None]
-                    if _available: st.dataframe(pd.DataFrame(_available),hide_index=True,use_container_width=True)
-                    st.caption('正式10項目の全特徴量内訳を表示するにはAPI側の返却拡張が必要です。推定値は作成しません。')
-                else:
-                    st.info('Phase18.5の学習済み内訳がAPIから返されていません。学習状態・APIレスポンスを確認してください。')
-            st.caption('モデル：'+str(geo.get('prediction_model') or '不明'))
+                st.markdown('#### APIから取得できる評価データ')
+                fields=[('末脚力（残差）',details.get('closing_kick')),('末脚評価過去走数',details.get('sample_count')),('末脚クラス移行係数',details.get('class_transfer_factor')),('クラス補正',details.get('class_adjustment_in_ninth')),('コース適性',nine_details.get('course_fit')),('コース適性のクラス補正',nine_details.get('class_adjustment')),('過去条件一致走数',nine_details.get('matched_count'))]
+                present=[{'指標':name,'API値':value} for name,value in fields if value is not None]
+                if present:
+                    st.dataframe(pd.DataFrame(present),hide_index=True,use_container_width=True)
+                st.info('Phase18.4は10項目すべての生特徴量・寄与を返していません。存在しない数値やレーダーチャートは作らず、返却済みの評価を表示しています。')
+                if only_analysis:
+                    st.markdown('#### 調教PB')
+                    st.caption('Phase18.4の現行レスポンスには、馬ごとのウッド6F・坂路4FのPB更新値が含まれません。表示にはAPIの読み取り専用レスポンス拡張が必要です。')
+            if only_analysis:
+                with st.expander('モデル診断・APIデータ状態',expanded=False):
+                    st.write({'正式10項目':ten.get('status','不明'),'学習10項目':joint.get('status','不明'),'学習済みレース':joint.get('usable_training_races'),'必要レース':joint.get('minimum_training_races'),'10項目内訳':bool(parts)})
 
     _vision_render_workspace(_cached_geo if _cached_race_id == str(race_id) else None)
 
