@@ -593,6 +593,35 @@ race_list = load_race_list()
 # GEO VISION: actual three-column workspace. All controls remain native Streamlit.
 # Native Streamlit tabs provide actual independent views, not anchor scrolling.
 # All tab bodies execute, preserving existing prediction state and background computations.
+
+# GEO VISION V3: desktop command-center / mobile cockpit skin.
+# This is UI-only: no modifications to prediction, API, model, or persistence.
+st.markdown("""<style>
+:root{--g3-cyan:#3de5ee;--g3-line:#23506b;--g3-bg:#07111e;--g3-card:#0d2033}
+[data-testid="stAppViewContainer"]{background:radial-gradient(ellipse at 70% 12%,#12334b 0%,#081522 42%,#050c17 100%)!important}
+.geo-v3-masthead{display:flex;align-items:center;gap:22px;justify-content:space-between;min-height:88px;margin:0 0 16px;padding:15px 25px;background:linear-gradient(115deg,#071a2a,#081625 70%,#0c2337);border:1px solid #244459;border-radius:17px;box-shadow:0 10px 40px #0005;position:relative;overflow:hidden}
+.geo-v3-masthead:after{content:"";position:absolute;inset:auto 0 0 0;height:2px;background:linear-gradient(90deg,transparent,#2be7ef,transparent);opacity:.7}
+.geo-v3-logo{display:flex;align-items:center;gap:13px;min-width:0}.geo-v3-symbol{font-size:49px;color:#35e6ef;text-shadow:0 0 24px #00d9ff99;line-height:1}.geo-v3-logo strong{display:block;font-size:clamp(22px,2.7vw,39px);letter-spacing:.11em;line-height:1.06;color:#45e5f1;font-weight:900;text-shadow:0 0 20px #03a9c744;white-space:nowrap}.geo-v3-logo small{display:block;font-size:10px;color:#9cbed1;letter-spacing:.23em;margin-top:7px}
+.geo-v3-status{font-size:11px;color:#52e7bb;font-weight:850;border:1px solid #1d5e5d;background:#082d30;border-radius:100px;padding:10px 15px;white-space:nowrap}.geo-v3-led{display:inline-block;width:8px;height:8px;border-radius:50%;background:#10e6a2;box-shadow:0 0 10px #10e6a2;margin-right:6px}.geo-v3-decor{font-size:10px;letter-spacing:.16em;color:#83a3b7;white-space:nowrap}
+.vision-panel-heading{background:linear-gradient(90deg,#0c2c40,#0b1b2b)!important;color:#56edf1!important;border:1px solid #23506b!important;border-radius:11px!important;box-shadow:inset 0 1px #ffffff0b}
+.vision-hero-pick{background:radial-gradient(ellipse at 92% 100%,#442c74 0%,transparent 53%),radial-gradient(ellipse at 8% 30%,#12576b 0%,transparent 58%),linear-gradient(125deg,#0b2637,#0b1428)!important;border-color:#16c7d8!important;box-shadow:0 0 24px #05b5c31d,inset 0 1px #ffffff1b!important}
+.vision-rank-row:first-child{background:linear-gradient(90deg,#0a5664,#123347)!important;box-shadow:inset 3px 0 #43e8f0}
+.vision-rank-row{min-height:54px!important}.vision-rank-list,.vision-feature-list{box-shadow:0 12px 28px #0003}
+[data-testid="stTabs"] [data-baseweb="tab-list"]{border:1px solid #20465e!important;border-radius:14px!important;background:#091a2afa!important;box-shadow:0 8px 22px #0003}
+[data-testid="stTabs"] button[role="tab"][aria-selected="true"]{background:linear-gradient(105deg,#08a7b8,#0a6987)!important;box-shadow:0 0 15px #12d7e638!important}
+[data-testid="stSelectbox"] [data-baseweb="select"]>div,[data-testid="stSegmentedControl"] button{background:#11263b!important;border-color:#31556d!important;color:#e9f8ff!important}
+[data-testid="stDataFrame"]{border:1px solid #2b566d!important;border-radius:12px!important}
+[data-testid="stMetric"]{background:linear-gradient(145deg,#112b40,#0c1d30)!important;border:1px solid #2b536c!important;box-shadow:inset 0 1px #ffffff0b}
+@media(min-width:1150px){.block-container{max-width:1900px!important;padding:1.1rem 1.6rem 4rem!important}.vision-hero-pick{min-height:178px}.vision-rank-list{min-height:280px}.geo-v3-masthead{margin-bottom:20px}}
+@media(max-width:760px){.geo-v3-masthead{min-height:66px;padding:12px 14px;margin:0 0 12px;gap:8px}.geo-v3-logo{gap:8px}.geo-v3-symbol{font-size:32px}.geo-v3-logo strong{font-size:21px;letter-spacing:.065em}.geo-v3-logo small{font-size:7px;letter-spacing:.11em;margin-top:4px}.geo-v3-status{display:none}.geo-v3-decor{display:none}.vision-hero-pick{min-height:145px}.vision-rank-row{min-height:49px!important}[data-testid="stTabs"] [data-baseweb="tab-list"]{top:0!important;padding:5px!important;gap:4px!important}[data-testid="stTabs"] button[role="tab"]{font-size:11px!important;padding:8px 5px!important;white-space:nowrap}}
+</style>""",unsafe_allow_html=True)
+
+# GEO VISION / COMMAND CENTER: purely presentational; all metrics below come from the live API.
+st.markdown("""<div class="geo-v3-masthead">
+  <div class="geo-v3-logo"><span class="geo-v3-symbol">♞</span><div><strong>GEO VISION</strong><small>RACING AI ANALYSIS SYSTEM</small></div></div>
+  <div class="geo-v3-status"><span class="geo-v3-led"></span> RACING INTELLIGENCE</div>
+  <div class="geo-v3-decor">AI · PERFORMANCE · TELEMETRY</div>
+</div>""", unsafe_allow_html=True)
 _geo_tabs = st.tabs(["🏇 予想", "📊 10項目分析", "⚡ 全レース", "📈 成績・学習"])
 st.markdown("""<style>
 /* GEO VISION mobile-first polish */
