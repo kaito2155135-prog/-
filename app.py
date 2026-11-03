@@ -702,6 +702,16 @@ with _geo_tabs[0]:
 
         selected_index = race_options.index(selected_race_label)
         selected_race_summary = _visible_races[selected_index]
+        # Read-only race schedule: existing selectbox remains the authoritative selection.
+        _schedule_cards = []
+        for _r in _visible_races:
+            _rn = str(_r.get('race_no') or '').replace('R', '').zfill(2)
+            _rid = str(_r.get('race_id') or _r.get('id') or _r.get('race_code') or '')
+            _current = _rid == str(selected_race_summary.get('race_id') or selected_race_summary.get('id') or selected_race_summary.get('race_code') or '')
+            _title = html.escape(str(_r.get('name') or '通常競走'))
+            _post = html.escape(str(_r.get('post_time') or ''))
+            _schedule_cards.append(f'<div class="obs-race-item{" obs-race-active" if _current else ""}"><b>{_rn}R</b><span title="{_title}">{_title}</span><small>{_post}</small></div>')
+        st.markdown('<div class="obs-race-schedule"><div class="obs-schedule-title">RACE SCHEDULE <span> / 開催レース</span></div>'+''.join(_schedule_cards)+'</div>', unsafe_allow_html=True)
 
 
     race_id = selected_race_summary.get(
@@ -4878,8 +4888,18 @@ with _geo_tabs[0]:
                 fields=[('末脚力（残差）',details.get('closing_kick')),('末脚評価過去走数',details.get('sample_count')),('末脚クラス移行係数',details.get('class_transfer_factor')),('クラス補正',details.get('class_adjustment_in_ninth')),('コース適性',nine_details.get('course_fit')),('コース適性のクラス補正',nine_details.get('class_adjustment')),('過去条件一致走数',nine_details.get('matched_count'))]
                 present=[{'指標':name,'API値':value} for name,value in fields if value is not None]
                 if present:
-                    st.dataframe(pd.DataFrame(present),hide_index=True,use_container_width=True)
-                st.info('Phase18.4は10項目すべての生特徴量・寄与を返していません。存在しない数値やレーダーチャートは作らず、返却済みの評価を表示しています。')
+                    _metric_cards=[]
+                    for _item in present:
+                        _v=_item['API値']
+                        try:
+                            _display=f"{float(_v):.4f}" if isinstance(_v,(int,float)) and not isinstance(_v,bool) else html.escape(str(_v))
+                        except (TypeError,ValueError):
+                            _display=html.escape(str(_v))
+                        _metric_cards.append('<div class="obs-metric-card"><span>'+html.escape(_item['指標'])+'</span><strong>'+_display+'</strong></div>')
+                    st.markdown('<div class="obs-metric-grid">'+''.join(_metric_cards)+'</div>',unsafe_allow_html=True)
+                    with st.expander('API生データを表で確認',expanded=False):
+                        st.dataframe(pd.DataFrame(present),hide_index=True,use_container_width=True)
+                st.caption('Phase18.4の返却済み指標です。指標ごとに単位・尺度が異なるため、同じ棒グラフやレーダーに変換していません。')
                 if only_analysis:
                     st.markdown('#### 調教PB')
                     st.caption('Phase18.4の現行レスポンスには、馬ごとのウッド6F・坂路4FのPB更新値が含まれません。表示にはAPIの読み取り専用レスポンス拡張が必要です。')
@@ -5759,4 +5779,40 @@ st.markdown("""<style>
 [data-testid="stSelectbox"] [data-baseweb="select"]>div,[data-testid="stSegmentedControl"] button{background:#152437!important;color:#eaf2f9!important;border-color:#354b60!important}
 [data-testid="stMetric"]{background:#111e2d!important;border:1px solid #263b50!important;box-shadow:none!important}
 @media(max-width:760px){.geo-v3-masthead{margin-bottom:8px!important;padding:10px 12px!important}.geo-v3-logo strong{font-size:20px!important}.vision-hero-pick{padding:15px!important;min-height:0!important}.vision-rank-row{padding:11px 9px!important;gap:7px!important}.geo-waku-badge{min-width:32px;height:32px;font-size:15px}.vision-hero-name .geo-waku-badge{min-width:35px;height:35px;font-size:16px!important}}
+</style>""",unsafe_allow_html=True)
+
+# OBSIDIAN V5: desktop cockpit layout and compact, readable telemetry (presentation only)
+st.markdown("""<style>
+@media(min-width:1100px){
+ .block-container{max-width:1880px!important;padding-left:22px!important;padding-right:22px!important}
+ .vision-rank-row{gap:9px!important;padding:11px 10px!important;min-height:58px!important}
+ .vision-rank-row .vision-horse{white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;overflow-wrap:normal!important;word-break:keep-all!important;font-size:clamp(13px,1.12vw,18px)!important;line-height:1.3!important}
+ .vision-rank-row strong{flex:none;font-size:clamp(15px,1.1vw,19px)!important}
+ .vision-meter{width:40px!important;flex:none!important}
+ .vision-hero-name{font-size:clamp(21px,1.8vw,32px)!important;word-break:keep-all!important;overflow-wrap:normal!important;line-height:1.25!important}
+ .vision-hero-pick{min-height:160px!important}
+}
+.obs-race-schedule{background:#0e1a29;border:1px solid #263b50;border-radius:14px;margin-top:16px;padding:9px 8px 10px}
+.obs-schedule-title{font-size:11px;font-weight:800;letter-spacing:.13em;color:#b8d0dc;padding:9px 10px 12px}
+.obs-schedule-title span{color:#7891a5;font-weight:500;letter-spacing:0}
+.obs-race-item{display:grid;grid-template-columns:42px minmax(0,1fr) 44px;gap:8px;align-items:center;min-height:40px;padding:6px 9px;border-radius:7px;color:#b5c7d6;font-size:12px;border-bottom:1px solid #1c2b3a}
+.obs-race-item:last-child{border-bottom:0}
+.obs-race-item b{font-size:13px;color:#e4edf4}
+.obs-race-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.obs-race-item small{text-align:right;color:#91a8b8;font-size:10px}
+.obs-race-active{background:#19333c;border:1px solid #368b98;box-shadow:inset 3px 0 #31c7d4;color:#f1f7fa}
+.obs-race-active b,.obs-race-active small{color:#e2f6f8}
+.obs-metric-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:8px 0 14px}
+.obs-metric-card{background:#122234;border:1px solid #283e52;border-radius:10px;padding:12px 12px;min-width:0;display:flex;flex-direction:column;gap:8px}
+.obs-metric-card span{color:#a8bdcd;font-size:12px;line-height:1.4}
+.obs-metric-card strong{color:#f0f6fa;font-size:clamp(17px,1.4vw,23px);font-variant-numeric:tabular-nums;letter-spacing:.015em}
+.vision-analysis-head{min-width:0}.vision-analysis-head span{min-width:0;overflow-wrap:anywhere}
+[data-testid="stSegmentedControl"] button{color:#d9e6ef!important}
+[data-testid="stSegmentedControl"] button[aria-checked="true"]{background:#254450!important;border-color:#3aaab4!important;color:#fff!important}
+@media(max-width:1099px){.obs-race-schedule{display:none!important}}
+@media(max-width:760px){
+ .obs-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .vision-rank-row .vision-horse{overflow-wrap:anywhere!important;word-break:normal!important;line-height:1.25!important}
+ .vision-hero-name{line-height:1.35!important}
+}
 </style>""",unsafe_allow_html=True)
