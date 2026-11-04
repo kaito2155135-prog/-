@@ -1230,7 +1230,7 @@ with _geo_tabs[0]:
     ]
 
 
-    with st.expander("出馬表の確認・編集（必要な場合のみ開く）", expanded=False):
+    with st.expander(f"🏇 出馬表・枠色一覧・編集（{len(df_race)}頭）", expanded=False):
         edited_df = st.data_editor(
             df_race[edit_columns],
             column_config={
@@ -1261,50 +1261,49 @@ with _geo_tabs[0]:
         )
 
 
-    for col in edit_columns:
-        df_race[col] = edited_df[col]
+        for col in edit_columns:
+            df_race[col] = edited_df[col]
 
 
-    df_race["馬名"] = df_race["馬名"].apply(normalize_horse_name)
-    df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
+        df_race["馬名"] = df_race["馬名"].apply(normalize_horse_name)
+        df_race["馬名_clean"] = df_race["馬名"].apply(normalize_horse_name)
 
-    # CHESTNUT V9: 出馬表は既存df_raceの表示専用ビュー。編集・予想・学習ロジックは変更しない。
-    # 枠色は実際の枠番から決める。馬番による枠番の推測はしない。
-    _geo_card_palette = {
-        1: ("#F4F5F7", "#111827"), 2: ("#202329", "#FFFFFF"),
-        3: ("#CF343D", "#FFFFFF"), 4: ("#2863B5", "#FFFFFF"),
-        5: ("#E9C83E", "#141923"), 6: ("#248451", "#FFFFFF"),
-        7: ("#DE762D", "#FFFFFF"), 8: ("#D675A4", "#161923"),
-    }
-    def _geo_entry_safe(value):
-        return html.escape(str(value)) if pd.notna(value) else "—"
+        # CHESTNUT V9: 出馬表は既存df_raceの表示専用ビュー。編集・予想・学習ロジックは変更しない。
+        # 枠色は実際の枠番から決める。馬番による枠番の推測はしない。
+        _geo_card_palette = {
+            1: ("#F4F5F7", "#111827"), 2: ("#202329", "#FFFFFF"),
+            3: ("#CF343D", "#FFFFFF"), 4: ("#2863B5", "#FFFFFF"),
+            5: ("#E9C83E", "#141923"), 6: ("#248451", "#FFFFFF"),
+            7: ("#DE762D", "#FFFFFF"), 8: ("#D675A4", "#161923"),
+        }
+        def _geo_entry_safe(value):
+            return html.escape(str(value)) if pd.notna(value) else "—"
 
-    _geo_entry_rows = []
-    _geo_sorted_entries = df_race.copy()
-    _geo_sorted_entries["_sort_umaban"] = pd.to_numeric(_geo_sorted_entries["馬番"], errors="coerce")
-    _geo_sorted_entries = _geo_sorted_entries.sort_values("_sort_umaban", kind="stable")
-    for _, _entry in _geo_sorted_entries.iterrows():
-        try:
-            _waku_num = int(float(_entry.get("枠番")))
-        except (TypeError, ValueError):
-            _waku_num = None
-        _bg, _fg = _geo_card_palette.get(_waku_num, ("#35404A", "#F5EDE6"))
-        _umaban = _geo_entry_safe(_entry.get("馬番", ""))
-        _horse_name = _geo_entry_safe(_entry.get("馬名", ""))
-        _jockey = _geo_entry_safe(_entry.get("騎手", "—"))
-        _odds_raw = pd.to_numeric(_entry.get("オッズ"), errors="coerce")
-        _odds = f"{float(_odds_raw):.1f}倍" if pd.notna(_odds_raw) else "—"
-        _waku_text = f"{_waku_num}枠" if _waku_num in _geo_card_palette else "枠未取得"
-        _geo_entry_rows.append(
-            f'<div class="geo-entry-row">'
-            f'<span class="geo-entry-waku" style="background:{_bg};color:{_fg}">{_waku_text}</span>'
-            f'<span class="geo-entry-num" style="background:{_bg};color:{_fg}">{_umaban}</span>'
-            f'<span class="geo-entry-horse">{_horse_name}</span>'
-            f'<span class="geo-entry-jockey">{_jockey}</span>'
-            f'<span class="geo-entry-odds">{_odds}</span>'
-            f'</div>'
-        )
-    with st.expander(f"🏇 出馬表・枠色一覧（{len(_geo_entry_rows)}頭）", expanded=False):
+        _geo_entry_rows = []
+        _geo_sorted_entries = df_race.copy()
+        _geo_sorted_entries["_sort_umaban"] = pd.to_numeric(_geo_sorted_entries["馬番"], errors="coerce")
+        _geo_sorted_entries = _geo_sorted_entries.sort_values("_sort_umaban", kind="stable")
+        for _, _entry in _geo_sorted_entries.iterrows():
+            try:
+                _waku_num = int(float(_entry.get("枠番")))
+            except (TypeError, ValueError):
+                _waku_num = None
+            _bg, _fg = _geo_card_palette.get(_waku_num, ("#35404A", "#F5EDE6"))
+            _umaban = _geo_entry_safe(_entry.get("馬番", ""))
+            _horse_name = _geo_entry_safe(_entry.get("馬名", ""))
+            _jockey = _geo_entry_safe(_entry.get("騎手", "—"))
+            _odds_raw = pd.to_numeric(_entry.get("オッズ"), errors="coerce")
+            _odds = f"{float(_odds_raw):.1f}倍" if pd.notna(_odds_raw) else "—"
+            _waku_text = f"{_waku_num}枠" if _waku_num in _geo_card_palette else "枠未取得"
+            _geo_entry_rows.append(
+                f'<div class="geo-entry-row">'
+                f'<span class="geo-entry-waku" style="background:{_bg};color:{_fg}">{_waku_text}</span>'
+                f'<span class="geo-entry-num" style="background:{_bg};color:{_fg}">{_umaban}</span>'
+                f'<span class="geo-entry-horse">{_horse_name}</span>'
+                f'<span class="geo-entry-jockey">{_jockey}</span>'
+                f'<span class="geo-entry-odds">{_odds}</span>'
+                f'</div>'
+            )
         st.markdown('''<style>
         .geo-entry-list{display:flex;flex-direction:column;gap:5px}
         .geo-entry-row{display:grid;grid-template-columns:50px 38px minmax(120px,1fr) minmax(65px,.65fr) 65px;align-items:center;gap:9px;padding:8px 10px;border:1px solid #3A3533;border-radius:9px;background:#192029;color:#F5EDE6;min-width:0}
@@ -1315,7 +1314,7 @@ with _geo_tabs[0]:
         @media(max-width:760px){.geo-entry-row{grid-template-columns:38px 32px minmax(0,1fr) 56px;gap:6px;padding:7px 6px}.geo-entry-waku{font-size:10px}.geo-entry-num{font-size:12px}.geo-entry-horse{font-size:12px}.geo-entry-jockey{display:none}.geo-entry-odds{font-size:11px}}
         </style>''', unsafe_allow_html=True)
         st.markdown('<div class="geo-entry-list">' + ''.join(_geo_entry_rows) + '</div>', unsafe_allow_html=True)
-        st.caption("枠色はJRAの1〜8枠に対応。出馬表の値をそのまま表示しています。変更は上の『出馬表の確認・編集』から。")
+        st.caption("枠色はJRAの1〜8枠に対応。出馬表の値をそのまま表示しています。この画面上部の編集表で変更できます。")
 
 
     # =========================================================
