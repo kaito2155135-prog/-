@@ -1291,6 +1291,8 @@ with _geo_tabs[0]:
             _bg, _fg = _geo_card_palette.get(_waku_num, ("#35404A", "#F5EDE6"))
             _umaban = _geo_entry_safe(_entry.get("馬番", ""))
             _horse_name = _geo_entry_safe(_entry.get("馬名", ""))
+            _sire = _geo_entry_safe(_entry.get("父", "—"))
+            _dam = _geo_entry_safe(_entry.get("母", "—"))
             _jockey = _geo_entry_safe(_entry.get("騎手", "—"))
             _odds_raw = pd.to_numeric(_entry.get("オッズ"), errors="coerce")
             _odds = f"{float(_odds_raw):.1f}倍" if pd.notna(_odds_raw) else "—"
@@ -1299,7 +1301,8 @@ with _geo_tabs[0]:
                 f'<div class="geo-entry-row">'
                 f'<span class="geo-entry-waku" style="background:{_bg};color:{_fg}">{_waku_text}</span>'
                 f'<span class="geo-entry-num" style="background:{_bg};color:{_fg}">{_umaban}</span>'
-                f'<span class="geo-entry-horse">{_horse_name}</span>'
+                f'<span class="geo-entry-horse-block"><span class="geo-entry-horse">{_horse_name}</span>'
+                f'<span class="geo-entry-pedigree"><span>父 {_sire}</span><span>母 {_dam}</span></span></span>'
                 f'<span class="geo-entry-jockey">{_jockey}</span>'
                 f'<span class="geo-entry-odds">{_odds}</span>'
                 f'</div>'
@@ -1308,13 +1311,16 @@ with _geo_tabs[0]:
         .geo-entry-list{display:flex;flex-direction:column;gap:5px}
         .geo-entry-row{display:grid;grid-template-columns:50px 38px minmax(120px,1fr) minmax(65px,.65fr) 65px;align-items:center;gap:9px;padding:8px 10px;border:1px solid #3A3533;border-radius:9px;background:#192029;color:#F5EDE6;min-width:0}
         .geo-entry-waku,.geo-entry-num{display:flex;align-items:center;justify-content:center;border-radius:5px;font-weight:800;height:32px;font-size:13px;white-space:nowrap}
+        .geo-entry-horse-block{display:flex;flex-direction:column;gap:3px;min-width:0}
         .geo-entry-horse{font-weight:750;min-width:0;overflow-wrap:anywhere}
+        .geo-entry-pedigree{display:flex;flex-wrap:wrap;column-gap:16px;row-gap:2px;font-size:11px;color:#BBAFA5;line-height:1.4}
+        .geo-entry-pedigree span{overflow-wrap:anywhere}
         .geo-entry-jockey{font-size:12px;color:#C7B9AC;min-width:0;overflow-wrap:anywhere}
         .geo-entry-odds{text-align:right;font-variant-numeric:tabular-nums;color:#D99B69;font-weight:700;white-space:nowrap;font-size:13px}
-        @media(max-width:760px){.geo-entry-row{grid-template-columns:38px 32px minmax(0,1fr) 56px;gap:6px;padding:7px 6px}.geo-entry-waku{font-size:10px}.geo-entry-num{font-size:12px}.geo-entry-horse{font-size:12px}.geo-entry-jockey{display:none}.geo-entry-odds{font-size:11px}}
+        @media(max-width:760px){.geo-entry-row{grid-template-columns:38px 32px minmax(0,1fr) 56px;gap:6px;padding:7px 6px}.geo-entry-waku{font-size:10px}.geo-entry-num{font-size:12px}.geo-entry-horse{font-size:12px}.geo-entry-pedigree{font-size:10px;column-gap:8px}.geo-entry-jockey{display:none}.geo-entry-odds{font-size:11px}}
         </style>''', unsafe_allow_html=True)
         st.markdown('<div class="geo-entry-list">' + ''.join(_geo_entry_rows) + '</div>', unsafe_allow_html=True)
-        st.caption("枠色はJRAの1〜8枠に対応。出馬表の値をそのまま表示しています。この画面上部の編集表で変更できます。")
+        st.caption("枠色はJRAの1〜8枠に対応。出馬表の値をそのまま表示しています。父・母も各馬の下に表示。上部の編集表で変更できます。")
 
 
     # =========================================================
