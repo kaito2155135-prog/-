@@ -50,7 +50,7 @@ def api_get(path, timeout=20):
 st.set_page_config(
     page_title="GEO AI | Racing Intelligence",
     layout="wide",
-    initial_sidebar_state="auto",
+    initial_sidebar_state="collapsed",
 )
 
 st.markdown("""<style>
@@ -1178,14 +1178,6 @@ with _geo_tabs[0]:
     # 表示
     # =========================================================
 
-    st.sidebar.markdown("---")
-
-    st.sidebar.info(
-        f"**{race_place} {race_class}**\n\n"
-        f"{race_distance}m {race_surface}\n\n"
-        f"馬場: {default_baba}\n\n"
-        f"頭数: {len(df_race)}頭"
-    )
 
 
     st.markdown('<span id="geo-race" class="geo-anchor"></span>', unsafe_allow_html=True)
@@ -1281,21 +1273,23 @@ with _geo_tabs[0]:
     # ペース・バイアス・馬場
     # =========================================================
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### ⚙️ 予想設定")
-    selected_pace = st.sidebar.radio(
-        "ペース想定", ["S（スロー）", "M（ミドル）", "H（ハイ）"],
-        index=1, key="geo_v13_pace",
-    )
-    selected_bias = st.sidebar.radio(
-        "トラックバイアス", ["フラット", "内有利", "外有利"],
-        index=0, key="geo_v13_bias",
-    )
-    baba_default_idx = {"良": 0, "稍重": 1, "重": 2, "不良": 3}.get(default_baba, 0)
-    selected_condition = st.sidebar.selectbox(
-        "当日の馬場状態", ["良", "稍重", "重", "不良"],
-        index=baba_default_idx, key="geo_v13_condition",
-    )
+    # V7: 予想に使う設定は左カラムの折りたたみ内へ移動。
+    # 既存のウィジェットキー・既定値・後続の変数名は変更しない。
+    with _vision_left:
+        with st.expander("⚙️ 予想設定（ペース・バイアス・馬場）", expanded=False):
+            selected_pace = st.radio(
+                "ペース想定", ["S（スロー）", "M（ミドル）", "H（ハイ）"],
+                index=1, key="geo_v13_pace",
+            )
+            selected_bias = st.radio(
+                "トラックバイアス", ["フラット", "内有利", "外有利"],
+                index=0, key="geo_v13_bias",
+            )
+            baba_default_idx = {"良": 0, "稍重": 1, "重": 2, "不良": 3}.get(default_baba, 0)
+            selected_condition = st.selectbox(
+                "当日の馬場状態", ["良", "稍重", "重", "不良"],
+                index=baba_default_idx, key="geo_v13_condition",
+            )
 
 
     # =========================================================
@@ -5897,3 +5891,11 @@ st.markdown("""<style>
  [data-testid="stSelectbox"]{margin-bottom:0!important}
 }
 </style>""",unsafe_allow_html=True)
+
+# GEO VISION V7: no sidebar widgets remain. Reserve full desktop width for the 3-column workspace.
+st.markdown("""<style>
+[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] {display:none!important;}
+@media (min-width:1100px) {
+  [data-testid="stAppViewContainer"] .block-container {max-width:1900px!important;padding-left:1.4rem!important;padding-right:1.4rem!important;}
+}
+</style>""", unsafe_allow_html=True)
