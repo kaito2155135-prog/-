@@ -616,12 +616,7 @@ st.markdown("""<style>
 @media(max-width:760px){.geo-v3-masthead{min-height:66px;padding:12px 14px;margin:0 0 12px;gap:8px}.geo-v3-logo{gap:8px}.geo-v3-symbol{font-size:32px}.geo-v3-logo strong{font-size:21px;letter-spacing:.065em}.geo-v3-logo small{font-size:7px;letter-spacing:.11em;margin-top:4px}.geo-v3-status{display:none}.geo-v3-decor{display:none}.vision-hero-pick{min-height:145px}.vision-rank-row{min-height:49px!important}[data-testid="stTabs"] [data-baseweb="tab-list"]{top:0!important;padding:5px!important;gap:4px!important}[data-testid="stTabs"] button[role="tab"]{font-size:11px!important;padding:8px 5px!important;white-space:nowrap}}
 </style>""",unsafe_allow_html=True)
 
-# GEO VISION / COMMAND CENTER: purely presentational; all metrics below come from the live API.
-st.markdown("""<div class="geo-v3-masthead">
-  <div class="geo-v3-logo"><span class="geo-v3-symbol">♞</span><div><strong>GEO VISION</strong><small>RACING AI ANALYSIS SYSTEM</small></div></div>
-  <div class="geo-v3-status"><span class="geo-v3-led"></span> RACING INTELLIGENCE</div>
-  <div class="geo-v3-decor">AI · PERFORMANCE · TELEMETRY</div>
-</div>""", unsafe_allow_html=True)
+# GEO VISION CHESTNUT: single header is rendered earlier.
 _geo_tabs = st.tabs(["🏇 予想", "📊 10項目分析", "⚡ 全レース", "📈 成績・学習"])
 st.markdown("""<style>
 /* GEO VISION mobile-first polish */
@@ -649,7 +644,7 @@ st.markdown("""<style>
 
 with _geo_tabs[0]:
     st.markdown('<span id="geo-race"></span><div class="vision-workspace-title">RACE CONTROL <span> / PREDICTION / TELEMETRY</span></div>', unsafe_allow_html=True)
-    _vision_left, _vision_middle, _vision_right = st.columns([1.05, 1.38, 1.38], gap="small")
+    _vision_left, _vision_middle, _vision_right = st.columns([0.92, 1.68, 1.40], gap="small")
     _vision_middle_slot = _vision_middle.empty()
     _vision_right_slot = _vision_right.empty()
     with _vision_left:
@@ -702,16 +697,32 @@ with _geo_tabs[0]:
 
         selected_index = race_options.index(selected_race_label)
         selected_race_summary = _visible_races[selected_index]
-        # Read-only race schedule: existing selectbox remains the authoritative selection.
-        _schedule_cards = []
-        for _r in _visible_races:
-            _rn = str(_r.get('race_no') or '').replace('R', '').zfill(2)
-            _rid = str(_r.get('race_id') or _r.get('id') or _r.get('race_code') or '')
-            _current = _rid == str(selected_race_summary.get('race_id') or selected_race_summary.get('id') or selected_race_summary.get('race_code') or '')
-            _title = html.escape(str(_r.get('name') or '通常競走'))
-            _post = html.escape(str(_r.get('post_time') or ''))
-            _schedule_cards.append(f'<div class="obs-race-item{" obs-race-active" if _current else ""}"><b>{_rn}R</b><span title="{_title}">{_title}</span><small>{_post}</small></div>')
-        st.markdown('<div class="obs-race-schedule"><div class="obs-schedule-title">RACE SCHEDULE <span> / 開催レース</span></div>'+''.join(_schedule_cards)+'</div>', unsafe_allow_html=True)
+        # Native Streamlit buttons make the schedule actionable and preserve race ID semantics.
+        # The selectbox remains authoritative; callbacks update its state before rerun.
+        def _geo_choose_schedule(label):
+            st.session_state["vision_race"] = label
+
+        with st.expander("🏁 開催レース一覧 / タップで切替", expanded=False):
+            for _i, _r in enumerate(_visible_races):
+                _label = race_options[_i]
+                _number = str(_r.get("race_no") or "").replace("R", "").zfill(2)
+                _title = str(_r.get("name") or "通常競走")
+                _time = str(_r.get("post_time") or "")
+                st.button(
+                    f"{'● ' if _i == selected_index else ''}{_number}R  {_title}  {_time}",
+                    key=f"geo_v6_schedule_{_i}",
+                    on_click=_geo_choose_schedule,
+                    args=(_label,),
+                    use_container_width=True,
+                    type="primary" if _i == selected_index else "secondary",
+                )
+        st.markdown(
+            '<div class="geo-v6-selected">'
+            + html.escape(str(selected_race_summary.get("venue") or selected_race_summary.get("place") or ""))
+            + ' <strong>' + html.escape(str(selected_race_summary.get("race_no") or "")) + 'R</strong> · '
+            + html.escape(str(selected_race_summary.get("name") or "")) + '</div>',
+            unsafe_allow_html=True,
+        )
 
 
     race_id = selected_race_summary.get(
@@ -5814,5 +5825,75 @@ st.markdown("""<style>
  .obs-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
  .vision-rank-row .vision-horse{overflow-wrap:anywhere!important;word-break:normal!important;line-height:1.25!important}
  .vision-hero-name{line-height:1.35!important}
+}
+</style>""",unsafe_allow_html=True)
+
+
+# GEO VISION V6 / CHESTNUT: visual-only palette and responsive layout.
+st.markdown("""<style>
+:root{--geo-bg:#0D1015;--geo-card:#192029;--geo-soft:#232B33;--geo-border:#40352F;--geo-chestnut:#B8663D;--geo-copper:#D99B69;--geo-muted:#B9ACA0;--geo-text:#F4EDE6}
+[data-testid="stAppViewContainer"]{background:radial-gradient(ellipse at 52% -12%,#29221e 0%,#111419 37%,#0D1015 74%)!important;color:#F4EDE6!important}
+[data-testid="stHeader"]{background:transparent!important}
+.vision-masthead{background:linear-gradient(115deg,#211c1b,#141a20)!important;border:1px solid #4c392f!important;box-shadow:none!important;border-radius:14px!important;margin-bottom:12px!important}
+.vision-symbol{background:#33231c!important;border:1px solid #8b5136!important;color:#D99B69!important;box-shadow:none!important}
+.vision-name,.vision-name span{color:#F4EDE6!important;text-shadow:none!important}
+.vision-sub{color:#B9A99D!important}
+.vision-live{background:#2b231f!important;color:#D8AA84!important;border:1px solid #684631!important;box-shadow:none!important}
+.vision-live i{background:#C17A4B!important;box-shadow:none!important}
+.vision-workspace-title,.vision-workspace-title span,.vision-overline{color:#BFA38D!important}
+.vision-panel-heading{background:#1D232A!important;color:#CDB5A1!important;border:1px solid #42362F!important;border-radius:10px!important}
+.vision-race,.vision-hero-pick,.vision-analysis-head,.vision-featured{background:#192029!important;border:1px solid #4B3A30!important;box-shadow:none!important}
+.vision-race-name,.vision-hero-name,.vision-analysis-head strong,.vision-featured-name{color:#F4EDE6!important}
+.vision-race-name span,.vision-hero-kicker,.vision-hero-name>span:first-child,.vision-featured-name span{color:#D99B69!important}
+.vision-race-metadata span{background:#242A30!important;border:1px solid #4B3A30!important;color:#D5C8BB!important}
+.vision-rank-list,.vision-feature-list,.obs-race-schedule{background:#192029!important;border:1px solid #45372E!important;box-shadow:none!important}
+.vision-rank-row{background:#192029!important;border-bottom:1px solid #39352F!important}
+.vision-rank-row:first-child{background:#292821!important;box-shadow:inset 3px 0 #B8663D!important}
+.vision-meter{background:#373C40!important}.vision-meter i{background:#B8663D!important}
+.vision-mark{color:#D7B28E!important}
+.obs-metric-card{background:#1B232B!important;border-color:#453A32!important}
+.obs-metric-card span{color:#C6B7AA!important}.obs-metric-card strong{color:#F4EDE6!important}
+.obs-race-active{background:#38271F!important;border-color:#995A3D!important;box-shadow:inset 3px 0 #B8663D!important}
+.geo-v6-selected{font-size:12px;color:#BFAE9F;background:#1A2026;border:1px solid #41362F;border-radius:9px;padding:10px 12px;margin:10px 0 4px;line-height:1.5}
+.geo-v6-selected strong{color:#D99B69}
+[data-testid="stTabs"] [data-baseweb="tab-list"]{background:#15191E!important;border-color:#46372E!important;box-shadow:none!important}
+[data-testid="stTabs"] button[role="tab"]{background:#1D242B!important;color:#D6C6B9!important;border-color:#42372F!important;box-shadow:none!important}
+[data-testid="stTabs"] button[role="tab"][aria-selected="true"]{background:#443024!important;border-color:#B8663D!important;color:#F6E7D9!important;box-shadow:none!important}
+[data-testid="stSelectbox"] [data-baseweb="select"]>div,[data-testid="stSegmentedControl"] button{background:#232930!important;border-color:#54463A!important;color:#F4EDE6!important}
+[data-testid="stSelectbox"] [data-baseweb="select"] span,[data-testid="stSelectbox"] [data-baseweb="select"] input{color:#F4EDE6!important;-webkit-text-fill-color:#F4EDE6!important}
+[data-testid="stSegmentedControl"] button[aria-checked="true"]{background:#563727!important;border-color:#B8663D!important;color:#FFF2E7!important}
+[data-testid="stMetric"]{background:#192029!important;border-color:#45372F!important}
+[data-testid="stExpander"]{background:#161D23!important;border:1px solid #40362E!important}
+[data-testid="stExpander"] summary{color:#E8D9CA!important}
+[data-testid="stButton"] button[kind="primary"]{background:#75452E!important;border-color:#A96745!important;color:#FFF3E8!important}
+[data-testid="stButton"] button[kind="secondary"]{background:#222930!important;border-color:#443A32!important;color:#EADCD0!important}
+[data-testid="stDataFrame"]{border-color:#49382D!important}
+[data-testid="stSidebar"]{background:#141A20!important}
+.vision-rank-row .vision-horse{min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;word-break:keep-all!important;overflow-wrap:normal!important}
+@media(min-width:1100px){
+ .block-container{max-width:1900px!important;padding:14px 20px 65px!important}
+ .vision-hero-pick{min-height:142px!important;padding:16px 18px!important}
+ .vision-rank-row .vision-horse{font-size:clamp(13px,1.2vw,19px)!important}
+ .vision-rank-row{min-height:53px!important}
+}
+@media(max-width:760px){
+ .block-container{padding:7px 11px 65px!important}
+ .vision-masthead{padding:10px 12px!important;margin-bottom:7px!important;min-height:58px!important}
+ .vision-name{font-size:20px!important}.vision-symbol{height:35px!important;width:35px!important;font-size:24px!important}
+ .vision-sub{font-size:7px!important}.vision-live{display:none!important}
+ .vision-workspace-title{display:none!important}
+ .vision-panel-heading{padding:8px 11px!important;margin:7px 0!important;font-size:11px!important}
+ .vision-hero-pick{padding:13px!important;min-height:0!important;margin:8px 0!important}
+ .vision-hero-name{font-size:clamp(19px,5.5vw,27px)!important;line-height:1.2!important}
+ .vision-rank-row{min-height:45px!important;padding:8px 8px!important}
+ .vision-rank-row .vision-horse{font-size:clamp(12px,3.6vw,16px)!important}
+ .vision-race{padding:12px 14px!important;margin:8px 0!important}
+ .vision-race-name{font-size:17px!important;line-height:1.3!important;overflow-wrap:anywhere}
+ .vision-race-metadata{margin-top:8px!important;gap:4px!important}
+ .vision-race-metadata span{font-size:10px!important;padding:4px 6px!important}
+ .obs-metric-card{padding:10px!important;gap:4px!important}
+ [data-testid="stTabs"] button[role="tab"]{min-height:38px!important;padding:6px 6px!important;font-size:11px!important}
+ [data-testid="stWidgetLabel"]{margin-bottom:1px!important}
+ [data-testid="stSelectbox"]{margin-bottom:0!important}
 }
 </style>""",unsafe_allow_html=True)
