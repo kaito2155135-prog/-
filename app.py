@@ -588,6 +588,11 @@ def load_race_list():
     return []
 
 
+@st.cache_data(ttl=45, show_spinner=False, max_entries=64)
+def geo_cached_race_detail(selected_race_id):
+    """Short-lived read-only cache for race cards; prediction APIs are never cached."""
+    return api_get(f"/race/{selected_race_id}")
+
 race_list = load_race_list()
 
 
@@ -620,6 +625,16 @@ st.markdown("""<style>
 @media(min-width:1150px){.block-container{max-width:1900px!important;padding:1.1rem 1.6rem 4rem!important}.vision-hero-pick{min-height:178px}.vision-rank-list{min-height:280px}.geo-v3-masthead{margin-bottom:20px}}
 @media(max-width:760px){.geo-v3-masthead{min-height:66px;padding:12px 14px;margin:0 0 12px;gap:8px}.geo-v3-logo{gap:8px}.geo-v3-symbol{font-size:32px}.geo-v3-logo strong{font-size:21px;letter-spacing:.065em}.geo-v3-logo small{font-size:7px;letter-spacing:.11em;margin-top:4px}.geo-v3-status{display:none}.geo-v3-decor{display:none}.vision-hero-pick{min-height:145px}.vision-rank-row{min-height:49px!important}[data-testid="stTabs"] [data-baseweb="tab-list"]{top:0!important;padding:5px!important;gap:4px!important}[data-testid="stTabs"] button[role="tab"]{font-size:11px!important;padding:8px 5px!important;white-space:nowrap}}
 </style>""",unsafe_allow_html=True)
+
+st.markdown("""<style>
+@media(max-width:760px){
+  .vision-workspace-title{margin:4px 0 7px!important}
+  .vision-panel-heading{padding:8px 11px!important;margin-bottom:7px!important}
+  [data-testid="stSelectbox"]{margin-bottom:0!important}
+  [data-testid="stVerticalBlock"]{gap:.45rem}
+  .geo-v17-horse-actions button{font-size:12px!important}
+}
+</style>""", unsafe_allow_html=True)
 
 # GEO VISION CHESTNUT: single header is rendered earlier.
 _geo_tabs = st.tabs(["🏇 予想", "📊 10項目分析", "⚡ 全レース", "📈 成績・学習"])
@@ -700,6 +715,21 @@ with _geo_tabs[0]:
         selected_race_label = st.selectbox("レース", race_options, key="vision_race")
 
 
+        # V17: one-tap neighboring races, without changing race IDs or API logic.
+        def _geo_quick_switch(index):
+            st.session_state["vision_race"] = race_options[index]
+        _quick_index = race_options.index(selected_race_label)
+        _quick_cols = st.columns([1, 2, 1], gap="small")
+        with _quick_cols[0]:
+            st.button("◀ 前R", key="geo_v17_prev", disabled=_quick_index == 0,
+                      use_container_width=True, on_click=_geo_quick_switch,
+                      args=(max(0, _quick_index - 1),))
+        with _quick_cols[1]:
+            st.caption(f"{_quick_index + 1} / {len(race_options)} レース")
+        with _quick_cols[2]:
+            st.button("次R ▶", key="geo_v17_next", disabled=_quick_index >= len(race_options)-1,
+                      use_container_width=True, on_click=_geo_quick_switch,
+                      args=(min(len(race_options)-1, _quick_index + 1),))
         selected_index = race_options.index(selected_race_label)
         selected_race_summary = _visible_races[selected_index]
         # Native Streamlit buttons make the schedule actionable and preserve race ID semantics.
@@ -756,7 +786,7 @@ with _geo_tabs[0]:
     # 選択レース詳細
     # =========================================================
 
-    race_detail = api_get(f"/race/{race_id}")
+    race_detail = geo_cached_race_detail(race_id)
 
 
     if not race_detail:
@@ -4900,13 +4930,37 @@ with _geo_tabs[0]:
                     mark=marks[i] if i < len(marks) else f'{i+1}位'
                     cards.append(f'<div class="vision-rank-row"><b class="vision-mark">{mark}</b>{_geo_horse_number_badge(horse, _vision_race_entries)}<span class="vision-horse">{esc(horse.get("馬名",""))}</span><strong>{score_text(n)}</strong><span class="vision-meter"><i style="width:{width:.1f}%"></i></span></div>')
                 st.markdown('<div class="vision-rank-list">'+''.join(cards)+'</div><div class="vision-small-note">正式モデル順位。指数は勝率ではありません。</div>',unsafe_allow_html=True)
+                # Native buttons: selecting a horse opens its existing detailed analysis
+                # without recalculating any prediction or modifying model state.
+                with st.expander("🔎 ランキングの馬を選んで詳細を見る", expanded=False):
+                    _detail_horses = list(frame.iterrows())
+                    for _offset in range(0, len(_detail_horses), 3):
+                        _action_cols = st.columns(3, gap="small")
+                        for _j, _pair in enumerate(_detail_horses[_offset:_offset+3]):
+                            _idx, _h = _pair
+                            _num = str(_h.get("馬番", ""))
+                            _label = f"{_offset+_j+1}位 {_num}番 {str(_h.get('馬名',''))}"
+                            with _action_cols[_j]:
+                                if st.button(_label, key=f"geo_v17_detail_{_offset+_j}", use_container_width=True):
+                                    st.session_state["geo_v17_selected_horse"] = _num
+                                    st.rerun()
+
         with _vision_right_slot.container():
             st.markdown('<span id="geo-lab-mobile"></span><div class="vision-panel-heading">03 / RACING LAB · MODEL TELEMETRY</div>',unsafe_allow_html=True)
             # Read-only display of API values; no changes to prediction, model, or storage.
             all_horses=geo["df_geo"].sort_values([rank,"馬番"])
             names=[f"{r.get('馬番','')}番 {r.get('馬名','')}" for _,r in all_horses.iterrows()]
             key_suffix='tab' if only_analysis else 'desk'
-            choice=st.selectbox('分析対象馬',range(len(names)),format_func=lambda i:names[i],key='vision_analysis_horse_'+key_suffix)
+            _analysis_key = 'vision_analysis_horse_'+key_suffix
+            _requested_num = st.session_state.get("geo_v17_selected_horse")
+            if _requested_num is not None:
+                for _pos, (_, _row) in enumerate(all_horses.iterrows()):
+                    if str(_row.get("馬番", "")) == str(_requested_num):
+                        st.session_state[_analysis_key] = _pos
+                        break
+                # Do not overwrite a later manual selection on subsequent reruns.
+                st.session_state.pop("geo_v17_selected_horse", None)
+            choice=st.selectbox('分析対象馬',range(len(names)),format_func=lambda i:names[i],key=_analysis_key)
             chosen=all_horses.iloc[choice]
             selected_num=pd.to_numeric(chosen.get('馬番'),errors='coerce')
             def matching(payload):
