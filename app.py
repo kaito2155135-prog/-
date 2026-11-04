@@ -4811,7 +4811,7 @@ with _geo_tabs[0]:
         rank="学習10項目順位" if str(geo.get("prediction_model", "")).startswith("Phase18.5") else "正式10項目順位"
         score="学習10項目スコア" if rank=="学習10項目順位" else "正式10項目スコア"
         if rank not in frame.columns: return
-        frame=frame.sort_values([rank,"馬番"]).head(5)
+        frame=frame.sort_values([rank,"馬番"]).copy()
         if frame.empty: return
         lead=frame.iloc[0]
         _vision_race_entries = df_race if "df_race" in globals() and isinstance(df_race, pd.DataFrame) else None
@@ -4823,12 +4823,21 @@ with _geo_tabs[0]:
             with _vision_middle_slot.container():
                 st.markdown('<div class="vision-panel-heading">02 / GEO PREDICTION</div>',unsafe_allow_html=True)
                 st.markdown(f'<div class="vision-hero-pick"><div class="vision-hero-kicker">♛　GEO TOP PICK / 本命</div><div class="vision-hero-name"><span>◎</span> {_geo_horse_number_badge(lead, _vision_race_entries)} {esc(lead.get("馬名",""))}</div><div class="vision-hero-score">GEO INDEX <strong>{score_text(lead.get(score))}</strong></div></div>',unsafe_allow_html=True)
+                # Only the presentation changes: the source ranking and scores are unchanged.
+                show_all = st.toggle(
+                    f"全順位を表示（{len(frame)}頭）",
+                    value=False,
+                    key="geo_vision_show_all_ranks",
+                    help="オフ：上位5頭のみ／オン：APIが返した全頭を正式モデル順に表示",
+                )
                 marks=['◎','○','▲','△','☆']
                 cards=[]
-                for i,(_,horse) in enumerate(frame.iterrows()):
+                visible_frame = frame if show_all else frame.head(5)
+                for i,(_,horse) in enumerate(visible_frame.iterrows()):
                     n=pd.to_numeric(horse.get(score),errors="coerce")
                     width=max(0,min(100,float(n)*100)) if pd.notna(n) else 0
-                    cards.append(f'<div class="vision-rank-row"><b class="vision-mark">{marks[i]}</b>{_geo_horse_number_badge(horse, _vision_race_entries)}<span class="vision-horse">{esc(horse.get("馬名",""))}</span><strong>{score_text(n)}</strong><span class="vision-meter"><i style="width:{width:.1f}%"></i></span></div>')
+                    mark=marks[i] if i < len(marks) else f'{i+1}位'
+                    cards.append(f'<div class="vision-rank-row"><b class="vision-mark">{mark}</b>{_geo_horse_number_badge(horse, _vision_race_entries)}<span class="vision-horse">{esc(horse.get("馬名",""))}</span><strong>{score_text(n)}</strong><span class="vision-meter"><i style="width:{width:.1f}%"></i></span></div>')
                 st.markdown('<div class="vision-rank-list">'+''.join(cards)+'</div><div class="vision-small-note">正式モデル順位。指数は勝率ではありません。</div>',unsafe_allow_html=True)
         with _vision_right_slot.container():
             st.markdown('<span id="geo-lab-mobile"></span><div class="vision-panel-heading">03 / RACING LAB · MODEL TELEMETRY</div>',unsafe_allow_html=True)
