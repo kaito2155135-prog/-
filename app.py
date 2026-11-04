@@ -711,13 +711,38 @@ with _geo_tabs[0]:
         _visible_races = [r for r in _day_races if _venue == "すべて" or str(r.get("venue") or r.get("place") or "不明") == _venue]
         if not _visible_races:
             _visible_races = _day_races
-        race_options = [f"{r.get('race_no','')}R  {r.get('name') or '通常競走'}  · {r.get('post_time') or ''}" for r in _visible_races]
-        selected_race_label = st.selectbox("レース", race_options, key="vision_race")
+        race_options = [f"{r.get('race_no','')}R  {r.get('name') or r.get('kyosomei_hondai') or ''}  · {r.get('post_time') or ''}" for r in _visible_races]
+        # V18: button-based race picker. No native select/search field, so iOS
+        # never opens its keyboard and the page remains vertically scrollable.
+        if not race_options:
+            st.warning("選択できるレースがありません。")
+            st.stop()
+        if st.session_state.get("vision_race") not in race_options:
+            st.session_state["vision_race"] = race_options[0]
+        selected_race_label = st.session_state["vision_race"]
 
-
-        # V17: one-tap neighboring races, without changing race IDs or API logic.
         def _geo_quick_switch(index):
             st.session_state["vision_race"] = race_options[index]
+
+        st.markdown("**レースを選択**")
+        st.caption("レース名付きボタンをタップして切替（キーボード不要）")
+        # V19: two-column race cards with the real race title from the API.
+        # Do not substitute a fictional title when no title is available.
+        _race_button_cols = st.columns(2, gap="small")
+        for _race_i, _race_item in enumerate(_visible_races):
+            _race_no = str(_race_item.get("race_no") or "").replace("R", "").strip()
+            _race_no_label = f"{_race_no.zfill(2)}R" if _race_no.isdigit() else f"{_race_no}R"
+            _race_title = str(_race_item.get("name") or _race_item.get("kyosomei_hondai") or "").strip()
+            _button_label = f"{_race_no_label}  {_race_title}" if _race_title else _race_no_label
+            with _race_button_cols[_race_i % 2]:
+                st.button(
+                    _button_label,
+                    key=f"geo_v19_race_button_{_race_i}",
+                    type="primary" if race_options[_race_i] == selected_race_label else "secondary",
+                    use_container_width=True,
+                    on_click=_geo_quick_switch,
+                    args=(_race_i,),
+                )
         _quick_index = race_options.index(selected_race_label)
         _quick_cols = st.columns([1, 2, 1], gap="small")
         with _quick_cols[0]:
@@ -733,7 +758,7 @@ with _geo_tabs[0]:
         selected_index = race_options.index(selected_race_label)
         selected_race_summary = _visible_races[selected_index]
         # Native Streamlit buttons make the schedule actionable and preserve race ID semantics.
-        # The selectbox remains authoritative; callbacks update its state before rerun.
+        # The button selection remains authoritative; callbacks update its state before rerun.
         def _geo_choose_schedule(label):
             st.session_state["vision_race"] = label
 
@@ -2715,52 +2740,7 @@ with _geo_tabs[0]:
     st.markdown("<br>", unsafe_allow_html=True)
 
 
-    if st.button(
-        "🚀 走破タイム×上がり3F完全統合シミュレーションを実行"
-    ):
-        with st.spinner(
-            "JRA-VANから各馬の過去走を取得し、"
-            "基準走破タイム・基準上がり3Fと照合しています..."
-        ):
-            master_data = build_master_data_from_jv(
-                df_race
-            )
-
-            if master_data.empty:
-                st.error(
-                    "JRA-VANから過去走データを取得できませんでした。"
-                )
-                st.stop()
-
-            st.session_state[
-                "df_simulated"
-            ] = run_integrated_simulation(
-                df_race,
-                selected_pace,
-                selected_bias,
-                selected_condition,
-                master_data,
-                race_category,
-                straight_len,
-                race_place,
-                race_surface,
-                course_toughness,
-                race_class,
-                df_base_master,
-                df_f3_master,
-            )
-
-            st.session_state[
-                "sim_executed"
-            ] = True
-
-            st.session_state[
-                "master_data_jv"
-            ] = master_data
-
-            st.success(
-                f"JRA-VAN過去走 {len(master_data)}件を取得して計算しました。"
-            )
+    # 統合シミュレーションは下の「ジオにレースを分析させる」から一括実行します。
 
     # ============================================================
     # Geo予想をSQLiteへ自動保存
@@ -4789,16 +4769,60 @@ with _geo_tabs[0]:
             st.caption('モデル準備中は、画面を再読み込みすると進捗を確認できるで。')
 
     if st.button(
-        "🧠 ジオにレースを分析させる",
+        "🧠 ジオにレースを分析させる（統合シミュレーション込み）",
         key="geo_prediction_button",
         type="primary"
     ):
-        if not st.session_state.get("sim_executed", False) or "df_simulated" not in st.session_state:
-            st.warning("先に『🚀 走破タイム×上がり3F完全統合シミュレーションを実行』を押してください。")
-            st.stop()
         if len(_geo49_date)==8 and _geo49_date.isdigit() and not _geo49_ready:
             st.warning('新ジオの学習済みモデルがまだ準備できていません。先に「モデルを事前準備」を実行してな。')
             st.stop()
+        # 1クリックでJRA-VAN過去走取得 → 統合シミュレーション → GEO予想。
+        # 既存の計算関数・引数は変更しない。
+        with st.spinner(
+            "JRA-VANから各馬の過去走を取得し、"
+            "基準走破タイム・基準上がり3Fと照合しています..."
+        ):
+            master_data = build_master_data_from_jv(
+                df_race
+            )
+
+            if master_data.empty:
+                st.error(
+                    "JRA-VANから過去走データを取得できませんでした。"
+                )
+                st.stop()
+
+            st.session_state[
+                "df_simulated"
+            ] = run_integrated_simulation(
+                df_race,
+                selected_pace,
+                selected_bias,
+                selected_condition,
+                master_data,
+                race_category,
+                straight_len,
+                race_place,
+                race_surface,
+                course_toughness,
+                race_class,
+                df_base_master,
+                df_f3_master,
+            )
+
+            st.session_state[
+                "sim_executed"
+            ] = True
+
+            st.session_state[
+                "master_data_jv"
+            ] = master_data
+
+            st.success(
+                f"JRA-VAN過去走 {len(master_data)}件を取得して計算しました。"
+            )
+
+
         geo_result = run_geo_prediction(
             st.session_state["df_simulated"],
             selected_pace,
@@ -4894,7 +4918,7 @@ with _geo_tabs[0]:
         if not isinstance(geo, dict) or not isinstance(geo.get("df_geo"), pd.DataFrame):
             if not only_analysis:
                 with _vision_middle_slot.container():
-                    st.markdown('<div class="vision-panel-heading">02 / GEO PREDICTION</div><div class="vision-empty">予想待機中<br><small>下の「統合シミュレーション」→「ジオにレースを分析させる」を実行</small></div>', unsafe_allow_html=True)
+                    st.markdown('<div class="vision-panel-heading">02 / GEO PREDICTION</div><div class="vision-empty">予想待機中<br><small>下の「ジオにレースを分析させる」を実行</small></div>', unsafe_allow_html=True)
             with _vision_right_slot.container():
                 st.markdown('<div class="vision-panel-heading">03 / RACING LAB</div><div class="vision-empty">分析データ待機中<br><small>予想実行後に10項目の内訳を表示します</small></div>', unsafe_allow_html=True)
             return
