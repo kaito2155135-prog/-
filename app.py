@@ -711,6 +711,12 @@ with _geo_tabs[0]:
         _visible_races = [r for r in _day_races if _venue == "すべて" or str(r.get("venue") or r.get("place") or "不明") == _venue]
         if not _visible_races:
             _visible_races = _day_races
+        # V21: normalize display order by race number (01R, 02R, ...).
+        # Keep original race dictionaries and identifiers unchanged.
+        def _geo_race_sort_key(r):
+            raw = str(r.get("race_no") or "").replace("R", "").strip()
+            return (int(raw) if raw.isdigit() else 999, raw)
+        _visible_races = sorted(_visible_races, key=_geo_race_sort_key)
         race_options = [f"{r.get('race_no','')}R  {r.get('name') or r.get('kyosomei_hondai') or ''}  · {r.get('post_time') or ''}" for r in _visible_races]
         # V18: button-based race picker. No native select/search field, so iOS
         # never opens its keyboard and the page remains vertically scrollable.
@@ -728,8 +734,11 @@ with _geo_tabs[0]:
         st.caption("レース名付きボタンをタップして切替（キーボード不要）")
         # V19: two-column race cards with the real race title from the API.
         # Do not substitute a fictional title when no title is available.
-        _race_button_cols = st.columns(2, gap="small")
         for _race_i, _race_item in enumerate(_visible_races):
+            # Create a new row for every two races; reusing the same columns
+            # stacks all odd races before all even races on narrow screens.
+            if _race_i % 2 == 0:
+                _race_button_cols = st.columns(2, gap="small")
             _race_no = str(_race_item.get("race_no") or "").replace("R", "").strip()
             _race_no_label = f"{_race_no.zfill(2)}R" if _race_no.isdigit() else f"{_race_no}R"
             _race_title = str(_race_item.get("name") or _race_item.get("kyosomei_hondai") or "").strip()
