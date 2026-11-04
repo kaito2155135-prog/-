@@ -1230,35 +1230,37 @@ with _geo_tabs[0]:
     ]
 
 
-    with st.expander(f"🏇 出馬表・枠色一覧・編集（{len(df_race)}頭）", expanded=False):
-        edited_df = st.data_editor(
-            df_race[edit_columns],
-            column_config={
-                "脚質": st.column_config.SelectboxColumn(
-                    "脚質",
-                    options=["逃げ", "先行", "差し", "追込"],
-                    required=True,
-                ),
-                "得意馬場": st.column_config.SelectboxColumn(
-                    "得意馬場",
-                    options=[
-                        "指定なし",
-                        "良",
-                        "稍重",
-                        "重",
-                        "不良",
-                    ],
-                    required=True,
-                ),
-                "オッズ": st.column_config.NumberColumn(
-                    "オッズ",
-                    format="%.1f",
-                ),
-            },
-            use_container_width=True,
-            hide_index=True,
-            key="race_data_editor",
-        )
+    with st.expander(f"🏇 カラー出馬表（{len(df_race)}頭）", expanded=False):
+        with st.popover("⚙️ 出馬表の編集（必要なときだけ）", use_container_width=False):
+            st.caption("馬名・血統・オッズ・脚質・得意馬場などを編集できます。")
+            edited_df = st.data_editor(
+                df_race[edit_columns],
+                column_config={
+                    "脚質": st.column_config.SelectboxColumn(
+                        "脚質",
+                        options=["逃げ", "先行", "差し", "追込"],
+                        required=True,
+                    ),
+                    "得意馬場": st.column_config.SelectboxColumn(
+                        "得意馬場",
+                        options=[
+                            "指定なし",
+                            "良",
+                            "稍重",
+                            "重",
+                            "不良",
+                        ],
+                        required=True,
+                    ),
+                    "オッズ": st.column_config.NumberColumn(
+                        "オッズ",
+                        format="%.1f",
+                    ),
+                },
+                use_container_width=True,
+                hide_index=True,
+                key="race_data_editor",
+            )
 
 
         for col in edit_columns:
@@ -1320,7 +1322,7 @@ with _geo_tabs[0]:
         @media(max-width:760px){.geo-entry-row{grid-template-columns:38px 32px minmax(0,1fr) 56px;gap:6px;padding:7px 6px}.geo-entry-waku{font-size:10px}.geo-entry-num{font-size:12px}.geo-entry-horse{font-size:12px}.geo-entry-pedigree{font-size:10px;column-gap:8px}.geo-entry-jockey{display:none}.geo-entry-odds{font-size:11px}}
         </style>''', unsafe_allow_html=True)
         st.markdown('<div class="geo-entry-list">' + ''.join(_geo_entry_rows) + '</div>', unsafe_allow_html=True)
-        st.caption("枠色はJRAの1〜8枠に対応。出馬表の値をそのまま表示しています。父・母も各馬の下に表示。上部の編集表で変更できます。")
+        st.caption("枠色はJRAの1〜8枠に対応。出馬表の値をそのまま表示しています。父・母も各馬の下に表示。変更が必要な場合のみ「⚙️ 出馬表の編集」を開いてください。")
 
 
     # =========================================================
