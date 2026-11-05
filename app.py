@@ -711,13 +711,14 @@ with _geo_tabs[0]:
         _visible_races = [r for r in _day_races if _venue == "すべて" or str(r.get("venue") or r.get("place") or "不明") == _venue]
         if not _visible_races:
             _visible_races = _day_races
-        # V21: normalize display order by race number (01R, 02R, ...).
-        # Keep original race dictionaries and identifiers unchanged.
+        # V23: distinguish tracks when the venue filter is "すべて".
+        # Multiple venues each have 01R-12R; they must not appear as duplicate buttons.
         def _geo_race_sort_key(r):
             raw = str(r.get("race_no") or "").replace("R", "").strip()
-            return (int(raw) if raw.isdigit() else 999, raw)
+            venue = str(r.get("venue") or r.get("place") or "不明")
+            return (venue, int(raw) if raw.isdigit() else 999, raw)
         _visible_races = sorted(_visible_races, key=_geo_race_sort_key)
-        race_options = [f"{r.get('race_no','')}R  {r.get('name') or r.get('kyosomei_hondai') or ''}  · {r.get('post_time') or ''}" for r in _visible_races]
+        race_options = [f"{r.get('venue') or r.get('place') or '不明'} · {r.get('race_no','')}R  {r.get('name') or r.get('kyosomei_hondai') or ''}  · {r.get('post_time') or ''} · {r.get('race_id') or r.get('id') or ''}" for r in _visible_races]
         # V18: button-based race picker. No native select/search field, so iOS
         # never opens its keyboard and the page remains vertically scrollable.
         if not race_options:
@@ -734,16 +735,20 @@ with _geo_tabs[0]:
         st.caption("レース名付きボタンをタップして切替（キーボード不要）")
         # V19: two-column race cards with the real race title from the API.
         # Do not substitute a fictional title when no title is available.
+        _last_venue = None
         for _race_i, _race_item in enumerate(_visible_races):
-            # Create a new row for every two races; reusing the same columns
-            # stacks all odd races before all even races on narrow screens.
-            if _race_i % 2 == 0:
+            _item_venue = str(_race_item.get("venue") or _race_item.get("place") or "不明")
+            if _item_venue != _last_venue:
+                st.markdown(f"**{_item_venue}**")
+                _last_venue = _item_venue
+                _venue_race_i = 0
+            if _venue_race_i % 2 == 0:
                 _race_button_cols = st.columns(2, gap="small")
             _race_no = str(_race_item.get("race_no") or "").replace("R", "").strip()
             _race_no_label = f"{_race_no.zfill(2)}R" if _race_no.isdigit() else f"{_race_no}R"
             _race_title = str(_race_item.get("name") or _race_item.get("kyosomei_hondai") or "").strip()
             _button_label = f"{_race_no_label}  {_race_title}" if _race_title else _race_no_label
-            with _race_button_cols[_race_i % 2]:
+            with _race_button_cols[_venue_race_i % 2]:
                 st.button(
                     _button_label,
                     key=f"geo_v19_race_button_{_race_i}",
@@ -752,6 +757,7 @@ with _geo_tabs[0]:
                     on_click=_geo_quick_switch,
                     args=(_race_i,),
                 )
+            _venue_race_i += 1
         _quick_index = race_options.index(selected_race_label)
         _quick_cols = st.columns([1, 2, 1], gap="small")
         with _quick_cols[0]:
