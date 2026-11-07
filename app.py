@@ -3645,7 +3645,7 @@ with _geo_tabs[0]:
     </style>
     """,unsafe_allow_html=True)
 
-    def display_geo_prediction(geo):
+    def display_geo_prediction(geo, key_prefix="prediction"):
         # Phase16.50: 旧指数・補正合計・旧自信度は一切表示しない。
         if geo is None:
             st.warning("新ジオの予測結果がありません。")
@@ -3698,7 +3698,7 @@ with _geo_tabs[0]:
             with st.expander('🔍 各馬の10項目採点内訳（学習済みモデル）', expanded=False):
                 _options = [(int(r['馬番']), str(r['馬名'])) for _,r in df.iterrows()]
                 _chosen = st.selectbox('内訳を表示する馬', options=_options,
-                    format_func=lambda x: f'{x[0]}番 {x[1]}', key='geo_feature_breakdown_horse')
+                    format_func=lambda x: f'{x[0]}番 {x[1]}', key=f"{key_prefix}_geo_feature_breakdown_horse")
                 _detail = _by_num.get(_chosen[0], {})
                 _parts = _detail.get('feature_breakdown') or {}
                 if _parts:
@@ -3958,7 +3958,7 @@ with _geo_tabs[0]:
                     st.markdown("**全頭比較：プラスの改善秒ほど直近の走りが速い（小さい秒数が優秀）**")
                     st.dataframe(_growth_df, use_container_width=True, hide_index=True)
                     _growth_horses = [f"{r['馬番']}番 {r['馬名']}" for r in _growth_summary]
-                    _selected_growth = st.selectbox("過去走別の根拠を確認する馬", _growth_horses, key="geo_v40_growth_horse")
+                    _selected_growth = st.selectbox("過去走別の根拠を確認する馬", _growth_horses, key=f"{key_prefix}_geo_v40_growth_horse")
                     _selected_idx = _growth_horses.index(_selected_growth)
                     _selected_horse = _growth_summary[_selected_idx]
                     st.write(f"**{_selected_horse['馬名']}**：現行中央値 {_selected_horse['現行中央値秒']}秒 / 直近2走 {_selected_horse['直近2走中央値秒']}秒 / 直近3走 {_selected_horse['直近3走中央値秒']}秒")
@@ -3970,7 +3970,7 @@ with _geo_tabs[0]:
                     st.info("有効な過去走の走破タイムがないため比較できません。")
             with st.expander("⚖️ 過去6走の直近重視・加重平均比較（v41・診断専用）", expanded=False):
                 st.caption("現行の6走中央値と、直近ほど重くした加重平均を比較します。指数・予想順位・自己学習には反映しません。換算タイムは既存のクラス補正込みです。")
-                _weight_step = st.slider("1走古くなるごとの重みの減少", min_value=0.00, max_value=0.20, value=0.05, step=0.01, key="geo_v41_weight_step", help="0.05なら直近から 1.00, 0.95, 0.90, 0.85, 0.80, 0.75")
+                _weight_step = st.slider("1走古くなるごとの重みの減少", min_value=0.00, max_value=0.20, value=0.05, step=0.01, key=f"{key_prefix}_geo_v41_weight_step", help="0.05なら直近から 1.00, 0.95, 0.90, 0.85, 0.80, 0.75")
                 _weighted_rows = []
                 _weighted_details = []
                 for _, _wh in dashboard_df.iterrows():
@@ -4015,7 +4015,7 @@ with _geo_tabs[0]:
                     st.dataframe(_wdf.sort_values("現在のGEO順位"), use_container_width=True, hide_index=True)
                     st.caption("『タイム順位』は走破タイム単独の参考順位であり、GEO総合順位ではありません。プラスの改善秒＝加重平均が従来中央値より速い。加重平均と中央値は集約方法も異なるため、差の全てが直近重視の効果ではありません。")
                     _choices = [f"{r['馬番']}番 {r['馬名']}" for r in _weighted_rows]
-                    _choice = st.selectbox("過去走別の重みを確認", _choices, key="geo_v41_weighted_horse")
+                    _choice = st.selectbox("過去走別の重みを確認", _choices, key=f"{key_prefix}_geo_v41_weighted_horse")
                     _selected = _weighted_rows[_choices.index(_choice)]
                     _detail = [r for r in _weighted_details if str(r["馬番"]) == str(_selected["馬番"]) and str(r["馬名"]) == str(_selected["馬名"])]
                     st.dataframe(pd.DataFrame(_detail), use_container_width=True, hide_index=True)
@@ -4091,7 +4091,7 @@ with _geo_tabs[0]:
                     st.dataframe(_v43_df.sort_values("現行GEO順位")[_v43_columns], use_container_width=True, hide_index=True)
                     _v43_pick = st.selectbox("馬別の配点差を確認", list(range(len(_v43_df))),
                                              format_func=lambda i: f"{_v43_df.iloc[i]['馬番']} {_v43_df.iloc[i]['馬名']}",
-                                             key="geo_v43_horse")
+                                             key=f"{key_prefix}_geo_v43_horse")
                     _v43_selected = _v43_df.iloc[_v43_pick]
                     _v43_detail = []
                     for _v43_step in _v43_steps:
@@ -4225,7 +4225,7 @@ with _geo_tabs[0]:
                 choice = st.selectbox(
                     "分析対象馬", options,
                     format_func=lambda i: f"{dashboard_df.iloc[i].get('馬番','')}番  {dashboard_df.iloc[i].get('馬名','')}",
-                    key="geo_v9_selected_horse",
+                    key=f"{key_prefix}_geo_v9_selected_horse",
                 )
                 chosen = dashboard_df.iloc[choice]
                 a,b,c = st.columns(3)
@@ -4561,12 +4561,12 @@ with _geo_tabs[0]:
                 _v45_names = [x[0] for x in _v45_horses]
                 _v45_default = next((i for i, n in enumerate(_v45_names) if "アンパドゥ" in n), 0)
                 _v45_index = st.selectbox("診断する馬", range(len(_v45_names)), index=_v45_default,
-                                         format_func=lambda i: _v45_names[i], key="geo_v45_horse")
+                                         format_func=lambda i: _v45_names[i], key=f"{key_prefix}_geo_v45_horse")
                 _v45_name, _v45_hid = _v45_horses[_v45_index]
                 _v45_asof = st.date_input("集計締切日（この日までの相手の後続成績）", value=__import__("datetime").date.today(),
-                                          key="geo_v45_asof")
+                                          key=f"{key_prefix}_geo_v45_asof")
                 st.caption("過去のレース前検証では、そのレースの前日を指定。ただし診断APIは対象馬の過去走自体を日付で除外しないため、厳密な当時の予想再現ではありません。")
-                if st.button("この馬の過去3走を詳しく調べる", key="geo_v45_fetch"):
+                if st.button("この馬の過去3走を詳しく調べる", key=f"{key_prefix}_geo_v45_fetch"):
                     try:
                         from urllib.parse import quote as _v45_quote
                         _v45_resp = requests.get(
@@ -5079,7 +5079,7 @@ with _geo_tabs[0]:
 
     if _cached_geo is not None and _cached_race_id == str(race_id):
         with st.expander("📊 全評価内訳・従来の詳細データを開く", expanded=False):
-            display_geo_prediction(_cached_geo)
+            display_geo_prediction(_cached_geo, key_prefix="prediction")
     elif not st.session_state.get("sim_executed", False):
         st.info(
             "👆 ペース・バイアス等を設定して、"
@@ -5100,7 +5100,7 @@ with _geo_tabs[1]:
     _vision_render_workspace(_cached_geo if _cached_race_id == str(race_id) else None, only_analysis=True)
     if _cached_geo is not None and _cached_race_id == str(race_id):
         with st.expander("全評価内訳・元データを確認", expanded=False):
-            display_geo_prediction(_cached_geo)
+            display_geo_prediction(_cached_geo, key_prefix="analysis")
 
 def geo_auto_race_context(race_summary, race_detail):
     if isinstance(race_detail, dict) and isinstance(race_detail.get("race"), dict):
