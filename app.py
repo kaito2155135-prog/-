@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # 基本設定
 # =========================================================
 
-API_BASE = os.environ.get("JRA_VAN_API_BASE", "https://dealers-sullivan-floating-aircraft.trycloudflare.com").strip().rstrip("/")
+API_BASE = os.environ.get("JRA_VAN_API_BASE", "https://hardcover-genius-textiles-interview.trycloudflare.com").strip().rstrip("/")
 
 
 # Shared tier-to-tier class transfer policy (mirrors Flask API).
